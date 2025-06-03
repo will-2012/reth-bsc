@@ -13,6 +13,7 @@ use reth::{
     },
     transaction_pool::{PoolTransaction, TransactionOrigin, TransactionPool},
 };
+use reth_primitives::EthPrimitives;
 use reth_provider::{BlockReader, BlockReaderIdExt, ProviderTx, TransactionsProvider};
 use reth_rpc_eth_api::{
     helpers::{EthSigner, EthTransactions, LoadTransaction, SpawnBlocking},
@@ -26,10 +27,11 @@ where
 {
 }
 
-impl<N> TransactionCompat<TransactionSigned> for BscEthApi<N>
+impl<N> TransactionCompat for BscEthApi<N>
 where
     N: FullNodeComponents<Provider: ReceiptProvider<Receipt = Receipt>>,
 {
+    type Primitives = EthPrimitives;
     type Transaction = <Ethereum as Network>::TransactionResponse;
 
     type Error = EthApiError;

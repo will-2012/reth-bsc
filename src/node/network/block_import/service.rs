@@ -1,6 +1,8 @@
-use crate::consensus::{ParliaConsensus, ParliaConsensusErr};
-
 use super::handle::ImportHandle;
+use crate::{
+    consensus::{ParliaConsensus, ParliaConsensusErr},
+    node::{network::BscNewBlock, rpc::engine_api::payload::BscPayloadTypes},
+};
 use alloy_rpc_types::engine::{ForkchoiceState, PayloadStatusEnum};
 use futures::{future::Either, stream::FuturesUnordered, StreamExt};
 use reth_engine_primitives::{BeaconConsensusEngineHandle, EngineTypes};
@@ -9,6 +11,7 @@ use reth_network::{
     message::NewBlockMessage,
 };
 use reth_network_api::PeerId;
+use reth_node_ethereum::EthEngineTypes;
 use reth_payload_primitives::{BuiltPayload, EngineApiMessageVersion, PayloadTypes};
 use reth_primitives::NodePrimitives;
 use reth_primitives_traits::{AlloyBlockHeader, Block};
@@ -22,113 +25,113 @@ use std::{
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 /// The block type for a given engine
-pub type BscBlock<T> =
-    <<<T as PayloadTypes>::BuiltPayload as BuiltPayload>::Primitives as NodePrimitives>::Block;
+pub type BscBlock = reth_ethereum_primitives::Block;
 
 /// Network message containing a new block
-pub(crate) type BlockMsg<T> = NewBlockMessage<BscBlock<T>>;
+pub(crate) type BlockMsg = NewBlockMessage<BscNewBlock>;
 
 /// Import outcome for a block
-pub(crate) type Outcome<T> = BlockImportOutcome<BscBlock<T>>;
+pub(crate) type Outcome = BlockImportOutcome<BscNewBlock>;
 
 /// Import event for a block
-pub(crate) type ImportEvent<T> = BlockImportEvent<BscBlock<T>>;
+pub(crate) type ImportEvent = BlockImportEvent<BscNewBlock>;
 
 /// Future that processes a block import and returns its outcome
-type PayloadFut<T> = Pin<Box<dyn Future<Output = Outcome<T>> + Send + Sync>>;
+type PayloadFut = Pin<Box<dyn Future<Output = Outcome> + Send + Sync>>;
 
 /// Future that processes a forkchoice update and returns its outcome
-type FcuFut<T> = Pin<Box<dyn Future<Output = Outcome<T>> + Send + Sync>>;
+type FcuFut = Pin<Box<dyn Future<Output = Outcome> + Send + Sync>>;
 
 /// Channel message type for incoming blocks
-pub(crate) type IncomingBlock<T> = (BlockMsg<T>, PeerId);
+pub(crate) type IncomingBlock = (BlockMsg, PeerId);
 
 /// A service that handles bidirectional block import communication with the network.
 /// It receives new blocks from the network via `from_network` channel and sends back
 /// import outcomes via `to_network` channel.
-pub struct ImportService<Provider, T>
+pub struct ImportService<Provider>
 where
     Provider: BlockNumReader + Clone,
-    T: PayloadTypes,
 {
     /// The handle to communicate with the engine service
-    engine: BeaconConsensusEngineHandle<T>,
+    engine: BeaconConsensusEngineHandle<BscPayloadTypes>,
     /// The consensus implementation
     consensus: Arc<ParliaConsensus<Provider>>,
     /// Receive the new block from the network
-    from_network: UnboundedReceiver<IncomingBlock<T>>,
+    from_network: UnboundedReceiver<IncomingBlock>,
     /// Send the event of the import to the network
-    to_network: UnboundedSender<ImportEvent<T>>,
+    to_network: UnboundedSender<ImportEvent>,
     /// Pending block imports.
-    pending_imports: FuturesUnordered<Either<PayloadFut<T>, FcuFut<T>>>,
+    pending_imports: FuturesUnordered<Either<PayloadFut, FcuFut>>,
 }
 
-impl<Provider, T> ImportService<Provider, T>
+impl<Provider> ImportService<Provider>
 where
     Provider: BlockNumReader + Clone + 'static,
-    T: PayloadTypes,
 {
     /// Create a new block import service
     pub fn new(
         consensus: Arc<ParliaConsensus<Provider>>,
-        engine: BeaconConsensusEngineHandle<T>,
-    ) -> (Self, ImportHandle<T>) {
-        let (to_import, from_network) = mpsc::unbounded_channel();
-        let (to_network, import_outcome) = mpsc::unbounded_channel();
-
-        (
-            Self {
-                engine,
-                consensus,
-                from_network,
-                to_network,
-                pending_imports: FuturesUnordered::new(),
-            },
-            ImportHandle::new(to_import, import_outcome),
-        )
+        engine: BeaconConsensusEngineHandle<BscPayloadTypes>,
+        from_network: UnboundedReceiver<IncomingBlock>,
+        to_network: UnboundedSender<ImportEvent>,
+    ) -> Self {
+        Self {
+            engine,
+            consensus,
+            from_network,
+            to_network,
+            pending_imports: FuturesUnordered::new(),
+        }
     }
 
     /// Process a new payload and return the outcome
-    fn new_payload(&self, block: BlockMsg<T>, peer_id: PeerId) -> PayloadFut<T> {
+    fn new_payload(&self, block: BlockMsg, peer_id: PeerId) -> PayloadFut {
         let engine = self.engine.clone();
 
         Box::pin(async move {
-            let sealed_block = block.block.block.clone().seal();
-            let payload = T::block_to_payload(sealed_block);
+            let sealed_block = block.block.inner.block.clone().seal();
+            let payload = BscPayloadTypes::block_to_payload(sealed_block);
 
             match engine.new_payload(payload).await {
                 Ok(payload_status) => match payload_status.status {
-                    PayloadStatusEnum::Valid => Outcome::<T> {
+                    PayloadStatusEnum::Valid => Outcome {
                         peer: peer_id,
                         result: Ok(BlockValidation::ValidBlock { block }),
                     },
-                    PayloadStatusEnum::Invalid { validation_error } => Outcome::<T> {
+                    PayloadStatusEnum::Invalid { validation_error } => Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other(validation_error.into())),
                     },
-                    PayloadStatusEnum::Syncing => Outcome::<T> {
+                    PayloadStatusEnum::Syncing => Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other(
                             PayloadStatusEnum::Syncing.as_str().into(),
                         )),
                     },
-                    _ => Outcome::<T> {
+                    _ => Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other("Unsupported payload status".into())),
                     },
                 },
+<<<<<<< HEAD
                 Err(err) => {
                     Outcome::<T> { peer: peer_id, result: Err(BlockImportError::Other(err.into())) }
                 }
+=======
+                Err(err) => Outcome {
+                    peer: peer_id,
+                    result: Err(BlockImportError::Other(err.into())),
+                },
+>>>>>>> 679600d (fix: wire ImportService)
             }
         })
     }
 
     /// Process a forkchoice update and return the outcome
-    fn update_fork_choice(&self, block: BlockMsg<T>, peer_id: PeerId) -> FcuFut<T> {
+    fn update_fork_choice(&self, block: BlockMsg, peer_id: PeerId) -> FcuFut {
         let engine = self.engine.clone();
         let consensus = self.consensus.clone();
-        let sealed_block = block.block.block.clone().seal();
+        let sealed_block = block.block.inner.block.clone().seal();
         let hash = sealed_block.hash();
         let number = sealed_block.number();
 
@@ -136,13 +139,13 @@ where
             let (head_block_hash, current_hash) = match consensus.canonical_head(hash, number) {
                 Ok(hash) => hash,
                 Err(ParliaConsensusErr::Provider(e)) => {
-                    return Outcome::<T> {
+                    return Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other(e.into())),
                     }
                 }
                 Err(ParliaConsensusErr::HeadHashNotFound) => {
-                    return Outcome::<T> {
+                    return Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other("Current head hash not found".into())),
                     }
@@ -158,36 +161,43 @@ where
             match engine.fork_choice_updated(state, None, EngineApiMessageVersion::default()).await
             {
                 Ok(response) => match response.payload_status.status {
-                    PayloadStatusEnum::Valid => Outcome::<T> {
+                    PayloadStatusEnum::Valid => Outcome {
                         peer: peer_id,
                         result: Ok(BlockValidation::ValidBlock { block }),
                     },
-                    PayloadStatusEnum::Invalid { validation_error } => Outcome::<T> {
+                    PayloadStatusEnum::Invalid { validation_error } => Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other(validation_error.into())),
                     },
-                    PayloadStatusEnum::Syncing => Outcome::<T> {
+                    PayloadStatusEnum::Syncing => Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other(
                             PayloadStatusEnum::Syncing.as_str().into(),
                         )),
                     },
-                    _ => Outcome::<T> {
+                    _ => Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other(
                             "Unsupported forkchoice payload status".into(),
                         )),
                     },
                 },
+<<<<<<< HEAD
                 Err(err) => {
                     Outcome::<T> { peer: peer_id, result: Err(BlockImportError::Other(err.into())) }
                 }
+=======
+                Err(err) => Outcome {
+                    peer: peer_id,
+                    result: Err(BlockImportError::Other(err.into())),
+                },
+>>>>>>> 679600d (fix: wire ImportService)
             }
         })
     }
 
     /// Add a new block import task to the pending imports
-    fn on_new_block(&mut self, block: BlockMsg<T>, peer_id: PeerId) {
+    fn on_new_block(&mut self, block: BlockMsg, peer_id: PeerId) {
         let payload_fut = self.new_payload(block.clone(), peer_id);
         self.pending_imports.push(Either::Left(payload_fut));
 
@@ -196,10 +206,9 @@ where
     }
 }
 
-impl<Provider, T> Future for ImportService<Provider, T>
+impl<Provider> Future for ImportService<Provider>
 where
     Provider: BlockNumReader + BlockHashReader + Clone + 'static + Unpin,
-    T: PayloadTypes,
 {
     type Output = Result<(), Box<dyn std::error::Error>>;
 
@@ -351,7 +360,7 @@ mod tests {
 
     /// Test fixture for block import tests
     struct TestFixture {
-        handle: ImportHandle<EthEngineTypes>,
+        handle: ImportHandle,
     }
 
     impl TestFixture {
@@ -374,7 +383,7 @@ mod tests {
         /// Run a block import test with the given event assertion
         async fn assert_block_import<F>(&mut self, assert_fn: F)
         where
-            F: Fn(&BlockImportEvent<BscBlock<EthEngineTypes>>) -> bool,
+            F: Fn(&BlockImportEvent<BscNewBlock>) -> bool,
         {
             let block_msg = create_test_block();
             self.handle.send_block(block_msg, PeerId::random()).unwrap();
@@ -403,15 +412,24 @@ mod tests {
     }
 
     /// Creates a test block message
-    fn create_test_block() -> NewBlockMessage<Block> {
+    fn create_test_block() -> NewBlockMessage<BscNewBlock> {
         let block: reth_primitives::Block = Block::default();
-        let new_block = NewBlock { block: block.clone(), td: U128::ZERO };
-        NewBlockMessage { hash: block.header.hash_slow(), block: Arc::new(new_block) }
+        let new_block = BscNewBlock {
+            inner: NewBlock {
+                block: block.clone(),
+                td: U128::ZERO,
+            },
+            sidecars: Default::default(),
+        };
+        NewBlockMessage {
+            hash: block.header.hash_slow(),
+            block: Arc::new(new_block),
+        }
     }
 
     /// Helper function to handle engine messages with specified payload statuses
     async fn handle_engine_msg(
-        mut from_engine: mpsc::UnboundedReceiver<BeaconEngineMessage<EthEngineTypes>>,
+        mut from_engine: mpsc::UnboundedReceiver<BeaconEngineMessage<BscPayloadTypes>>,
         responses: EngineResponses,
     ) {
         tokio::spawn(Box::pin(async move {

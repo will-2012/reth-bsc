@@ -1,4 +1,14 @@
-use crate::chainspec::{bsc::head, BscChainSpec};
+use crate::{
+    chainspec::{bsc::head, BscChainSpec},
+    consensus::ParliaConsensus,
+    node::{
+        network::block_import::{handle::ImportHandle, service::ImportService, BscBlockImport},
+        rpc::engine_api::payload::BscPayloadTypes,
+    },
+};
+use alloy_consensus::BlobTransactionSidecar;
+use alloy_primitives::B256;
+use alloy_rlp::{Decodable, Encodable, Header, RlpDecodable, RlpEncodable};
 use handshake::BscHandshake;
 use reth::{
     api::{FullNodeTypes, NodeTypes, TxTy},
@@ -7,40 +17,145 @@ use reth::{
 };
 use reth_chainspec::Hardforks;
 use reth_discv4::{Discv4Config, NodeRecord};
+use reth_engine_primitives::BeaconConsensusEngineHandle;
+use reth_eth_wire::{BasicNetworkPrimitives, NewBlock, NewBlockPayload};
 use reth_ethereum_primitives::{EthPrimitives, PooledTransactionVariant};
-use reth_network::{EthNetworkPrimitives, NetworkConfig, NetworkHandle, NetworkManager};
+use reth_network::{NetworkConfig, NetworkHandle, NetworkManager};
 use reth_network_api::PeersInfo;
 use std::{sync::Arc, time::Duration};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tracing::info;
 
 pub mod block_import;
 pub mod handshake;
 pub(crate) mod upgrade_status;
 
+#[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+pub struct BscP2PSidecar {
+    pub inner: BlobTransactionSidecar,
+    pub block_number: u64,
+    pub block_hash: B256,
+    pub tx_index: u64,
+    pub tx_hash: B256,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BscNewBlock {
+    pub inner: NewBlock,
+    pub sidecars: Vec<BscP2PSidecar>,
+}
+
+impl BscNewBlock {
+    fn rlp_header(&self) -> Header {
+        Header {
+            list: true,
+            payload_length: self.inner.block.length()
+                + self.inner.td.length()
+                + self.sidecars.length(),
+        }
+    }
+}
+
+impl Encodable for BscNewBlock {
+    fn encode(&self, out: &mut dyn bytes::BufMut) {
+        self.rlp_header().encode(out);
+        self.inner.block.encode(out);
+        self.inner.td.encode(out);
+        self.sidecars.encode(out);
+    }
+
+    fn length(&self) -> usize {
+        self.rlp_header().length_with_payload()
+    }
+}
+
+impl Decodable for BscNewBlock {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let header = Header::decode(buf)?;
+        if !header.list {
+            return Err(alloy_rlp::Error::UnexpectedString);
+        }
+        let remaining = buf.len();
+
+        let this = Self {
+            inner: NewBlock {
+                block: Decodable::decode(buf)?,
+                td: Decodable::decode(buf)?,
+            },
+            sidecars: Decodable::decode(buf)?,
+        };
+
+        if buf.len() + header.payload_length != remaining {
+            return Err(alloy_rlp::Error::UnexpectedLength);
+        }
+
+        Ok(this)
+    }
+}
+
+impl NewBlockPayload for BscNewBlock {
+    type Block = reth_ethereum_primitives::Block;
+
+    fn block(&self) -> &Self::Block {
+        &self.inner.block
+    }
+}
+
+/// Network primitives for BSC.
+pub type BscNetworkPrimitives =
+    BasicNetworkPrimitives<EthPrimitives, PooledTransactionVariant, BscNewBlock>;
+
 /// A basic bsc network builder.
-#[derive(Debug, Default, Clone)]
-#[non_exhaustive]
-pub struct BscNetworkBuilder;
+#[derive(Debug)]
+pub struct BscNetworkBuilder {
+    pub(crate) engine_handle_rx:
+        Arc<Mutex<Option<oneshot::Receiver<BeaconConsensusEngineHandle<BscPayloadTypes>>>>>,
+}
 
 impl BscNetworkBuilder {
     /// Returns the [`NetworkConfig`] that contains the settings to launch the p2p network.
     ///
     /// This applies the configured [`BscNetworkBuilder`] settings.
     pub fn network_config<Node>(
-        &self,
+        self,
         ctx: &BuilderContext<Node>,
-    ) -> eyre::Result<NetworkConfig<<Node as FullNodeTypes>::Provider, EthNetworkPrimitives>>
+    ) -> eyre::Result<NetworkConfig<Node::Provider, BscNetworkPrimitives>>
     where
         Node: FullNodeTypes<Types: NodeTypes<ChainSpec: Hardforks>>,
     {
+        let Self { engine_handle_rx } = self;
+
         let network_builder = ctx.network_config_builder()?;
         let mut discv4 = Discv4Config::builder();
         discv4.add_boot_nodes(boot_nodes()).lookup_interval(Duration::from_millis(500));
+
+        let (to_import, from_network) = mpsc::unbounded_channel();
+        let (to_network, import_outcome) = mpsc::unbounded_channel();
+
+        let handle = ImportHandle::new(to_import, import_outcome);
+        let consensus = Arc::new(ParliaConsensus {
+            provider: ctx.provider().clone(),
+        });
+
+        ctx.task_executor()
+            .spawn_critical("block import", async move {
+                let handle = engine_handle_rx
+                    .lock()
+                    .await
+                    .take()
+                    .expect("node should only be launched once")
+                    .await.unwrap();
+
+                ImportService::new(consensus, handle, from_network, to_network)
+                    .await
+                    .unwrap();
+            });
 
         let network_builder = network_builder
             .boot_nodes(boot_nodes())
             .set_head(head())
             .with_pow()
+            .block_import(Box::new(BscBlockImport::new(handle)))
             .discovery(discv4)
             .eth_rlpx_handshake(Arc::new(BscHandshake::default()));
 
@@ -61,7 +176,7 @@ where
         > + Unpin
         + 'static,
 {
-    type Network = NetworkHandle<EthNetworkPrimitives>;
+    type Network = NetworkHandle<BscNetworkPrimitives>;
 
     async fn build_network(
         self,
