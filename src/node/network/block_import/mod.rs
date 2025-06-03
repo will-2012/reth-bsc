@@ -11,39 +11,33 @@ use std::{
     task::{ready, Context, Poll},
 };
 
+use crate::node::network::BscNewBlock;
+
 pub mod handle;
 pub mod service;
 
-pub struct BscBlockImport<T: PayloadTypes> {
-    handle: ImportHandle<T>,
+#[derive(Debug)]
+pub struct BscBlockImport {
+    handle: ImportHandle,
 }
 
-impl<T: PayloadTypes> BscBlockImport<T> {
-    pub fn new(handle: ImportHandle<T>) -> Self {
+impl BscBlockImport {
+    pub fn new(handle: ImportHandle) -> Self {
         Self { handle }
     }
 }
 
-impl<T: PayloadTypes> BlockImport<BscBlock<T>> for BscBlockImport<T> {
-    fn on_new_block(&mut self, peer_id: PeerId, incoming_block: NewBlockEvent<BscBlock<T>>) {
+impl BlockImport<BscNewBlock> for BscBlockImport {
+    fn on_new_block(&mut self, peer_id: PeerId, incoming_block: NewBlockEvent<BscNewBlock>) {
         if let NewBlockEvent::Block(block) = incoming_block {
             let _ = self.handle.send_block(block, peer_id);
         }
     }
 
-    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<ImportEvent<T>> {
+    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<ImportEvent> {
         match ready!(self.handle.poll_outcome(cx)) {
             Some(outcome) => Poll::Ready(outcome),
             None => Poll::Pending,
         }
-    }
-}
-
-impl<T: PayloadTypes> fmt::Debug for BscBlockImport<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BscBlockImport")
-            .field("engine_handle", &"BeaconConsensusEngineHandle")
-            .field("service_handle", &"BscBlockImportHandle")
-            .finish()
     }
 }

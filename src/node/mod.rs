@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{chainspec::BscChainSpec, node::rpc::BscEthApiBuilder};
 
 use crate::node::rpc::engine_api::{
@@ -14,10 +16,12 @@ use reth::{
         DebugNode, Node, NodeAdapter, NodeComponentsBuilder,
     },
 };
+use reth_engine_primitives::BeaconConsensusEngineHandle;
 use reth_node_ethereum::node::{EthereumPayloadBuilder, EthereumPoolBuilder};
 use reth_primitives::{Block, BlockBody, EthPrimitives};
 use reth_provider::EthStorage;
 use reth_trie_db::MerklePatriciaTrie;
+use tokio::sync::{oneshot, Mutex};
 
 pub mod cli;
 pub mod consensus;
@@ -30,9 +34,18 @@ pub type BscNodeAddOns<N> =
     RpcAddOns<N, BscEthApiBuilder, BscEngineValidatorBuilder, BscEngineApiBuilder>;
 
 /// Type configuration for a regular BSC node.
-#[derive(Debug, Default, Clone)]
-#[non_exhaustive]
-pub struct BscNode;
+#[derive(Debug, Clone)]
+pub struct BscNode {
+    engine_handle_rx:
+        Arc<Mutex<Option<oneshot::Receiver<BeaconConsensusEngineHandle<BscPayloadTypes>>>>>,
+}
+
+impl BscNode {
+    pub fn new() -> (Self, oneshot::Sender<BeaconConsensusEngineHandle<BscPayloadTypes>>) {
+        let (tx, rx) = oneshot::channel();
+        (Self { engine_handle_rx: Arc::new(Mutex::new(Some(rx))) }, tx)
+    }
+}
 
 impl BscNode {
     pub fn components<Node>(
@@ -59,21 +72,14 @@ impl BscNode {
             .pool(EthereumPoolBuilder::default())
             .executor(BscExecutorBuilder::default())
             .payload(BasicPayloadServiceBuilder::default())
-            .network(BscNetworkBuilder::default())
+            .network(BscNetworkBuilder { engine_handle_rx: self.engine_handle_rx.clone() })
             .consensus(BscConsensusBuilder::default())
     }
 }
 
 impl<N> Node<N> for BscNode
 where
-    N: FullNodeTypes<
-        Types: NodeTypes<
-            Payload = BscPayloadTypes,
-            ChainSpec = BscChainSpec,
-            Primitives = EthPrimitives,
-            Storage = EthStorage,
-        >,
-    >,
+    N: FullNodeTypes<Types = Self>,
 {
     type ComponentsBuilder = ComponentsBuilder<
         N,

@@ -18,7 +18,7 @@ use reth::{
 };
 use reth_chainspec::{EthChainSpec, EthereumHardforks};
 use reth_evm::{ConfigureEvm, NextBlockEnvAttributes};
-use reth_primitives::NodePrimitives;
+use reth_primitives::EthPrimitives;
 use reth_primitives_traits::BlockBody as _;
 use reth_provider::{
     BlockReader, ChainSpecProvider, HeaderProvider, ProviderBlock, ProviderReceipt, ProviderTx,
@@ -112,15 +112,7 @@ where
         > + ChainSpecProvider<ChainSpec: EthChainSpec + EthereumHardforks>
                       + StateProviderFactory,
         Pool: TransactionPool<Transaction: PoolTransaction<Consensus = ProviderTx<N::Provider>>>,
-        Evm: ConfigureEvm<
-            Primitives: NodePrimitives<
-                SignedTx = ProviderTx<Self::Provider>,
-                BlockHeader = ProviderHeader<Self::Provider>,
-                Receipt = ProviderReceipt<Self::Provider>,
-                Block = ProviderBlock<Self::Provider>,
-            >,
-            NextBlockEnvCtx = NextBlockEnvAttributes,
-        >,
+        Evm: ConfigureEvm<Primitives = EthPrimitives, NextBlockEnvCtx = NextBlockEnvAttributes>,
     >,
 {
     #[inline]
