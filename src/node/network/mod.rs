@@ -30,6 +30,7 @@ pub mod block_import;
 pub mod handshake;
 pub(crate) mod upgrade_status;
 
+/// BSC representation of a EIP-4844 sidecar.
 #[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct BscP2PSidecar {
     pub inner: BlobTransactionSidecar,
@@ -39,6 +40,7 @@ pub struct BscP2PSidecar {
     pub tx_hash: B256,
 }
 
+/// BSC `NewBlock` message value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BscNewBlock {
     pub inner: NewBlock,
