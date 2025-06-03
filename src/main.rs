@@ -25,10 +25,8 @@ fn main() -> eyre::Result<()> {
 
     Cli::<BscChainSpecParser, NoArgs>::parse().run(|builder, _| async move {
         let (node, engine_handle_tx) = BscNode::new();
-        let NodeHandle {
-            node,
-            node_exit_future: exit_future,
-        } = builder.node(node).launch().await?;
+        let NodeHandle { node, node_exit_future: exit_future } =
+            builder.node(node).launch().await?;
 
         engine_handle_tx.send(node.beacon_engine_handle.clone()).unwrap();
 

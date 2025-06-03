@@ -94,10 +94,9 @@ where
 
             match engine.new_payload(payload).await {
                 Ok(payload_status) => match payload_status.status {
-                    PayloadStatusEnum::Valid => Outcome {
-                        peer: peer_id,
-                        result: Ok(BlockValidation::ValidBlock { block }),
-                    },
+                    PayloadStatusEnum::Valid => {
+                        Outcome { peer: peer_id, result: Ok(BlockValidation::ValidBlock { block }) }
+                    }
                     PayloadStatusEnum::Invalid { validation_error } => Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other(validation_error.into())),
@@ -113,16 +112,9 @@ where
                         result: Err(BlockImportError::Other("Unsupported payload status".into())),
                     },
                 },
-<<<<<<< HEAD
                 Err(err) => {
-                    Outcome::<T> { peer: peer_id, result: Err(BlockImportError::Other(err.into())) }
+                    Outcome { peer: peer_id, result: Err(BlockImportError::Other(err.into())) }
                 }
-=======
-                Err(err) => Outcome {
-                    peer: peer_id,
-                    result: Err(BlockImportError::Other(err.into())),
-                },
->>>>>>> 679600d (fix: wire ImportService)
             }
         })
     }
@@ -139,10 +131,7 @@ where
             let (head_block_hash, current_hash) = match consensus.canonical_head(hash, number) {
                 Ok(hash) => hash,
                 Err(ParliaConsensusErr::Provider(e)) => {
-                    return Outcome {
-                        peer: peer_id,
-                        result: Err(BlockImportError::Other(e.into())),
-                    }
+                    return Outcome { peer: peer_id, result: Err(BlockImportError::Other(e.into())) }
                 }
                 Err(ParliaConsensusErr::HeadHashNotFound) => {
                     return Outcome {
@@ -161,10 +150,9 @@ where
             match engine.fork_choice_updated(state, None, EngineApiMessageVersion::default()).await
             {
                 Ok(response) => match response.payload_status.status {
-                    PayloadStatusEnum::Valid => Outcome {
-                        peer: peer_id,
-                        result: Ok(BlockValidation::ValidBlock { block }),
-                    },
+                    PayloadStatusEnum::Valid => {
+                        Outcome { peer: peer_id, result: Ok(BlockValidation::ValidBlock { block }) }
+                    }
                     PayloadStatusEnum::Invalid { validation_error } => Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other(validation_error.into())),
@@ -182,16 +170,9 @@ where
                         )),
                     },
                 },
-<<<<<<< HEAD
                 Err(err) => {
-                    Outcome::<T> { peer: peer_id, result: Err(BlockImportError::Other(err.into())) }
+                    Outcome { peer: peer_id, result: Err(BlockImportError::Other(err.into())) }
                 }
-=======
-                Err(err) => Outcome {
-                    peer: peer_id,
-                    result: Err(BlockImportError::Other(err.into())),
-                },
->>>>>>> 679600d (fix: wire ImportService)
             }
         })
     }
@@ -415,16 +396,10 @@ mod tests {
     fn create_test_block() -> NewBlockMessage<BscNewBlock> {
         let block: reth_primitives::Block = Block::default();
         let new_block = BscNewBlock {
-            inner: NewBlock {
-                block: block.clone(),
-                td: U128::ZERO,
-            },
+            inner: NewBlock { block: block.clone(), td: U128::ZERO },
             sidecars: Default::default(),
         };
-        NewBlockMessage {
-            hash: block.header.hash_slow(),
-            block: Arc::new(new_block),
-        }
+        NewBlockMessage { hash: block.header.hash_slow(), block: Arc::new(new_block) }
     }
 
     /// Helper function to handle engine messages with specified payload statuses

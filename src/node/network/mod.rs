@@ -49,9 +49,9 @@ impl BscNewBlock {
     fn rlp_header(&self) -> Header {
         Header {
             list: true,
-            payload_length: self.inner.block.length()
-                + self.inner.td.length()
-                + self.sidecars.length(),
+            payload_length: self.inner.block.length() +
+                self.inner.td.length() +
+                self.sidecars.length(),
         }
     }
 }
@@ -78,10 +78,7 @@ impl Decodable for BscNewBlock {
         let remaining = buf.len();
 
         let this = Self {
-            inner: NewBlock {
-                block: Decodable::decode(buf)?,
-                td: Decodable::decode(buf)?,
-            },
+            inner: NewBlock { block: Decodable::decode(buf)?, td: Decodable::decode(buf)? },
             sidecars: Decodable::decode(buf)?,
         };
 
@@ -133,23 +130,19 @@ impl BscNetworkBuilder {
         let (to_network, import_outcome) = mpsc::unbounded_channel();
 
         let handle = ImportHandle::new(to_import, import_outcome);
-        let consensus = Arc::new(ParliaConsensus {
-            provider: ctx.provider().clone(),
+        let consensus = Arc::new(ParliaConsensus { provider: ctx.provider().clone() });
+
+        ctx.task_executor().spawn_critical("block import", async move {
+            let handle = engine_handle_rx
+                .lock()
+                .await
+                .take()
+                .expect("node should only be launched once")
+                .await
+                .unwrap();
+
+            ImportService::new(consensus, handle, from_network, to_network).await.unwrap();
         });
-
-        ctx.task_executor()
-            .spawn_critical("block import", async move {
-                let handle = engine_handle_rx
-                    .lock()
-                    .await
-                    .take()
-                    .expect("node should only be launched once")
-                    .await.unwrap();
-
-                ImportService::new(consensus, handle, from_network, to_network)
-                    .await
-                    .unwrap();
-            });
 
         let network_builder = network_builder
             .boot_nodes(boot_nodes())

@@ -41,17 +41,9 @@ pub struct BscNode {
 }
 
 impl BscNode {
-    pub fn new() -> (
-        Self,
-        oneshot::Sender<BeaconConsensusEngineHandle<BscPayloadTypes>>,
-    ) {
+    pub fn new() -> (Self, oneshot::Sender<BeaconConsensusEngineHandle<BscPayloadTypes>>) {
         let (tx, rx) = oneshot::channel();
-        (
-            Self {
-                engine_handle_rx: Arc::new(Mutex::new(Some(rx))),
-            },
-            tx,
-        )
+        (Self { engine_handle_rx: Arc::new(Mutex::new(Some(rx))) }, tx)
     }
 }
 
@@ -80,9 +72,7 @@ impl BscNode {
             .pool(EthereumPoolBuilder::default())
             .executor(BscExecutorBuilder::default())
             .payload(BasicPayloadServiceBuilder::default())
-            .network(BscNetworkBuilder {
-                engine_handle_rx: self.engine_handle_rx.clone(),
-            })
+            .network(BscNetworkBuilder { engine_handle_rx: self.engine_handle_rx.clone() })
             .consensus(BscConsensusBuilder::default())
     }
 }
