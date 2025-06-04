@@ -1,24 +1,25 @@
 use crate::{
-    chainspec::{bsc::head, BscChainSpec},
+    chainspec::bsc::head,
     consensus::ParliaConsensus,
     node::{
         network::block_import::{handle::ImportHandle, service::ImportService, BscBlockImport},
-        primitives::BscBlobTransactionSidecar,
+        primitives::{BscBlobTransactionSidecar, BscPrimitives},
         rpc::engine_api::payload::BscPayloadTypes,
+        BscNode,
     },
+    BscBlock,
 };
-use alloy_rlp::{Decodable, Encodable, Header};
+use alloy_rlp::{Decodable, Encodable};
 use handshake::BscHandshake;
 use reth::{
-    api::{FullNodeTypes, NodeTypes, TxTy},
+    api::{FullNodeTypes, TxTy},
     builder::{components::NetworkBuilder, BuilderContext},
     transaction_pool::{PoolTransaction, TransactionPool},
 };
-use reth_chainspec::Hardforks;
 use reth_discv4::{Discv4Config, NodeRecord};
 use reth_engine_primitives::BeaconConsensusEngineHandle;
 use reth_eth_wire::{BasicNetworkPrimitives, NewBlock, NewBlockPayload};
-use reth_ethereum_primitives::{EthPrimitives, PooledTransactionVariant};
+use reth_ethereum_primitives::PooledTransactionVariant;
 use reth_network::{NetworkConfig, NetworkHandle, NetworkManager};
 use reth_network_api::PeersInfo;
 use std::{sync::Arc, time::Duration};
@@ -30,67 +31,110 @@ pub mod handshake;
 pub(crate) mod upgrade_status;
 /// BSC `NewBlock` message value.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BscNewBlock {
-    pub inner: NewBlock,
-    pub sidecars: Vec<BscBlobTransactionSidecar>,
-}
+pub struct BscNewBlock(pub NewBlock<BscBlock>);
 
-impl BscNewBlock {
-    fn rlp_header(&self) -> Header {
-        Header {
-            list: true,
-            payload_length: self.inner.block.length() +
-                self.inner.td.length() +
-                self.sidecars.length(),
-        }
-    }
-}
+mod rlp {
+    use super::*;
+    use crate::BscBlockBody;
+    use alloy_consensus::{BlockBody, Header};
+    use alloy_primitives::U128;
+    use alloy_rlp::{RlpDecodable, RlpEncodable};
+    use alloy_rpc_types::Withdrawals;
+    use reth_primitives::TransactionSigned;
+    use std::borrow::Cow;
 
-impl Encodable for BscNewBlock {
-    fn encode(&self, out: &mut dyn bytes::BufMut) {
-        self.rlp_header().encode(out);
-        self.inner.block.encode(out);
-        self.inner.td.encode(out);
-        self.sidecars.encode(out);
+    #[derive(RlpEncodable, RlpDecodable)]
+    #[rlp(trailing)]
+    struct BlockHelper<'a> {
+        header: Cow<'a, Header>,
+        transactions: Cow<'a, Vec<TransactionSigned>>,
+        ommers: Cow<'a, Vec<Header>>,
+        withdrawals: Option<Cow<'a, Withdrawals>>,
     }
 
-    fn length(&self) -> usize {
-        self.rlp_header().length_with_payload()
+    #[derive(RlpEncodable, RlpDecodable)]
+    #[rlp(trailing)]
+    struct BscNewBlockHelper<'a> {
+        block: BlockHelper<'a>,
+        td: U128,
+        sidecars: Option<Cow<'a, Vec<BscBlobTransactionSidecar>>>,
     }
-}
 
-impl Decodable for BscNewBlock {
-    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        let header = Header::decode(buf)?;
-        if !header.list {
-            return Err(alloy_rlp::Error::UnexpectedString);
+    impl<'a> From<&'a BscNewBlock> for BscNewBlockHelper<'a> {
+        fn from(value: &'a BscNewBlock) -> Self {
+            let BscNewBlock(NewBlock {
+                block:
+                    BscBlock {
+                        header,
+                        body:
+                            BscBlockBody {
+                                inner: BlockBody { transactions, ommers, withdrawals },
+                                sidecars,
+                            },
+                    },
+                td,
+            }) = value;
+
+            Self {
+                block: BlockHelper {
+                    header: Cow::Borrowed(header),
+                    transactions: Cow::Borrowed(transactions),
+                    ommers: Cow::Borrowed(ommers),
+                    withdrawals: withdrawals.as_ref().map(Cow::Borrowed),
+                },
+                td: *td,
+                sidecars: sidecars.as_ref().map(Cow::Borrowed),
+            }
         }
-        let remaining = buf.len();
+    }
 
-        let this = Self {
-            inner: NewBlock { block: Decodable::decode(buf)?, td: Decodable::decode(buf)? },
-            sidecars: Decodable::decode(buf)?,
-        };
-
-        if buf.len() + header.payload_length != remaining {
-            return Err(alloy_rlp::Error::UnexpectedLength);
+    impl Encodable for BscNewBlock {
+        fn encode(&self, out: &mut dyn bytes::BufMut) {
+            BscNewBlockHelper::from(self).encode(out);
         }
 
-        Ok(this)
+        fn length(&self) -> usize {
+            BscNewBlockHelper::from(self).length()
+        }
+    }
+
+    impl Decodable for BscNewBlock {
+        fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+            let BscNewBlockHelper {
+                block: BlockHelper { header, transactions, ommers, withdrawals },
+                td,
+                sidecars,
+            } = BscNewBlockHelper::decode(buf)?;
+
+            Ok(BscNewBlock(NewBlock {
+                block: BscBlock {
+                    header: header.into_owned(),
+                    body: BscBlockBody {
+                        inner: BlockBody {
+                            transactions: transactions.into_owned(),
+                            ommers: ommers.into_owned(),
+                            withdrawals: withdrawals.map(|w| w.into_owned()),
+                        },
+                        sidecars: sidecars.map(|s| s.into_owned()),
+                    },
+                },
+                td,
+            }))
+        }
     }
 }
 
 impl NewBlockPayload for BscNewBlock {
-    type Block = reth_ethereum_primitives::Block;
+    type Block = BscBlock;
 
     fn block(&self) -> &Self::Block {
-        &self.inner.block
+        &self.0.block
     }
 }
 
 /// Network primitives for BSC.
 pub type BscNetworkPrimitives =
-    BasicNetworkPrimitives<EthPrimitives, PooledTransactionVariant, BscNewBlock>;
+    BasicNetworkPrimitives<BscPrimitives, PooledTransactionVariant, BscNewBlock>;
 
 /// A basic bsc network builder.
 #[derive(Debug)]
@@ -108,7 +152,7 @@ impl BscNetworkBuilder {
         ctx: &BuilderContext<Node>,
     ) -> eyre::Result<NetworkConfig<Node::Provider, BscNetworkPrimitives>>
     where
-        Node: FullNodeTypes<Types: NodeTypes<ChainSpec: Hardforks>>,
+        Node: FullNodeTypes<Types = BscNode>,
     {
         let Self { engine_handle_rx } = self;
 
@@ -150,7 +194,7 @@ impl BscNetworkBuilder {
 
 impl<Node, Pool> NetworkBuilder<Node, Pool> for BscNetworkBuilder
 where
-    Node: FullNodeTypes<Types: NodeTypes<ChainSpec = BscChainSpec, Primitives = EthPrimitives>>,
+    Node: FullNodeTypes<Types = BscNode>,
     Pool: TransactionPool<
             Transaction: PoolTransaction<
                 Consensus = TxTy<Node::Types>,

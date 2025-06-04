@@ -1,20 +1,19 @@
 use crate::{
-    chainspec::BscChainSpec,
     evm::{
         api::{ctx::BscContext, BscEvmInner},
         precompiles::BscPrecompiles,
         spec::BscSpecId,
         transaction::{BscTxEnv, BscTxTr},
     },
+    node::BscNode,
 };
 use alloy_primitives::{Address, Bytes};
 use config::BscEvmConfig;
 use reth::{
-    api::{FullNodeTypes, NodeTypes},
+    api::FullNodeTypes,
     builder::{components::ExecutorBuilder, BuilderContext},
 };
 use reth_evm::{Evm, EvmEnv};
-use reth_primitives::EthPrimitives;
 use revm::{
     context::{
         result::{EVMError, HaltReason, ResultAndState},
@@ -26,6 +25,7 @@ use revm::{
 };
 use std::ops::{Deref, DerefMut};
 
+mod assembler;
 pub mod config;
 mod executor;
 mod factory;
@@ -171,7 +171,7 @@ pub struct BscExecutorBuilder;
 
 impl<Node> ExecutorBuilder<Node> for BscExecutorBuilder
 where
-    Node: FullNodeTypes<Types: NodeTypes<ChainSpec = BscChainSpec, Primitives = EthPrimitives>>,
+    Node: FullNodeTypes<Types = BscNode>,
 {
     type EVM = BscEvmConfig;
 

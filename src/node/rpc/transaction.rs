@@ -1,5 +1,5 @@
 use super::BscNodeCore;
-use crate::node::rpc::BscEthApi;
+use crate::{node::rpc::BscEthApi, BscPrimitives};
 use alloy_network::{Ethereum, Network};
 use alloy_primitives::{Bytes, Signature, B256};
 use reth::{
@@ -13,7 +13,6 @@ use reth::{
     },
     transaction_pool::{PoolTransaction, TransactionOrigin, TransactionPool},
 };
-use reth_primitives::EthPrimitives;
 use reth_provider::{BlockReader, BlockReaderIdExt, ProviderTx, TransactionsProvider};
 use reth_rpc_eth_api::{
     helpers::{EthSigner, EthTransactions, LoadTransaction, SpawnBlocking},
@@ -31,7 +30,7 @@ impl<N> TransactionCompat for BscEthApi<N>
 where
     N: FullNodeComponents<Provider: ReceiptProvider<Receipt = Receipt>>,
 {
-    type Primitives = EthPrimitives;
+    type Primitives = BscPrimitives;
     type Transaction = <Ethereum as Network>::TransactionResponse;
 
     type Error = EthApiError;

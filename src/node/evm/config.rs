@@ -4,6 +4,7 @@ use crate::{
     evm::{spec::BscSpecId, transaction::BscTxEnv},
     hardforks::{bsc::BscHardfork, BscHardforks},
     system_contracts::SystemContract,
+    BscPrimitives,
 };
 use alloy_consensus::{BlockHeader, Header, TxReceipt};
 use alloy_primitives::{BlockNumber, Log, U256};
@@ -11,17 +12,12 @@ use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_ethereum_forks::EthereumHardfork;
 use reth_evm::{
     block::{BlockExecutorFactory, BlockExecutorFor},
-    eth::{
-        receipt_builder::{AlloyReceiptBuilder, ReceiptBuilder},
-        EthBlockExecutionCtx,
-    },
+    eth::{receipt_builder::ReceiptBuilder, EthBlockExecutionCtx},
     ConfigureEvm, EvmEnv, EvmFactory, ExecutionCtxFor, FromRecoveredTx, FromTxWithEncoded,
     IntoTxEnv, NextBlockEnvAttributes,
 };
 use reth_evm_ethereum::{EthBlockAssembler, RethReceiptBuilder};
-use reth_primitives::{
-    BlockTy, EthPrimitives, HeaderTy, SealedBlock, SealedHeader, TransactionSigned,
-};
+use reth_primitives::{BlockTy, HeaderTy, SealedBlock, SealedHeader, TransactionSigned};
 use reth_revm::State;
 use revm::{
     context::{BlockEnv, CfgEnv, TxEnv},
@@ -75,8 +71,8 @@ impl BscEvmConfig {
 /// Ethereum block executor factory.
 #[derive(Debug, Clone, Default, Copy)]
 pub struct BscBlockExecutorFactory<
-    R = AlloyReceiptBuilder,
-    Spec = BscHardfork,
+    R = RethReceiptBuilder,
+    Spec = Arc<BscChainSpec>,
     EvmFactory = BscEvmFactory,
 > {
     /// Receipt builder.
@@ -148,19 +144,18 @@ impl ConfigureEvm for BscEvmConfig
 where
     Self: Send + Sync + Unpin + Clone + 'static,
 {
-    type Primitives = EthPrimitives;
+    type Primitives = BscPrimitives;
     type Error = Infallible;
     type NextBlockEnvCtx = NextBlockEnvAttributes;
-    type BlockExecutorFactory =
-        BscBlockExecutorFactory<RethReceiptBuilder, Arc<BscChainSpec>, BscEvmFactory>;
-    type BlockAssembler = EthBlockAssembler<BscChainSpec>;
+    type BlockExecutorFactory = BscBlockExecutorFactory;
+    type BlockAssembler = Self;
 
     fn block_executor_factory(&self) -> &Self::BlockExecutorFactory {
         &self.executor_factory
     }
 
     fn block_assembler(&self) -> &Self::BlockAssembler {
-        &self.block_assembler
+        self
     }
 
     fn evm_env(&self, header: &Header) -> EvmEnv<BscSpecId> {

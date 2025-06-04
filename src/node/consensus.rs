@@ -1,11 +1,11 @@
-use crate::{chainspec::BscChainSpec, hardforks::BscHardforks};
+use crate::{hardforks::BscHardforks, node::BscNode, BscPrimitives};
 use reth::{
-    api::{FullNodeTypes, NodeTypes},
+    api::FullNodeTypes,
     builder::{components::ConsensusBuilder, BuilderContext},
     consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator},
 };
 use reth_chainspec::EthChainSpec;
-use reth_primitives::{EthPrimitives, NodePrimitives, RecoveredBlock, SealedBlock, SealedHeader};
+use reth_primitives::{NodePrimitives, RecoveredBlock, SealedBlock, SealedHeader};
 use reth_primitives_traits::{Block, BlockHeader};
 use reth_provider::BlockExecutionResult;
 use std::sync::Arc;
@@ -17,9 +17,9 @@ pub struct BscConsensusBuilder;
 
 impl<Node> ConsensusBuilder<Node> for BscConsensusBuilder
 where
-    Node: FullNodeTypes<Types: NodeTypes<ChainSpec = BscChainSpec, Primitives = EthPrimitives>>,
+    Node: FullNodeTypes<Types = BscNode>,
 {
-    type Consensus = Arc<dyn FullConsensus<EthPrimitives, Error = ConsensusError>>;
+    type Consensus = Arc<dyn FullConsensus<BscPrimitives, Error = ConsensusError>>;
 
     async fn build_consensus(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::Consensus> {
         Ok(Arc::new(BscConsensus::new(ctx.chain_spec())))

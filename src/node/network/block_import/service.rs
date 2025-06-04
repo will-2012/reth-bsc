@@ -37,10 +37,7 @@ pub(crate) type Outcome = BlockImportOutcome<BscNewBlock>;
 pub(crate) type ImportEvent = BlockImportEvent<BscNewBlock>;
 
 /// Future that processes a block import and returns its outcome
-type PayloadFut = Pin<Box<dyn Future<Output = Outcome> + Send + Sync>>;
-
-/// Future that processes a forkchoice update and returns its outcome
-type FcuFut = Pin<Box<dyn Future<Output = Outcome> + Send + Sync>>;
+type ImportFut = Pin<Box<dyn Future<Output = Option<Outcome>> + Send + Sync>>;
 
 /// Channel message type for incoming blocks
 pub(crate) type IncomingBlock = (BlockMsg, PeerId);
@@ -61,7 +58,7 @@ where
     /// Send the event of the import to the network
     to_network: UnboundedSender<ImportEvent>,
     /// Pending block imports.
-    pending_imports: FuturesUnordered<Either<PayloadFut, FcuFut>>,
+    pending_imports: FuturesUnordered<ImportFut>,
 }
 
 impl<Provider> ImportService<Provider>
@@ -85,66 +82,49 @@ where
     }
 
     /// Process a new payload and return the outcome
-    fn new_payload(&self, block: BlockMsg, peer_id: PeerId) -> PayloadFut {
+    fn new_payload(&self, block: BlockMsg, peer_id: PeerId) -> ImportFut {
         let engine = self.engine.clone();
 
         Box::pin(async move {
-            let sealed_block = block.block.inner.block.clone().seal();
+            let sealed_block = block.block.0.block.clone().seal();
             let payload = BscPayloadTypes::block_to_payload(sealed_block);
 
             match engine.new_payload(payload).await {
                 Ok(payload_status) => match payload_status.status {
                     PayloadStatusEnum::Valid => {
                         Outcome { peer: peer_id, result: Ok(BlockValidation::ValidBlock { block }) }
+                            .into()
                     }
                     PayloadStatusEnum::Invalid { validation_error } => Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other(validation_error.into())),
-                    },
-                    PayloadStatusEnum::Syncing => Outcome {
-                        peer: peer_id,
-                        result: Err(BlockImportError::Other(
-                            PayloadStatusEnum::Syncing.as_str().into(),
-                        )),
-                    },
-                    _ => Outcome {
-                        peer: peer_id,
-                        result: Err(BlockImportError::Other("Unsupported payload status".into())),
-                    },
+                    }
+                    .into(),
+                    _ => None,
                 },
-                Err(err) => {
-                    Outcome { peer: peer_id, result: Err(BlockImportError::Other(err.into())) }
-                }
+                Err(err) => None,
             }
         })
     }
 
     /// Process a forkchoice update and return the outcome
-    fn update_fork_choice(&self, block: BlockMsg, peer_id: PeerId) -> FcuFut {
+    fn update_fork_choice(&self, block: BlockMsg, peer_id: PeerId) -> ImportFut {
         let engine = self.engine.clone();
         let consensus = self.consensus.clone();
-        let sealed_block = block.block.inner.block.clone().seal();
+        let sealed_block = block.block.0.block.clone().seal();
         let hash = sealed_block.hash();
         let number = sealed_block.number();
 
         Box::pin(async move {
             let (head_block_hash, current_hash) = match consensus.canonical_head(hash, number) {
                 Ok(hash) => hash,
-                Err(ParliaConsensusErr::Provider(e)) => {
-                    return Outcome { peer: peer_id, result: Err(BlockImportError::Other(e.into())) }
-                }
-                Err(ParliaConsensusErr::HeadHashNotFound) => {
-                    return Outcome {
-                        peer: peer_id,
-                        result: Err(BlockImportError::Other("Current head hash not found".into())),
-                    }
-                }
+                Err(_) => return None,
             };
 
             let state = ForkchoiceState {
                 head_block_hash,
-                safe_block_hash: current_hash,
-                finalized_block_hash: current_hash,
+                safe_block_hash: head_block_hash,
+                finalized_block_hash: head_block_hash,
             };
 
             match engine.fork_choice_updated(state, None, EngineApiMessageVersion::default()).await
@@ -152,27 +132,16 @@ where
                 Ok(response) => match response.payload_status.status {
                     PayloadStatusEnum::Valid => {
                         Outcome { peer: peer_id, result: Ok(BlockValidation::ValidBlock { block }) }
+                            .into()
                     }
                     PayloadStatusEnum::Invalid { validation_error } => Outcome {
                         peer: peer_id,
                         result: Err(BlockImportError::Other(validation_error.into())),
-                    },
-                    PayloadStatusEnum::Syncing => Outcome {
-                        peer: peer_id,
-                        result: Err(BlockImportError::Other(
-                            PayloadStatusEnum::Syncing.as_str().into(),
-                        )),
-                    },
-                    _ => Outcome {
-                        peer: peer_id,
-                        result: Err(BlockImportError::Other(
-                            "Unsupported forkchoice payload status".into(),
-                        )),
-                    },
+                    }
+                    .into(),
+                    _ => None,
                 },
-                Err(err) => {
-                    Outcome { peer: peer_id, result: Err(BlockImportError::Other(err.into())) }
-                }
+                Err(err) => None,
             }
         })
     }
@@ -180,10 +149,10 @@ where
     /// Add a new block import task to the pending imports
     fn on_new_block(&mut self, block: BlockMsg, peer_id: PeerId) {
         let payload_fut = self.new_payload(block.clone(), peer_id);
-        self.pending_imports.push(Either::Left(payload_fut));
+        self.pending_imports.push(payload_fut);
 
         let fcu_fut = self.update_fork_choice(block, peer_id);
-        self.pending_imports.push(Either::Right(fcu_fut));
+        self.pending_imports.push(fcu_fut);
     }
 }
 
@@ -203,8 +172,10 @@ where
 
         // Process completed imports and send events to network
         while let Poll::Ready(Some(outcome)) = this.pending_imports.poll_next_unpin(cx) {
-            if let Err(e) = this.to_network.send(BlockImportEvent::Outcome(outcome)) {
-                return Poll::Ready(Err(Box::new(e)));
+            if let Some(outcome) = outcome {
+                if let Err(e) = this.to_network.send(BlockImportEvent::Outcome(outcome)) {
+                    return Poll::Ready(Err(Box::new(e)));
+                }
             }
         }
 

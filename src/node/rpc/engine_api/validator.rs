@@ -1,4 +1,4 @@
-use crate::{chainspec::BscChainSpec, hardforks::BscHardforks};
+use crate::{chainspec::BscChainSpec, hardforks::BscHardforks, BscBlock, BscPrimitives};
 use alloy_consensus::BlockHeader;
 use alloy_eips::eip4895::Withdrawal;
 use alloy_primitives::B256;
@@ -9,12 +9,11 @@ use reth::{
     consensus::ConsensusError,
 };
 use reth_engine_primitives::{EngineValidator, ExecutionPayload, PayloadValidator};
-use reth_ethereum_primitives::Block;
 use reth_payload_primitives::{
     EngineApiMessageVersion, EngineObjectValidationError, NewPayloadError, PayloadOrAttributes,
     PayloadTypes,
 };
-use reth_primitives::{EthPrimitives, RecoveredBlock, SealedBlock};
+use reth_primitives::{RecoveredBlock, SealedBlock};
 use reth_primitives_traits::Block as _;
 use reth_trie_common::HashedPostState;
 use serde::{Deserialize, Serialize};
@@ -29,7 +28,7 @@ pub struct BscEngineValidatorBuilder;
 impl<Node, Types> EngineValidatorBuilder<Node> for BscEngineValidatorBuilder
 where
     Types:
-        NodeTypes<ChainSpec = BscChainSpec, Payload = BscPayloadTypes, Primitives = EthPrimitives>,
+        NodeTypes<ChainSpec = BscChainSpec, Payload = BscPayloadTypes, Primitives = BscPrimitives>,
     Node: FullNodeComponents<Types = Types>,
 {
     type Validator = BscEngineValidator;
@@ -53,11 +52,11 @@ impl BscEngineValidator {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BscExecutionData(pub Block);
+pub struct BscExecutionData(pub BscBlock);
 
 impl ExecutionPayload for BscExecutionData {
     fn parent_hash(&self) -> B256 {
-        self.0.parent_hash()
+        self.0.header.parent_hash()
     }
 
     fn block_hash(&self) -> B256 {
@@ -65,7 +64,7 @@ impl ExecutionPayload for BscExecutionData {
     }
 
     fn block_number(&self) -> u64 {
-        self.0.number()
+        self.0.header.number()
     }
 
     fn withdrawals(&self) -> Option<&Vec<Withdrawal>> {
@@ -77,16 +76,16 @@ impl ExecutionPayload for BscExecutionData {
     }
 
     fn timestamp(&self) -> u64 {
-        self.0.timestamp()
+        self.0.header.timestamp()
     }
 
     fn gas_used(&self) -> u64 {
-        self.0.gas_used()
+        self.0.header.gas_used()
     }
 }
 
 impl PayloadValidator for BscEngineValidator {
-    type Block = Block;
+    type Block = BscBlock;
     type ExecutionData = BscExecutionData;
 
     fn ensure_well_formed_payload(
@@ -143,7 +142,7 @@ where
     pub fn ensure_well_formed_payload(
         &self,
         payload: BscExecutionData,
-    ) -> Result<SealedBlock<Block>, PayloadError> {
+    ) -> Result<SealedBlock<BscBlock>, PayloadError> {
         let block = payload.0;
 
         let expected_hash = block.header.hash_slow();
