@@ -27,6 +27,7 @@ pub mod cli;
 pub mod consensus;
 pub mod evm;
 pub mod network;
+pub mod primitives;
 pub mod rpc;
 
 /// Bsc addons configuring RPC types
