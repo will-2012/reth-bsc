@@ -6,7 +6,7 @@ use reth::{
         FullNodeComponents,
     },
     chainspec::EthChainSpec,
-    primitives::{EthPrimitives, EthereumHardforks},
+    primitives::EthereumHardforks,
     providers::ChainSpecProvider,
     rpc::{
         eth::{DevSigner, FullEthApiServer},
@@ -34,6 +34,8 @@ use reth_rpc_eth_api::{
     EthApiTypes, FromEvmError, RpcNodeCore, RpcNodeCoreExt,
 };
 use std::{fmt, sync::Arc};
+
+use crate::BscPrimitives;
 
 mod block;
 mod call;
@@ -81,7 +83,7 @@ impl<N> RpcNodeCore for BscEthApi<N>
 where
     N: BscNodeCore,
 {
-    type Primitives = EthPrimitives;
+    type Primitives = BscPrimitives;
     type Provider = N::Provider;
     type Pool = N::Pool;
     type Evm = <N as RpcNodeCore>::Evm;

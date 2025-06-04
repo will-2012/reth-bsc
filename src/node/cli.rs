@@ -1,6 +1,8 @@
 use crate::{
     chainspec::{parser::BscChainSpecParser, BscChainSpec},
-    node::{consensus::BscConsensus, evm::config::BscEvmConfig, BscNode},
+    node::{
+        consensus::BscConsensus, evm::config::BscEvmConfig, network::BscNetworkPrimitives, BscNode,
+    },
 };
 use clap::Parser;
 use reth::{
@@ -15,7 +17,6 @@ use reth_chainspec::EthChainSpec;
 use reth_cli::chainspec::ChainSpecParser;
 use reth_cli_commands::{launcher::FnLauncher, node::NoArgs};
 use reth_db::DatabaseEnv;
-use reth_network::EthNetworkPrimitives;
 use reth_tracing::FileWorkerGuard;
 use std::{
     fmt::{self},
@@ -89,10 +90,10 @@ where
             Commands::DumpGenesis(command) => runner.run_blocking_until_ctrl_c(command.execute()),
             Commands::Db(command) => runner.run_blocking_until_ctrl_c(command.execute::<BscNode>()),
             Commands::Stage(command) => runner.run_command_until_exit(|ctx| {
-                command.execute::<BscNode, _, _, EthNetworkPrimitives>(ctx, components)
+                command.execute::<BscNode, _, _, BscNetworkPrimitives>(ctx, components)
             }),
             Commands::P2P(command) => {
-                runner.run_until_ctrl_c(command.execute::<EthNetworkPrimitives>())
+                runner.run_until_ctrl_c(command.execute::<BscNetworkPrimitives>())
             }
             Commands::Config(command) => runner.run_until_ctrl_c(command.execute()),
             Commands::Recover(command) => {

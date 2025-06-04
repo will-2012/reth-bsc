@@ -32,9 +32,21 @@ pub struct BscBlobTransactionSidecar {
 
 /// Block body for BSC. It is equivalent to Ethereum [`BlockBody`] but additionally stores sidecars
 /// for blob transactions.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    derive_more::Deref,
+    derive_more::DerefMut,
+)]
 pub struct BscBlockBody {
     #[serde(flatten)]
+    #[deref]
+    #[deref_mut]
     pub inner: BlockBody,
     pub sidecars: Option<Vec<BscBlobTransactionSidecar>>,
 }

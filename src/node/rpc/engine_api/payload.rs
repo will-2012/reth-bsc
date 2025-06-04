@@ -1,13 +1,8 @@
-use crate::node::rpc::engine_api::validator::BscExecutionData;
-use alloy_rpc_types_engine::{
-    ExecutionPayloadEnvelopeV2, ExecutionPayloadEnvelopeV3, ExecutionPayloadEnvelopeV4,
-    ExecutionPayloadEnvelopeV5, ExecutionPayloadV1,
-};
+use crate::node::{engine::BscBuiltPayload, rpc::engine_api::validator::BscExecutionData};
 use reth::{
-    payload::{EthBuiltPayload, EthPayloadBuilderAttributes},
+    payload::EthPayloadBuilderAttributes,
     primitives::{NodePrimitives, SealedBlock},
 };
-use reth_engine_primitives::EngineTypes;
 use reth_node_ethereum::engine::EthPayloadAttributes;
 use reth_payload_primitives::{BuiltPayload, PayloadTypes};
 
@@ -17,7 +12,7 @@ use reth_payload_primitives::{BuiltPayload, PayloadTypes};
 pub struct BscPayloadTypes;
 
 impl PayloadTypes for BscPayloadTypes {
-    type BuiltPayload = EthBuiltPayload;
+    type BuiltPayload = BscBuiltPayload;
     type PayloadAttributes = EthPayloadAttributes;
     type PayloadBuilderAttributes = EthPayloadBuilderAttributes;
     type ExecutionData = BscExecutionData;
@@ -29,12 +24,4 @@ impl PayloadTypes for BscPayloadTypes {
     ) -> Self::ExecutionData {
         BscExecutionData(block.into_block())
     }
-}
-
-impl EngineTypes for BscPayloadTypes {
-    type ExecutionPayloadEnvelopeV1 = ExecutionPayloadV1;
-    type ExecutionPayloadEnvelopeV2 = ExecutionPayloadEnvelopeV2;
-    type ExecutionPayloadEnvelopeV3 = ExecutionPayloadEnvelopeV3;
-    type ExecutionPayloadEnvelopeV4 = ExecutionPayloadEnvelopeV4;
-    type ExecutionPayloadEnvelopeV5 = ExecutionPayloadEnvelopeV5;
 }
