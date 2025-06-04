@@ -3,12 +3,11 @@ use crate::{
     consensus::ParliaConsensus,
     node::{
         network::block_import::{handle::ImportHandle, service::ImportService, BscBlockImport},
+        primitives::BscBlobTransactionSidecar,
         rpc::engine_api::payload::BscPayloadTypes,
     },
 };
-use alloy_consensus::BlobTransactionSidecar;
-use alloy_primitives::B256;
-use alloy_rlp::{Decodable, Encodable, Header, RlpDecodable, RlpEncodable};
+use alloy_rlp::{Decodable, Encodable, Header};
 use handshake::BscHandshake;
 use reth::{
     api::{FullNodeTypes, NodeTypes, TxTy},
@@ -29,22 +28,11 @@ use tracing::info;
 pub mod block_import;
 pub mod handshake;
 pub(crate) mod upgrade_status;
-
-/// BSC representation of a EIP-4844 sidecar.
-#[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
-pub struct BscP2PSidecar {
-    pub inner: BlobTransactionSidecar,
-    pub block_number: u64,
-    pub block_hash: B256,
-    pub tx_index: u64,
-    pub tx_hash: B256,
-}
-
 /// BSC `NewBlock` message value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BscNewBlock {
     pub inner: NewBlock,
-    pub sidecars: Vec<BscP2PSidecar>,
+    pub sidecars: Vec<BscBlobTransactionSidecar>,
 }
 
 impl BscNewBlock {
