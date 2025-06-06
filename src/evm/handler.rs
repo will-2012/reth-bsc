@@ -5,7 +5,7 @@ use alloy_primitives::{address, Address, U256};
 use revm::{
     context::{
         result::{ExecutionResult, HaltReason},
-        Cfg, ContextTr, JournalOutput, Transaction,
+        Cfg, ContextTr, JournalOutput, LocalContextTr, Transaction,
     },
     context_interface::{result::ResultAndState, JournalTr},
     handler::{handler::EvmTrError, EvmTr, Frame, FrameResult, Handler, MainnetHandler},
@@ -116,12 +116,10 @@ where
         let output = result.output();
         let instruction_result = result.into_interpreter_result();
 
-        // reset journal and return present state.
-        let final_state = ctx.journal().finalize();
-        let logs = final_state.logs;
-        let state = final_state.state;
+        // Reset journal and return present state.
+        let JournalOutput { state, logs } = evm.ctx().journal().finalize();
 
-        let result = match instruction_result.result.into() {
+        let result = match SuccessOrHalt::from(instruction_result.result) {
             SuccessOrHalt::Success(reason) => ExecutionResult::Success {
                 reason,
                 gas_used: final_gas_used,
@@ -142,6 +140,11 @@ where
             )
             }
         };
+
+        // Clear local context
+        evm.ctx().local().clear();
+        // Clear journal
+        evm.ctx().journal().clear();
 
         Ok(ResultAndState { result, state })
     }

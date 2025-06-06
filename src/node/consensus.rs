@@ -1,12 +1,16 @@
-use crate::{hardforks::BscHardforks, node::BscNode, BscPrimitives};
+use crate::{hardforks::BscHardforks, node::BscNode, BscBlock, BscBlockBody, BscPrimitives};
 use reth::{
     api::FullNodeTypes,
+    beacon_consensus::EthBeaconConsensus,
     builder::{components::ConsensusBuilder, BuilderContext},
     consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator},
+    consensus_common::validation::{
+        validate_against_parent_4844, validate_against_parent_eip1559_base_fee,
+        validate_against_parent_hash_number, validate_against_parent_timestamp,
+    },
 };
 use reth_chainspec::EthChainSpec;
-use reth_primitives::{NodePrimitives, RecoveredBlock, SealedBlock, SealedHeader};
-use reth_primitives_traits::{Block, BlockHeader};
+use reth_primitives::{Receipt, RecoveredBlock, SealedBlock, SealedHeader};
 use reth_provider::BlockExecutionResult;
 use std::sync::Arc;
 
@@ -29,43 +33,66 @@ where
 /// BSC consensus implementation.
 ///
 /// Provides basic checks as outlined in the execution specs.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct BscConsensus<ChainSpec> {
+    inner: EthBeaconConsensus<ChainSpec>,
     chain_spec: Arc<ChainSpec>,
 }
 
-impl<ChainSpec> BscConsensus<ChainSpec> {
+impl<ChainSpec: EthChainSpec + BscHardforks> BscConsensus<ChainSpec> {
     /// Create a new instance of [`BscConsensus`]
-    pub const fn new(chain_spec: Arc<ChainSpec>) -> Self {
-        Self { chain_spec }
+    pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
+        Self { inner: EthBeaconConsensus::new(chain_spec.clone()), chain_spec }
     }
 }
 
-impl<ChainSpec: EthChainSpec + BscHardforks, N: NodePrimitives> FullConsensus<N>
-    for BscConsensus<ChainSpec>
-{
-    fn validate_block_post_execution(
+impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<ChainSpec> {
+    fn validate_header(&self, _header: &SealedHeader) -> Result<(), ConsensusError> {
+        // TODO: doesn't work because of extradata check
+        // self.inner.validate_header(header)
+
+        Ok(())
+    }
+
+    fn validate_header_against_parent(
         &self,
-        _block: &RecoveredBlock<N::Block>,
-        _result: &BlockExecutionResult<N::Receipt>,
+        header: &SealedHeader,
+        parent: &SealedHeader,
     ) -> Result<(), ConsensusError> {
+        validate_against_parent_hash_number(header.header(), parent)?;
+
+        validate_against_parent_timestamp(header.header(), parent.header())?;
+
+        validate_against_parent_eip1559_base_fee(
+            header.header(),
+            parent.header(),
+            &self.chain_spec,
+        )?;
+
+        // ensure that the blob gas fields for this block
+        if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
+            validate_against_parent_4844(header.header(), parent.header(), blob_params)?;
+        }
+
         Ok(())
     }
 }
 
-impl<ChainSpec: EthChainSpec + BscHardforks, B: Block> Consensus<B> for BscConsensus<ChainSpec> {
+impl<ChainSpec: EthChainSpec + BscHardforks> Consensus<BscBlock> for BscConsensus<ChainSpec> {
     type Error = ConsensusError;
 
     fn validate_body_against_header(
         &self,
-        _body: &B::Body,
-        _header: &SealedHeader<B::Header>,
+        body: &BscBlockBody,
+        header: &SealedHeader,
     ) -> Result<(), ConsensusError> {
-        // validate_body_against_header(body, header.header())
-        Ok(())
+        Consensus::<BscBlock>::validate_body_against_header(&self.inner, body, header)
     }
 
-    fn validate_block_pre_execution(&self, _block: &SealedBlock<B>) -> Result<(), ConsensusError> {
+    fn validate_block_pre_execution(
+        &self,
+        _block: &SealedBlock<BscBlock>,
+    ) -> Result<(), ConsensusError> {
         // Check ommers hash
         // let ommers_hash = block.body().calculate_ommers_root();
         // if Some(block.ommers_hash()) != ommers_hash {
@@ -93,33 +120,14 @@ impl<ChainSpec: EthChainSpec + BscHardforks, B: Block> Consensus<B> for BscConse
     }
 }
 
-impl<ChainSpec: EthChainSpec + BscHardforks, H: BlockHeader> HeaderValidator<H>
+impl<ChainSpec: EthChainSpec + BscHardforks> FullConsensus<BscPrimitives>
     for BscConsensus<ChainSpec>
 {
-    fn validate_header(&self, _header: &SealedHeader<H>) -> Result<(), ConsensusError> {
-        // validate_header_gas(header.header())?;
-        // validate_header_base_fee(header.header(), &self.chain_spec)
-        Ok(())
-    }
-
-    fn validate_header_against_parent(
+    fn validate_block_post_execution(
         &self,
-        _header: &SealedHeader<H>,
-        _parent: &SealedHeader<H>,
+        block: &RecoveredBlock<BscBlock>,
+        result: &BlockExecutionResult<Receipt>,
     ) -> Result<(), ConsensusError> {
-        // validate_against_parent_hash_number(header.header(), parent)?;
-
-        // validate_against_parent_eip1559_base_fee(
-        //     header.header(),
-        //     parent.header(),
-        //     &self.chain_spec,
-        // )?;
-
-        // // ensure that the blob gas fields for this block
-        // if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp()) {
-        //     validate_against_parent_4844(header.header(), parent.header(), blob_params)?;
-        // }
-
-        Ok(())
+        FullConsensus::<BscPrimitives>::validate_block_post_execution(&self.inner, block, result)
     }
 }
