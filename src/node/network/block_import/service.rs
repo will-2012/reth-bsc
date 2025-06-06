@@ -324,7 +324,12 @@ mod tests {
 
             handle_engine_msg(from_engine, responses).await;
 
-            let (service, handle) = ImportService::new(consensus, engine_handle);
+            let (to_import, from_network) = mpsc::unbounded_channel();
+            let (to_network, import_outcome) = mpsc::unbounded_channel();
+
+            let handle = ImportHandle::new(to_import, import_outcome);
+
+            let service = ImportService::new(consensus, engine_handle, from_network, to_network);
             tokio::spawn(Box::pin(async move {
                 service.await.unwrap();
             }));

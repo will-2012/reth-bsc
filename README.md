@@ -25,13 +25,13 @@ To trigger historical sync, follow these steps:
 1. Build the release version:
 
 ```bash
-cargo build --bin reth --release
+cargo build --bin reth-bsc --release
 ```
 
 2. Run the node with logging enabled:
 
 ```bash
-RUST_LOG=info ./target/release/reth node \
+RUST_LOG=info ./target/release/reth-bsc node \
     --chain bsc \
     --debug.tip "" # set the tip to the block you want to sync to
 ```
