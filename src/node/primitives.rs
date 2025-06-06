@@ -242,8 +242,6 @@ mod rlp {
 }
 
 pub mod serde_bincode_compat {
-    // expect clippy owned cow
-
     use super::*;
     use reth_primitives_traits::serde_bincode_compat::{BincodeReprFor, SerdeBincodeCompat};
 
