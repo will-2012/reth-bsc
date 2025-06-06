@@ -1,3 +1,4 @@
+#![allow(clippy::owned_cow)]
 use alloy_consensus::{BlobTransactionSidecar, Header};
 use alloy_primitives::B256;
 use alloy_rlp::{Encodable, RlpDecodable, RlpEncodable};

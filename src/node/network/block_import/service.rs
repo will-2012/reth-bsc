@@ -2,7 +2,10 @@ use super::handle::ImportHandle;
 use crate::{
     consensus::{ParliaConsensus, ParliaConsensusErr},
     node::{network::BscNewBlock, rpc::engine_api::payload::BscPayloadTypes},
+    BscBlock, BscBlockBody,
 };
+use alloy_consensus::{BlockBody, Header};
+use alloy_primitives::U128;
 use alloy_rpc_types::engine::{ForkchoiceState, PayloadStatusEnum};
 use futures::{future::Either, stream::FuturesUnordered, StreamExt};
 use reth_engine_primitives::{BeaconConsensusEngineHandle, EngineTypes};
@@ -23,9 +26,6 @@ use std::{
     task::{Context, Poll},
 };
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-
-/// The block type for a given engine
-pub type BscBlock = reth_ethereum_primitives::Block;
 
 /// Network message containing a new block
 pub(crate) type BlockMsg = NewBlockMessage<BscNewBlock>;
@@ -324,7 +324,12 @@ mod tests {
 
             handle_engine_msg(from_engine, responses).await;
 
-            let (service, handle) = ImportService::new(consensus, engine_handle);
+            let (to_import, from_network) = mpsc::unbounded_channel();
+            let (to_network, import_outcome) = mpsc::unbounded_channel();
+
+            let handle = ImportHandle::new(to_import, import_outcome);
+
+            let service = ImportService::new(consensus, engine_handle, from_network, to_network);
             tokio::spawn(Box::pin(async move {
                 service.await.unwrap();
             }));
@@ -365,12 +370,20 @@ mod tests {
 
     /// Creates a test block message
     fn create_test_block() -> NewBlockMessage<BscNewBlock> {
-        let block: reth_primitives::Block = Block::default();
-        let new_block = BscNewBlock {
-            inner: NewBlock { block: block.clone(), td: U128::ZERO },
-            sidecars: Default::default(),
+        let block = BscBlock {
+            header: Header::default(),
+            body: BscBlockBody {
+                inner: BlockBody {
+                    transactions: Vec::new(),
+                    ommers: Vec::new(),
+                    withdrawals: None,
+                },
+                sidecars: None,
+            },
         };
-        NewBlockMessage { hash: block.header.hash_slow(), block: Arc::new(new_block) }
+        let new_block = BscNewBlock(NewBlock { block, td: U128::from(1) });
+        let hash = new_block.0.block.header.hash_slow();
+        NewBlockMessage { hash, block: Arc::new(new_block) }
     }
 
     /// Helper function to handle engine messages with specified payload statuses

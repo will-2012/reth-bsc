@@ -1,3 +1,4 @@
+#![allow(clippy::owned_cow)]
 use crate::{
     chainspec::bsc::head,
     consensus::ParliaConsensus,
