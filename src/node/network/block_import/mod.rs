@@ -5,7 +5,7 @@ use reth_network::import::{BlockImport, BlockImportOutcome, NewBlockEvent};
 use reth_network_peers::PeerId;
 use reth_payload_primitives::{BuiltPayload, PayloadTypes};
 use reth_primitives::NodePrimitives;
-use service::{BlockMsg, BscBlock, ImportEvent, Outcome};
+use service::{BlockMsg, ImportEvent, Outcome};
 use std::{
     fmt,
     task::{ready, Context, Poll},
