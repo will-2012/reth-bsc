@@ -1,3 +1,4 @@
+#![allow(clippy::owned_cow)]
 use alloy_consensus::{BlobTransactionSidecar, Header};
 use alloy_primitives::B256;
 use alloy_rlp::{Encodable, RlpDecodable, RlpEncodable};
@@ -241,6 +242,8 @@ mod rlp {
 }
 
 pub mod serde_bincode_compat {
+    // expect clippy owned cow
+
     use super::*;
     use reth_primitives_traits::serde_bincode_compat::{BincodeReprFor, SerdeBincodeCompat};
 
