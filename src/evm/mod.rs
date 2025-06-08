@@ -10,6 +10,7 @@ mod tests {
         chainspec::{bsc::bsc_mainnet, BscChainSpec},
         evm::{
             api::{
+                builder::BscBuilder,
                 ctx::{BscContext, DefaultBsc},
                 BscEvmInner,
             },
@@ -19,19 +20,30 @@ mod tests {
         node::{evm::BscEvm, BscNode},
     };
     use alloy_evm::Evm;
-    use alloy_primitives::{address, bytes, fixed_bytes, TxKind, U256};
+    use alloy_primitives::{address, bytes, fixed_bytes, hex, TxKind, U256};
     use alloy_rpc_types::AccessList;
     use reth_provider::providers::ReadOnlyConfig;
     use reth_revm::{database::StateProviderDatabase, State};
     use revm::{
-        context::{result::ExecutionResult, BlockEnv, TxEnv},
-        context_interface::block::BlobExcessGasAndPrice,
-        inspector::NoOpInspector,
-        DatabaseCommit,
+        context::{result::ExecutionResult, BlockEnv, ContextSetters, TxEnv},
+        DatabaseCommit, InspectEvm,
     };
+    use revm_inspectors::tracing::{StackSnapshotType, TracingInspector, TracingInspectorConfig};
+    use std::io::Write;
 
     #[test]
     fn test_can_execute() -> Result<(), Box<dyn std::error::Error>> {
+        let inspector = TracingInspector::new(TracingInspectorConfig {
+            record_steps: true,
+            record_memory_snapshots: true,
+            record_stack_snapshots: StackSnapshotType::Full,
+            record_state_diff: true,
+            record_returndata_snapshots: true,
+            exclude_precompile_calls: false,
+            record_logs: true,
+            record_immediate_bytes: true,
+            record_opcodes_filter: None,
+        });
         let datadir = "/Users/lucaprovini/Library/Application Support/reth/bsc/db";
         let spec = BscChainSpec { inner: bsc_mainnet() };
         let factory = BscNode::provider_factory_builder()
@@ -41,11 +53,10 @@ mod tests {
 
         let db = State::builder().with_database(StateProviderDatabase::new(&provider)).build();
 
-        let inner = BscEvmInner::new(BscContext::bsc().with_db(db), NoOpInspector {});
-        let mut evm = BscEvm { inner, inspect: false };
+        let inner = BscEvmInner::new(BscContext::bsc().with_db(db), inspector);
+        let mut evm = BscEvm { inner, inspect: true };
         evm.ctx_mut().cfg.chain_id = 56;
-        evm.ctx_mut().cfg.spec = BscSpecId::LATEST;
-        evm.ctx_mut().cfg.blob_max_count = None;
+        evm.ctx_mut().cfg.spec = BscSpecId::NIELS;
 
         evm.ctx_mut().block = BlockEnv {
             number: 897030,
@@ -300,20 +311,66 @@ mod tests {
             is_system_transaction: false,
         };
 
-        let transactions = vec![tx1]; // tx2, tx3, tx4, tx5, tx6, tx7, tx8, tx9, tx10, tx11
+        let transactions = vec![tx11]; // tx1, tx2, tx3, tx4, tx5, tx6, tx7, tx8, tx9, tx10,
 
-        for (i, tx) in transactions.iter().enumerate() {
-            let result = evm.transact(tx.clone()).unwrap();
-            let (gas_used, gas_refunded) = match &result.result {
-                ExecutionResult::Success { gas_used, gas_refunded, .. } => {
-                    (*gas_used, *gas_refunded)
+        // Create a file to write traces
+        let mut file = std::fs::File::create("tx_traces.txt")?;
+        writeln!(file, "{{")?;
+        writeln!(file, "    \"structLogs\": [")?;
+
+        for (_i, tx) in transactions.iter().enumerate() {
+            // Set the transaction in the EVM context
+            evm.inner.0.ctx.set_tx(tx.clone());
+
+            // Execute with inspection
+            let result = evm.inner.inspect_replay().unwrap();
+            dbg!(&result);
+
+            // Get detailed traces from the inspector
+            let traces = evm.inner.0.inspector.traces();
+            for (i, trace) in traces.nodes().iter().enumerate() {
+                if !trace.trace.steps.is_empty() {
+                    for (step_idx, step) in trace.trace.steps.iter().enumerate() {
+                        writeln!(file, "        {{")?;
+                        writeln!(file, "            \"pc\": {},", step.pc)?;
+                        writeln!(file, "            \"op\": \"{}\",", step.op)?;
+                        writeln!(file, "            \"gas\": {},", step.gas_remaining)?;
+                        writeln!(file, "            \"gasCost\": {},", step.gas_cost)?;
+                        writeln!(file, "            \"depth\": {}", trace.trace.depth + 1)?;
+
+                        // Add stack information if available
+                        if let Some(stack) = &step.stack {
+                            if stack.is_empty() {
+                                writeln!(file, "            \"stack\": []")?;
+                            } else {
+                                writeln!(file, "            \"stack\": [")?;
+                                for (i, value) in stack.iter().enumerate() {
+                                    if i < stack.len() - 1 {
+                                        writeln!(file, "                \"0x{:x}\",", value)?;
+                                    } else {
+                                        writeln!(file, "                \"0x{:x}\"", value)?;
+                                    }
+                                }
+                                writeln!(file, "            ],")?;
+                            }
+                        }
+
+                        if step_idx < trace.trace.steps.len() - 1 {
+                            writeln!(file, "        }},")?;
+                        } else {
+                            writeln!(file, "        }}")?;
+                        }
+                    }
                 }
-                ExecutionResult::Revert { gas_used, .. } => (*gas_used, 0),
-                ExecutionResult::Halt { gas_used, .. } => (*gas_used, 0),
-            };
-            dbg!(i, gas_used, gas_refunded, gas_used + gas_refunded, result.result.is_success());
+            }
+            writeln!(file, "    ],")?;
+            writeln!(file, "    \"gas\": {},", result.result.gas_used())?;
+
+            // Commit the state changes
             evm.db_mut().commit(result.state);
         }
+
+        writeln!(file, "}}")?;
 
         Ok(())
     }

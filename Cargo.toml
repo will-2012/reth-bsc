@@ -46,6 +46,7 @@ reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "66692a7" }
 reth-trie-common = { git = "https://github.com/paradigmxyz/reth", rev = "66692a7" }
 reth-trie-db = { git = "https://github.com/paradigmxyz/reth", rev = "66692a7" }
 revm = { version = "24.0.1", features = ["secp256r1"] }
+revm-inspectors = "0.23.0"
 
 # alloy dependencies
 alloy-genesis = "1.0.9"
