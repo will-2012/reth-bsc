@@ -365,16 +365,18 @@ where
         f(&result);
         let gas_used = result.gas_used();
 
-        dbg!("gas_used: {}", gas_used);
-        dbg!("signer: {:?}", tx.signer());
+        dbg!(gas_used);
+        dbg!(tx.signer());
         self.gas_used += gas_used;
-        self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
+        let receipt = self.receipt_builder.build_receipt(ReceiptBuilderCtx {
             tx: tx.tx(),
             evm: &self.evm,
             result,
             state: &state,
             cumulative_gas_used: self.gas_used,
-        }));
+        });
+        dbg!(&receipt);
+        self.receipts.push(receipt);
         self.evm.db_mut().commit(state);
 
         // apply patches after
