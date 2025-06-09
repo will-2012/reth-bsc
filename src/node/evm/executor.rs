@@ -398,12 +398,12 @@ where
             self.deploy_feynman_contracts(self.evm.block().beneficiary)?;
         }
 
-        self.distribute_block_rewards(self.evm.block().beneficiary)?;
-
         let system_txs = self.system_txs.clone();
         for tx in system_txs {
             self.handle_slash_tx(&tx)?;
         }
+
+        self.distribute_block_rewards(self.evm.block().beneficiary)?;
 
         // TODO:
         // Consensus: Slash validator if not in turn
