@@ -326,6 +326,6 @@ pub fn revm_spec_by_timestamp_and_block_number(
     } else if chain_spec.is_ramanujan_active_at_block(block_number) {
         BscSpecId::RAMANUJAN
     } else {
-        BscSpecId::LORENTZ
+        BscSpecId::FRONTIER
     }
 }
