@@ -103,22 +103,13 @@ prost = { version = "0.12.6" }
 
 tendermint = { git = "https://github.com/bnb-chain/tendermint-rs-parlia", rev = "8c21ccbd58a174e07eed2c9343e63ccd00f0fbd5", features = ["secp256k1"] }
 
-# KZG point evaluation precompile
-c-kzg = { version = "2.1.1", features = ["ethereum_kzg_settings"] }
-
-# BLS12-381 precompiles
-blst = { version = "0.3.13", optional = true }
-
-# p256verify precompile
-p256 = { version = "0.13.2", optional = true, default-features = false, features = ["ecdsa"] }
-
 [target.'cfg(unix)'.dependencies]
 tikv-jemalloc-ctl = "0.6"
 tikv-jemallocator = { version = "0.6", optional = true }
 libc = "0.2"
 
 [features]
-default = ["blst", "jemalloc"]
+default = ["jemalloc"]
 jemalloc = ["dep:tikv-jemallocator"]
 dev = [
     "reth-cli-commands/arbitrary",
@@ -133,10 +124,7 @@ serde = [
     "alloy-primitives/serde",
     "alloy-rpc-types-engine/serde",
     "alloy-rpc-types-eth/serde",
-    "blst/serde",
     "bytes/serde",
-    "c-kzg/serde",
-    "p256/serde",
     "parking_lot/serde",
     "reth-eth-wire/serde",
     "reth-eth-wire-types/serde",
