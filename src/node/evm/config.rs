@@ -159,26 +159,40 @@ where
     }
 
     fn evm_env(&self, header: &Header) -> EvmEnv<BscSpecId> {
+        let blob_params = self.chain_spec().blob_params_at_timestamp(header.timestamp);
         let spec = revm_spec_by_timestamp_and_block_number(
             self.chain_spec().clone(),
             header.timestamp(),
             header.number(),
         );
 
-        let cfg_env = CfgEnv::new().with_chain_id(self.chain_spec().chain().id()).with_spec(spec);
+        // configure evm env based on parent block
+        let mut cfg_env =
+            CfgEnv::new().with_chain_id(self.chain_spec().chain().id()).with_spec(spec);
+
+        if let Some(blob_params) = &blob_params {
+            cfg_env.set_blob_max_count(blob_params.max_blob_count);
+        }
+
+        // derive the EIP-4844 blob fees from the header's `excess_blob_gas` and the current
+        // blobparams
+        let blob_excess_gas_and_price =
+            header.excess_blob_gas.zip(blob_params).map(|(excess_blob_gas, params)| {
+                let blob_gasprice = params.calc_blob_fee(excess_blob_gas);
+                BlobExcessGasAndPrice { excess_blob_gas, blob_gasprice }
+            });
+
+        let eth_spec = spec.into_eth_spec();
 
         let block_env = BlockEnv {
             number: header.number(),
             beneficiary: header.beneficiary(),
             timestamp: header.timestamp(),
-            difficulty: U256::ZERO,
-            prevrandao: header.mix_hash(),
+            difficulty: if eth_spec >= SpecId::MERGE { U256::ZERO } else { header.difficulty() },
+            prevrandao: if eth_spec >= SpecId::MERGE { header.mix_hash() } else { None },
             gas_limit: header.gas_limit(),
             basefee: header.base_fee_per_gas().unwrap_or_default(),
-            // EIP-4844 excess blob gas of this block, introduced in Cancun
-            blob_excess_gas_and_price: header.excess_blob_gas().map(|excess_blob_gas| {
-                BlobExcessGasAndPrice::new(excess_blob_gas, spec.into_eth_spec() >= SpecId::PRAGUE)
-            }),
+            blob_excess_gas_and_price,
         };
 
         EvmEnv { cfg_env, block_env }
