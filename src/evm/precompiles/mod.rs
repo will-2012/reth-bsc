@@ -40,36 +40,14 @@ impl BscPrecompiles {
     /// Create a new precompile provider with the given bsc spec.
     #[inline]
     pub fn new_with_spec(spec: BscSpecId) -> Self {
-        match spec {
-            // Pre-BSC hardforks use standard Ethereum precompiles
-            BscSpecId::FRONTIER |
-            BscSpecId::FRONTIER_THAWING |
-            BscSpecId::HOMESTEAD |
-            BscSpecId::TANGERINE |
-            BscSpecId::SPURIOUS_DRAGON => Self::new(Precompiles::homestead()),
-            BscSpecId::BYZANTIUM | BscSpecId::CONSTANTINOPLE | BscSpecId::PETERSBURG => {
-                Self::new(Precompiles::byzantium())
-            }
-            BscSpecId::ISTANBUL | BscSpecId::MUIR_GLACIER => Self::new(Precompiles::istanbul()),
-            // BSC specific hardforks
-            BscSpecId::RAMANUJAN |
-            BscSpecId::NIELS |
-            BscSpecId::MIRROR_SYNC |
-            BscSpecId::BRUNO |
-            BscSpecId::EULER => Self::new(istanbul()),
-            BscSpecId::NANO => Self::new(nano()),
-            BscSpecId::MORAN | BscSpecId::GIBBS => Self::new(moran()),
-            BscSpecId::PLANCK => Self::new(planck()),
-            BscSpecId::LUBAN => Self::new(luban()),
-            BscSpecId::PLATO => Self::new(plato()),
-            BscSpecId::BERLIN | BscSpecId::LONDON | BscSpecId::SHANGHAI => {
-                Self::new(Precompiles::berlin())
-            }
-            BscSpecId::HERTZ | BscSpecId::HERTZ_FIX | BscSpecId::KEPLER => Self::new(hertz()),
-            BscSpecId::FEYNMAN | BscSpecId::FEYNMAN_FIX => Self::new(feynman()),
-            BscSpecId::HABER | BscSpecId::HABER_FIX | BscSpecId::BOHR => Self::new(haber()),
-            BscSpecId::CANCUN => Self::new(cancun()),
-            BscSpecId::LATEST => Self::new(latest()),
+        if spec >= BscSpecId::HABER {
+            Self::new(haber())
+        } else if spec >= BscSpecId::FEYNMAN {
+            Self::new(feynman())
+        } else if spec >= BscSpecId::HERTZ {
+            Self::new(hertz())
+        } else {
+            Self::new(istanbul())
         }
     }
 
@@ -289,6 +267,6 @@ where
 
 impl Default for BscPrecompiles {
     fn default() -> Self {
-        Self::new_with_spec(BscSpecId::CANCUN)
+        Self::new_with_spec(BscSpecId::default())
     }
 }
