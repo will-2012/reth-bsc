@@ -3,14 +3,12 @@
 use super::spec::BscSpecId;
 use cfg_if::cfg_if;
 use once_cell::{race::OnceBox, sync::Lazy};
-#[cfg(feature = "secp256r1")]
-use revm::precompile::secp256r1;
 use revm::{
     context::Cfg,
     context_interface::ContextTr,
     handler::{EthPrecompiles, PrecompileProvider},
     interpreter::{InputsImpl, InterpreterResult},
-    precompile::{bls12_381, kzg_point_evaluation, modexp, Precompiles},
+    precompile::{bls12_381, kzg_point_evaluation, modexp, secp256r1, Precompiles},
     primitives::{hardfork::SpecId, Address},
 };
 use std::boxed::Box;
@@ -21,7 +19,6 @@ mod double_sign;
 mod error;
 mod iavl;
 mod tendermint;
-#[cfg(feature = "secp256k1")]
 mod tm_secp256k1;
 
 // BSC precompile provider

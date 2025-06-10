@@ -118,17 +118,13 @@ tikv-jemallocator = { version = "0.6", optional = true }
 libc = "0.2"
 
 [features]
-default = ["c-kzg", "secp256k1", "blst", "secp256r1", "jemalloc"]
+default = ["blst", "jemalloc"]
 jemalloc = ["dep:tikv-jemallocator"]
 dev = [
     "reth-cli-commands/arbitrary",
     "reth/dev",
     "revm/dev",
 ]
-c-kzg = ["dep:c-kzg"]
-kzg-rs = []
-secp256k1 = ["dep:secp256k1"]
-secp256r1 = ["dep:p256"]
 
 serde = [
     "alloy-chains/serde",
