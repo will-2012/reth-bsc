@@ -2,12 +2,12 @@ use super::{executor::BscBlockExecutor, factory::BscEvmFactory};
 use crate::{
     chainspec::BscChainSpec,
     evm::{spec::BscSpecId, transaction::BscTxEnv},
-    hardforks::{bsc::BscHardfork, BscHardforks},
+    hardforks::BscHardforks,
     system_contracts::SystemContract,
     BscPrimitives,
 };
 use alloy_consensus::{BlockHeader, Header, TxReceipt};
-use alloy_primitives::{BlockNumber, Log, U256};
+use alloy_primitives::{Log, U256};
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_ethereum_forks::EthereumHardfork;
 use reth_evm::{
@@ -159,7 +159,11 @@ where
     }
 
     fn evm_env(&self, header: &Header) -> EvmEnv<BscSpecId> {
-        let spec = revm_spec(self.chain_spec().clone(), header.number());
+        let spec = revm_spec_by_timestamp_and_block_number(
+            self.chain_spec().clone(),
+            header.timestamp(),
+            header.number(),
+        );
 
         let cfg_env = CfgEnv::new().with_chain_id(self.chain_spec().chain().id()).with_spec(spec);
 
@@ -186,8 +190,11 @@ where
         attributes: &Self::NextBlockEnvCtx,
     ) -> Result<EvmEnv<BscSpecId>, Self::Error> {
         // ensure we're not missing any timestamp based hardforks
-        let spec_id =
-            revm_spec_by_timestamp_after_shanghai(self.chain_spec().clone(), attributes.timestamp);
+        let spec_id = revm_spec_by_timestamp_and_block_number(
+            self.chain_spec().clone(),
+            attributes.timestamp,
+            parent.number() + 1,
+        );
 
         // configure evm env based on parent block
         let cfg_env =
@@ -270,113 +277,55 @@ where
     }
 }
 
-/// Returns the revm [`BscSpecId`] at the given timestamp.
-///
-/// # Note
-///
-/// This is only intended to be used after the Shangai, when hardforks are activated by
-/// timestamp.
-pub fn revm_spec_by_timestamp_after_shanghai(
-    chain_spec: Arc<BscChainSpec>,
+/// Map the latest active hardfork at the given timestamp or block number to a [`BscSpecId`].
+pub fn revm_spec_by_timestamp_and_block_number(
+    chain_spec: impl BscHardforks,
     timestamp: u64,
+    block_number: u64,
 ) -> BscSpecId {
-    let chain_spec = chain_spec.inner.clone();
-    if chain_spec.fork(BscHardfork::Bohr).active_at_timestamp(timestamp) {
+    if chain_spec.is_lorentz_active_at_timestamp(timestamp) {
+        BscSpecId::LORENTZ
+    } else if chain_spec.is_pascal_active_at_timestamp(timestamp) {
+        BscSpecId::PASCAL
+    } else if chain_spec.is_bohr_active_at_timestamp(timestamp) {
         BscSpecId::BOHR
-    } else if chain_spec.fork(BscHardfork::HaberFix).active_at_timestamp(timestamp) {
+    } else if chain_spec.is_haber_fix_active_at_timestamp(timestamp) {
         BscSpecId::HABER_FIX
-    } else if chain_spec.fork(BscHardfork::Haber).active_at_timestamp(timestamp) {
+    } else if chain_spec.is_haber_active_at_timestamp(timestamp) {
         BscSpecId::HABER
-    } else if chain_spec.fork(BscHardfork::FeynmanFix).active_at_timestamp(timestamp) {
+    } else if chain_spec.is_feynman_fix_active_at_timestamp(timestamp) {
         BscSpecId::FEYNMAN_FIX
-    } else if chain_spec.fork(BscHardfork::Feynman).active_at_timestamp(timestamp) {
+    } else if chain_spec.is_feynman_active_at_timestamp(timestamp) {
         BscSpecId::FEYNMAN
-    } else if chain_spec.fork(BscHardfork::Kepler).active_at_timestamp(timestamp) {
+    } else if chain_spec.is_kepler_active_at_timestamp(timestamp) {
         BscSpecId::KEPLER
-    } else {
-        BscSpecId::SHANGHAI
-    }
-}
-
-/// Returns the revm [`BscSpecId`] at the given block number.
-///
-/// # Note
-///
-/// This is only intended to be used before the Shangai, when hardforks are activated by
-/// block number.
-pub fn revm_spec(chain_spec: Arc<BscChainSpec>, block: BlockNumber) -> BscSpecId {
-    let chain_spec = chain_spec.inner.clone();
-    if chain_spec.fork(BscHardfork::Bohr).active_at_block(block) {
-        BscSpecId::BOHR
-    } else if chain_spec.fork(BscHardfork::HaberFix).active_at_block(block) {
-        BscSpecId::HABER_FIX
-    } else if chain_spec.fork(BscHardfork::Haber).active_at_block(block) {
-        BscSpecId::HABER
-    } else if chain_spec.fork(EthereumHardfork::Cancun).active_at_block(block) {
-        BscSpecId::CANCUN
-    } else if chain_spec.fork(BscHardfork::FeynmanFix).active_at_block(block) {
-        BscSpecId::FEYNMAN_FIX
-    } else if chain_spec.fork(BscHardfork::Feynman).active_at_block(block) {
-        BscSpecId::FEYNMAN
-    } else if chain_spec.fork(BscHardfork::Kepler).active_at_block(block) {
-        BscSpecId::KEPLER
-    } else if chain_spec.fork(EthereumHardfork::Shanghai).active_at_block(block) {
-        BscSpecId::SHANGHAI
-    } else if chain_spec.fork(BscHardfork::HertzFix).active_at_block(block) {
+    } else if chain_spec.is_hertz_fix_active_at_block(block_number) {
         BscSpecId::HERTZ_FIX
-    } else if chain_spec.fork(BscHardfork::Hertz).active_at_block(block) {
+    } else if chain_spec.is_hertz_active_at_block(block_number) {
         BscSpecId::HERTZ
-    } else if chain_spec.fork(EthereumHardfork::London).active_at_block(block) {
-        BscSpecId::LONDON
-    } else if chain_spec.fork(EthereumHardfork::Berlin).active_at_block(block) {
-        BscSpecId::BERLIN
-    } else if chain_spec.fork(BscHardfork::Plato).active_at_block(block) {
+    } else if chain_spec.is_plato_active_at_block(block_number) {
         BscSpecId::PLATO
-    } else if chain_spec.fork(BscHardfork::Luban).active_at_block(block) {
+    } else if chain_spec.is_luban_active_at_block(block_number) {
         BscSpecId::LUBAN
-    } else if chain_spec.fork(BscHardfork::Planck).active_at_block(block) {
+    } else if chain_spec.is_planck_active_at_block(block_number) {
         BscSpecId::PLANCK
-    } else if chain_spec.fork(BscHardfork::Gibbs).active_at_block(block) {
-        // bsc mainnet and testnet have different order for Moran, Nano and Gibbs
-        if chain_spec.fork(BscHardfork::Moran).active_at_block(block) {
-            BscSpecId::MORAN
-        } else if chain_spec.fork(BscHardfork::Nano).active_at_block(block) {
-            BscSpecId::NANO
-        } else {
-            BscSpecId::EULER
-        }
-    } else if chain_spec.fork(BscHardfork::Moran).active_at_block(block) {
+    } else if chain_spec.is_gibbs_active_at_block(block_number) {
+        BscSpecId::GIBBS
+    } else if chain_spec.is_moran_active_at_block(block_number) {
         BscSpecId::MORAN
-    } else if chain_spec.fork(BscHardfork::Nano).active_at_block(block) {
+    } else if chain_spec.is_nano_active_at_block(block_number) {
         BscSpecId::NANO
-    } else if chain_spec.fork(BscHardfork::Euler).active_at_block(block) {
+    } else if chain_spec.is_euler_active_at_block(block_number) {
         BscSpecId::EULER
-    } else if chain_spec.fork(BscHardfork::Bruno).active_at_block(block) {
+    } else if chain_spec.is_bruno_active_at_block(block_number) {
         BscSpecId::BRUNO
-    } else if chain_spec.fork(BscHardfork::MirrorSync).active_at_block(block) {
+    } else if chain_spec.is_mirror_sync_active_at_block(block_number) {
         BscSpecId::MIRROR_SYNC
-    } else if chain_spec.fork(BscHardfork::Niels).active_at_block(block) {
+    } else if chain_spec.is_niels_active_at_block(block_number) {
         BscSpecId::NIELS
-    } else if chain_spec.fork(BscHardfork::Ramanujan).active_at_block(block) {
+    } else if chain_spec.is_ramanujan_active_at_block(block_number) {
         BscSpecId::RAMANUJAN
-    } else if chain_spec.fork(EthereumHardfork::MuirGlacier).active_at_block(block) {
-        BscSpecId::MUIR_GLACIER
-    } else if chain_spec.fork(EthereumHardfork::Istanbul).active_at_block(block) {
-        BscSpecId::ISTANBUL
-    } else if chain_spec.fork(EthereumHardfork::Petersburg).active_at_block(block) {
-        BscSpecId::PETERSBURG
-    } else if chain_spec.fork(EthereumHardfork::Constantinople).active_at_block(block) {
-        BscSpecId::CONSTANTINOPLE
-    } else if chain_spec.fork(EthereumHardfork::Byzantium).active_at_block(block) {
-        BscSpecId::BYZANTIUM
-    } else if chain_spec.fork(EthereumHardfork::Homestead).active_at_block(block) {
-        BscSpecId::HOMESTEAD
-    } else if chain_spec.fork(EthereumHardfork::Frontier).active_at_block(block) {
-        BscSpecId::FRONTIER
     } else {
-        panic!(
-            "invalid hardfork chainspec: expected at least one hardfork, got {:?}",
-            chain_spec.hardforks
-        )
+        BscSpecId::LORENTZ
     }
 }

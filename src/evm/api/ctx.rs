@@ -18,6 +18,6 @@ impl DefaultBsc for BscContext<EmptyDB> {
     fn bsc() -> Self {
         Context::mainnet()
             .with_tx(BscTxEnv::default())
-            .with_cfg(CfgEnv::new_with_spec(BscSpecId::LATEST))
+            .with_cfg(CfgEnv::new_with_spec(BscSpecId::default()))
     }
 }
