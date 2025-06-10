@@ -7,9 +7,7 @@ use reth::{
     primitives::{Receipt, Recovered, TransactionSigned},
     providers::ReceiptProvider,
     rpc::{
-        eth::EthTxBuilder,
-        server_types::eth::{utils::recover_raw_transaction, EthApiError},
-        types::{TransactionInfo, TransactionRequest},
+        eth::helpers::types::EthRpcConverter, server_types::eth::{utils::recover_raw_transaction, EthApiError}, types::{TransactionInfo, TransactionRequest}
     },
     transaction_pool::{PoolTransaction, TransactionOrigin, TransactionPool},
 };
@@ -40,7 +38,7 @@ where
         tx: Recovered<TransactionSigned>,
         tx_info: TransactionInfo,
     ) -> Result<Self::Transaction, Self::Error> {
-        let builder = EthTxBuilder::default();
+        let builder = EthRpcConverter::default();
         builder.fill(tx, tx_info)
     }
 
