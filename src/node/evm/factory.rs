@@ -39,15 +39,14 @@ impl EvmFactory for BscEvmFactory {
         db: DB,
         input: EvmEnv<BscSpecId>,
     ) -> Self::Evm<DB, NoOpInspector> {
+        let precompiles = BscPrecompiles::new(input.cfg_env.spec).precompiles();
         BscEvm {
             inner: Context::bsc()
                 .with_block(input.block_env)
                 .with_cfg(input.cfg_env)
                 .with_db(db)
                 .build_bsc_with_inspector(NoOpInspector {})
-                .with_precompiles(PrecompilesMap::from_static(
-                    BscPrecompiles::default().precompiles(),
-                )),
+                .with_precompiles(PrecompilesMap::from_static(precompiles)),
             inspect: false,
         }
     }
@@ -61,15 +60,14 @@ impl EvmFactory for BscEvmFactory {
         input: EvmEnv<BscSpecId>,
         inspector: I,
     ) -> Self::Evm<DB, I> {
+        let precompiles = BscPrecompiles::new(input.cfg_env.spec).precompiles();
         BscEvm {
             inner: Context::bsc()
                 .with_block(input.block_env)
                 .with_cfg(input.cfg_env)
                 .with_db(db)
                 .build_bsc_with_inspector(inspector)
-                .with_precompiles(PrecompilesMap::from_static(
-                    BscPrecompiles::default().precompiles(),
-                )),
+                .with_precompiles(PrecompilesMap::from_static(precompiles)),
             inspect: true,
         }
     }

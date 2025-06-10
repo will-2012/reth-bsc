@@ -7,7 +7,9 @@ use reth::{
     primitives::{Receipt, Recovered, TransactionSigned},
     providers::ReceiptProvider,
     rpc::{
-        eth::helpers::types::EthRpcConverter, server_types::eth::{utils::recover_raw_transaction, EthApiError}, types::{TransactionInfo, TransactionRequest}
+        eth::helpers::types::EthRpcConverter,
+        server_types::eth::{utils::recover_raw_transaction, EthApiError},
+        types::{TransactionInfo, TransactionRequest},
     },
     transaction_pool::{PoolTransaction, TransactionOrigin, TransactionPool},
 };
