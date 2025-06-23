@@ -5,8 +5,8 @@ use reth::{
     builder::{components::ConsensusBuilder, BuilderContext},
     consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator},
     consensus_common::validation::{
-        validate_against_parent_4844, validate_against_parent_eip1559_base_fee,
-        validate_against_parent_hash_number, validate_against_parent_timestamp,
+        validate_against_parent_4844, validate_against_parent_hash_number,
+        validate_against_parent_timestamp,
     },
 };
 use reth_chainspec::EthChainSpec;
@@ -62,12 +62,6 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
         validate_against_parent_hash_number(header.header(), parent)?;
 
         validate_against_parent_timestamp(header.header(), parent.header())?;
-
-        validate_against_parent_eip1559_base_fee(
-            header.header(),
-            parent.header(),
-            &self.chain_spec,
-        )?;
 
         // ensure that the blob gas fields for this block
         if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {

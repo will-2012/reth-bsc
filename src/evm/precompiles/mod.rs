@@ -3,14 +3,12 @@
 use super::spec::BscSpecId;
 use cfg_if::cfg_if;
 use once_cell::{race::OnceBox, sync::Lazy};
-#[cfg(feature = "secp256r1")]
-use revm::precompile::secp256r1;
 use revm::{
     context::Cfg,
     context_interface::ContextTr,
     handler::{EthPrecompiles, PrecompileProvider},
     interpreter::{InputsImpl, InterpreterResult},
-    precompile::{bls12_381, kzg_point_evaluation, Precompiles},
+    precompile::{bls12_381, kzg_point_evaluation, modexp, secp256r1, Precompiles},
     primitives::{hardfork::SpecId, Address},
 };
 use std::boxed::Box;
@@ -21,7 +19,6 @@ mod double_sign;
 mod error;
 mod iavl;
 mod tendermint;
-#[cfg(feature = "secp256k1")]
 mod tm_secp256k1;
 
 // BSC precompile provider
@@ -32,45 +29,30 @@ pub struct BscPrecompiles {
 }
 
 impl BscPrecompiles {
-    /// Create a new [`BscPrecompiles`] with the given precompiles.
-    pub fn new(precompiles: &'static Precompiles) -> Self {
-        Self { inner: EthPrecompiles { precompiles, spec: SpecId::default() } }
-    }
-
     /// Create a new precompile provider with the given bsc spec.
     #[inline]
-    pub fn new_with_spec(spec: BscSpecId) -> Self {
-        match spec {
-            // Pre-BSC hardforks use standard Ethereum precompiles
-            BscSpecId::FRONTIER |
-            BscSpecId::FRONTIER_THAWING |
-            BscSpecId::HOMESTEAD |
-            BscSpecId::TANGERINE |
-            BscSpecId::SPURIOUS_DRAGON => Self::new(Precompiles::homestead()),
-            BscSpecId::BYZANTIUM | BscSpecId::CONSTANTINOPLE | BscSpecId::PETERSBURG => {
-                Self::new(Precompiles::byzantium())
-            }
-            BscSpecId::ISTANBUL | BscSpecId::MUIR_GLACIER => Self::new(Precompiles::istanbul()),
-            // BSC specific hardforks
-            BscSpecId::RAMANUJAN |
-            BscSpecId::NIELS |
-            BscSpecId::MIRROR_SYNC |
-            BscSpecId::BRUNO |
-            BscSpecId::EULER => Self::new(istanbul()),
-            BscSpecId::NANO => Self::new(nano()),
-            BscSpecId::MORAN | BscSpecId::GIBBS => Self::new(moran()),
-            BscSpecId::PLANCK => Self::new(planck()),
-            BscSpecId::LUBAN => Self::new(luban()),
-            BscSpecId::PLATO => Self::new(plato()),
-            BscSpecId::BERLIN | BscSpecId::LONDON | BscSpecId::SHANGHAI => {
-                Self::new(Precompiles::berlin())
-            }
-            BscSpecId::HERTZ | BscSpecId::HERTZ_FIX | BscSpecId::KEPLER => Self::new(hertz()),
-            BscSpecId::FEYNMAN | BscSpecId::FEYNMAN_FIX => Self::new(feynman()),
-            BscSpecId::HABER | BscSpecId::HABER_FIX | BscSpecId::BOHR => Self::new(haber()),
-            BscSpecId::CANCUN => Self::new(cancun()),
-            BscSpecId::LATEST => Self::new(latest()),
-        }
+    pub fn new(spec: BscSpecId) -> Self {
+        let precompiles = if spec >= BscSpecId::HABER {
+            haber()
+        } else if spec >= BscSpecId::FEYNMAN {
+            feynman()
+        } else if spec >= BscSpecId::HERTZ {
+            hertz()
+        } else if spec >= BscSpecId::PLATO {
+            plato()
+        } else if spec >= BscSpecId::LUBAN {
+            luban()
+        } else if spec >= BscSpecId::PLANCK {
+            planck()
+        } else if spec >= BscSpecId::MORAN {
+            moran()
+        } else if spec >= BscSpecId::NANO {
+            nano()
+        } else {
+            istanbul()
+        };
+
+        Self { inner: EthPrecompiles { precompiles, spec: spec.into_eth_spec() } }
     }
 
     #[inline]
@@ -81,25 +63,15 @@ impl BscPrecompiles {
 
 /// Returns precompiles for Istanbul spec.
 pub fn istanbul() -> &'static Precompiles {
-    static ISTANBUL: Lazy<Precompiles> = Lazy::new(|| {
+    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
+    INSTANCE.get_or_init(|| {
         let mut precompiles = Precompiles::istanbul().clone();
         precompiles.extend([tendermint::TENDERMINT_HEADER_VALIDATION, iavl::IAVL_PROOF_VALIDATION]);
-        precompiles
-    });
-    &ISTANBUL
+        Box::new(precompiles)
+    })
 }
 
-/// Returns precompiles for Berlin spec.
-pub fn berlin() -> &'static Precompiles {
-    static BERLIN: Lazy<Precompiles> = Lazy::new(|| {
-        let mut precompiles = Precompiles::berlin().clone();
-        precompiles.extend([tendermint::TENDERMINT_HEADER_VALIDATION, iavl::IAVL_PROOF_VALIDATION]);
-        precompiles
-    });
-    &BERLIN
-}
-
-/// Returns precompiles for Nano sepc.
+/// Returns precompiles for Nano spec.
 pub fn nano() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
@@ -108,7 +80,6 @@ pub fn nano() -> &'static Precompiles {
             tendermint::TENDERMINT_HEADER_VALIDATION_NANO,
             iavl::IAVL_PROOF_VALIDATION_NANO,
         ]);
-
         Box::new(precompiles)
     })
 }
@@ -166,8 +137,8 @@ pub fn plato() -> &'static Precompiles {
 pub fn hertz() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
-        let mut precompiles = berlin().clone();
-        precompiles.extend([cometbft::COMETBFT_LIGHT_BLOCK_VALIDATION]);
+        let mut precompiles = plato().clone();
+        precompiles.extend([cometbft::COMETBFT_LIGHT_BLOCK_VALIDATION, modexp::BERLIN]);
 
         Box::new(precompiles)
     })
@@ -178,54 +149,10 @@ pub fn feynman() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
         let mut precompiles = hertz().clone();
-        precompiles.extend([double_sign::DOUBLE_SIGN_EVIDENCE_VALIDATION]);
-
-        #[cfg(feature = "secp256k1")]
-        precompiles.extend([tm_secp256k1::TM_SECP256K1_SIGNATURE_RECOVER]);
-
-        Box::new(precompiles)
-    })
-}
-
-/// Returns precompiles for Cancun spec.
-///
-/// If the `c-kzg` feature is not enabled KZG Point Evaluation precompile will not be included,
-/// effectively making this the same as Berlin.
-pub fn cancun() -> &'static Precompiles {
-    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
-    INSTANCE.get_or_init(|| {
-            let mut precompiles = feynman().clone();
-            // EIP-4844: Shard Blob Transactions
-            cfg_if! {
-                if #[cfg(any(feature = "c-kzg", feature = "kzg-rs"))] {
-                    let precompile = kzg_point_evaluation::POINT_EVALUATION.clone();
-                } else {
-                    let precompile = PrecompileWithAddress(u64_to_address(0x0A), |_,_| Err(PrecompileError::Fatal("c-kzg feature is not enabled".into())));
-                }
-            }
-
-            precompiles.extend([
-                precompile,
-            ]);
-
-            Box::new(precompiles)
-        })
-}
-
-/// Returns precompiles for Prague spec.
-pub fn prague() -> &'static Precompiles {
-    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
-    INSTANCE.get_or_init(|| {
-        let precompiles = cancun().clone();
-
-        // Don't include BLS12-381 precompiles in no_std builds.
-        #[cfg(feature = "blst")]
-        let precompiles = {
-            let mut precompiles = precompiles;
-            precompiles.extend(bls12_381::precompiles());
-            precompiles
-        };
-
+        precompiles.extend([
+            double_sign::DOUBLE_SIGN_EVIDENCE_VALIDATION,
+            tm_secp256k1::TM_SECP256K1_SIGNATURE_RECOVER,
+        ]);
         Box::new(precompiles)
     })
 }
@@ -234,22 +161,11 @@ pub fn prague() -> &'static Precompiles {
 pub fn haber() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
-        let precompiles = cancun().clone();
-
-        #[cfg(feature = "secp256r1")]
-        let precompiles = {
-            let mut precompiles = precompiles;
-            precompiles.extend([secp256r1::P256VERIFY]);
-            precompiles
-        };
+        let mut precompiles = feynman().clone();
+        precompiles.extend([kzg_point_evaluation::POINT_EVALUATION, secp256r1::P256VERIFY]);
 
         Box::new(precompiles)
     })
-}
-
-/// Returns the precompiles for the latest spec.
-pub fn latest() -> &'static Precompiles {
-    haber()
 }
 
 impl<CTX> PrecompileProvider<CTX> for BscPrecompiles
@@ -260,7 +176,7 @@ where
 
     #[inline]
     fn set_spec(&mut self, spec: <CTX::Cfg as Cfg>::Spec) -> bool {
-        *self = Self::new_with_spec(spec);
+        *self = Self::new(spec);
         true
     }
 
@@ -289,6 +205,6 @@ where
 
 impl Default for BscPrecompiles {
     fn default() -> Self {
-        Self::new_with_spec(BscSpecId::CANCUN)
+        Self::new(BscSpecId::default())
     }
 }
