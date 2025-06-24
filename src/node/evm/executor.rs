@@ -239,6 +239,8 @@ where
     }
 
     /// Handle finality reward system tx.
+    /// Activated by <https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP-319.md>
+    /// at <https://www.bnbchain.org/en/blog/announcing-v1-2-9-a-significant-hard-fork-release-for-bsc-mainnet>
     fn handle_finality_reward_tx(
         &mut self,
         tx: &TransactionSigned,
