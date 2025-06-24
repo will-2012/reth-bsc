@@ -238,6 +238,30 @@ where
         Ok(())
     }
 
+    /// Handle finality reward system tx.
+    fn handle_finality_reward_tx(
+        &mut self,
+        tx: &TransactionSigned,
+    ) -> Result<(), BlockExecutionError> {
+        sol!(
+            function distributeFinalityReward(
+                address[] validators,
+                uint256[] weights
+            );
+        );
+
+        let input = tx.input();
+        let is_finality_reward_tx =
+            input.len() >= 4 && input[..4] == distributeFinalityRewardCall::SELECTOR;
+
+        if is_finality_reward_tx {
+            let signer = tx.recover_signer().map_err(BlockExecutionError::other)?;
+            self.transact_system_tx(tx, signer)?;
+        }
+
+        Ok(())
+    }
+
     /// Distributes block rewards to the validator.
     fn distribute_block_rewards(&mut self, validator: Address) -> Result<(), BlockExecutionError> {
         let system_account = self
@@ -423,11 +447,17 @@ where
         }
 
         let system_txs = self.system_txs.clone();
-        for tx in system_txs {
+        for tx in &system_txs {
             self.handle_slash_tx(&tx)?;
         }
 
         self.distribute_block_rewards(self.evm.block().beneficiary)?;
+
+        if self.spec.is_plato_active_at_block(self.evm.block().number) {
+            for tx in system_txs {
+                self.handle_finality_reward_tx(&tx)?;
+            }
+        }
 
         // TODO:
         // Consensus: Slash validator if not in turn
