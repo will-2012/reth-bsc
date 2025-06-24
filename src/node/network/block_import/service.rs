@@ -5,9 +5,10 @@ use crate::{
     BscBlock, BscBlockBody,
 };
 use alloy_consensus::{BlockBody, Header};
-use alloy_primitives::U128;
+use alloy_primitives::{B256, U128};
 use alloy_rpc_types::engine::{ForkchoiceState, PayloadStatusEnum};
 use futures::{future::Either, stream::FuturesUnordered, StreamExt};
+use reth::network::cache::LruCache;
 use reth_engine_primitives::{BeaconConsensusEngineHandle, EngineTypes};
 use reth_network::{
     import::{BlockImportError, BlockImportEvent, BlockImportOutcome, BlockValidation},
@@ -42,6 +43,9 @@ type ImportFut = Pin<Box<dyn Future<Output = Option<Outcome>> + Send + Sync>>;
 /// Channel message type for incoming blocks
 pub(crate) type IncomingBlock = (BlockMsg, PeerId);
 
+/// Size of the LRU cache for processed blocks.
+const LRU_PROCESSED_BLOCKS_SIZE: u32 = 100;
+
 /// A service that handles bidirectional block import communication with the network.
 /// It receives new blocks from the network via `from_network` channel and sends back
 /// import outcomes via `to_network` channel.
@@ -59,6 +63,8 @@ where
     to_network: UnboundedSender<ImportEvent>,
     /// Pending block imports.
     pending_imports: FuturesUnordered<ImportFut>,
+    /// Cache of processed block hashes to avoid reprocessing the same block.
+    processed_blocks: LruCache<B256>,
 }
 
 impl<Provider> ImportService<Provider>
@@ -78,6 +84,7 @@ where
             from_network,
             to_network,
             pending_imports: FuturesUnordered::new(),
+            processed_blocks: LruCache::new(LRU_PROCESSED_BLOCKS_SIZE),
         }
     }
 
@@ -148,6 +155,10 @@ where
 
     /// Add a new block import task to the pending imports
     fn on_new_block(&mut self, block: BlockMsg, peer_id: PeerId) {
+        if self.processed_blocks.contains(&block.hash) {
+            return;
+        }
+
         let payload_fut = self.new_payload(block.clone(), peer_id);
         self.pending_imports.push(payload_fut);
 
@@ -173,6 +184,10 @@ where
         // Process completed imports and send events to network
         while let Poll::Ready(Some(outcome)) = this.pending_imports.poll_next_unpin(cx) {
             if let Some(outcome) = outcome {
+                if let Ok(BlockValidation::ValidBlock { block }) = &outcome.result {
+                    this.processed_blocks.insert(block.hash);
+                }
+
                 if let Err(e) = this.to_network.send(BlockImportEvent::Outcome(outcome)) {
                     return Poll::Ready(Err(Box::new(e)));
                 }
@@ -247,6 +262,51 @@ mod tests {
                 )
             })
             .await;
+    }
+
+    #[tokio::test]
+    async fn deduplicates_blocks() {
+        let mut fixture = TestFixture::new(EngineResponses::both_valid()).await;
+
+        // Send the same block twice from different peers
+        let block_msg = create_test_block();
+        let peer1 = PeerId::random();
+        let peer2 = PeerId::random();
+
+        // First block should be processed
+        fixture.handle.send_block(block_msg.clone(), peer1).unwrap();
+
+        // Wait for the first block to be processed
+        let waker = futures::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        let mut outcomes = Vec::new();
+
+        // Wait for both NewPayload and FCU outcomes from first block
+        while outcomes.len() < 2 {
+            match fixture.handle.poll_outcome(&mut cx) {
+                Poll::Ready(Some(outcome)) => {
+                    outcomes.push(outcome);
+                }
+                Poll::Ready(None) => break,
+                Poll::Pending => tokio::task::yield_now().await,
+            }
+        }
+
+        // Second block with same hash should be deduplicated
+        fixture.handle.send_block(block_msg, peer2).unwrap();
+
+        // Wait a bit and check that no additional outcomes are generated
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Should not have any additional outcomes
+        match fixture.handle.poll_outcome(&mut cx) {
+            Poll::Ready(Some(_)) => {
+                panic!("Duplicate block should not generate additional outcomes")
+            }
+            Poll::Ready(None) | Poll::Pending => {
+                // This is expected - no additional outcomes
+            }
+        }
     }
 
     #[derive(Clone)]
