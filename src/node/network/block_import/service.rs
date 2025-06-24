@@ -8,7 +8,6 @@ use alloy_consensus::{BlockBody, Header};
 use alloy_primitives::{B256, U128};
 use alloy_rpc_types::engine::{ForkchoiceState, PayloadStatusEnum};
 use futures::{future::Either, stream::FuturesUnordered, StreamExt};
-use parking_lot::RwLock;
 use reth::network::cache::LruCache;
 use reth_engine_primitives::{BeaconConsensusEngineHandle, EngineTypes};
 use reth_network::{
@@ -45,7 +44,7 @@ type ImportFut = Pin<Box<dyn Future<Output = Option<Outcome>> + Send + Sync>>;
 pub(crate) type IncomingBlock = (BlockMsg, PeerId);
 
 /// Size of the LRU cache for processed blocks.
-const LRU_PROCESSED_BLOCKS_SIZE: u32 = 100_000;
+const LRU_PROCESSED_BLOCKS_SIZE: u32 = 100;
 
 /// A service that handles bidirectional block import communication with the network.
 /// It receives new blocks from the network via `from_network` channel and sends back
@@ -65,7 +64,7 @@ where
     /// Pending block imports.
     pending_imports: FuturesUnordered<ImportFut>,
     /// Cache of processed block hashes to avoid reprocessing the same block.
-    processed_blocks: Arc<RwLock<LruCache<B256>>>,
+    processed_blocks: LruCache<B256>,
 }
 
 impl<Provider> ImportService<Provider>
@@ -85,7 +84,7 @@ where
             from_network,
             to_network,
             pending_imports: FuturesUnordered::new(),
-            processed_blocks: Arc::new(RwLock::new(LruCache::new(LRU_PROCESSED_BLOCKS_SIZE))),
+            processed_blocks: LruCache::new(LRU_PROCESSED_BLOCKS_SIZE),
         }
     }
 
@@ -156,7 +155,7 @@ where
 
     /// Add a new block import task to the pending imports
     fn on_new_block(&mut self, block: BlockMsg, peer_id: PeerId) {
-        if self.processed_blocks.read().contains(&block.hash) {
+        if self.processed_blocks.contains(&block.hash) {
             return;
         }
 
@@ -186,7 +185,7 @@ where
         while let Poll::Ready(Some(outcome)) = this.pending_imports.poll_next_unpin(cx) {
             if let Some(outcome) = outcome {
                 if let Ok(BlockValidation::ValidBlock { block }) = &outcome.result {
-                    this.processed_blocks.write().insert(block.hash);
+                    this.processed_blocks.insert(block.hash);
                 }
 
                 if let Err(e) = this.to_network.send(BlockImportEvent::Outcome(outcome)) {
