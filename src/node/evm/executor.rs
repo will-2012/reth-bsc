@@ -448,7 +448,7 @@ where
 
         let system_txs = self.system_txs.clone();
         for tx in &system_txs {
-            self.handle_slash_tx(&tx)?;
+            self.handle_slash_tx(tx)?;
         }
 
         self.distribute_block_rewards(self.evm.block().beneficiary)?;
