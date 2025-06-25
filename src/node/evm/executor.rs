@@ -325,9 +325,10 @@ where
         if self.spec.is_hertz_active_at_block(self.evm.block().number) {
             if let Some(prio_fee) = tx.tx().max_priority_fee_per_gas() {
                 if prio_fee != tx.tx().max_fee_per_gas() {
-                    return Err(BlockExecutionError::msg(
-                        "Priority fee is not equal to max fee per gas",
-                    ));
+                    return Err(BlockExecutionError::msg(format!(
+                        "Priority fee is not equal to max fee per gas for tx hash: {:?}",
+                        tx.tx().tx_hash()
+                    )));
                 }
             }
         }
