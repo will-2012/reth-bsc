@@ -393,8 +393,6 @@ where
             return Ok(0);
         }
 
-        self.validate_hertz_gas(tx)?;
-
         // apply patches before
         patch_mainnet_before_tx(tx.tx(), self.evm.db_mut())?;
 
