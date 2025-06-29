@@ -314,27 +314,6 @@ where
         self.transact_system_tx(&tx, validator)?;
         Ok(())
     }
-
-    /// Validates the gas price of the transaction is equal to the max fee per gas.
-    /// This is only relevant for the Hertz hardfork.
-    /// <https://www.bnbchain.org/en/blog/announcing-v1-2-9-a-significant-hard-fork-release-for-bsc-mainnet>
-    fn validate_hertz_gas(
-        &mut self,
-        tx: impl ExecutableTx<Self>,
-    ) -> Result<(), BlockExecutionError> {
-        if self.spec.is_hertz_active_at_block(self.evm.block().number) {
-            if let Some(prio_fee) = tx.tx().max_priority_fee_per_gas() {
-                if prio_fee != tx.tx().max_fee_per_gas() {
-                    return Err(BlockExecutionError::msg(format!(
-                        "Priority fee is not equal to max fee per gas for tx hash: {:?}",
-                        tx.tx().tx_hash()
-                    )));
-                }
-            }
-        }
-
-        Ok(())
-    }
 }
 
 impl<'a, DB, E, Spec, R> BlockExecutor for BscBlockExecutor<'a, E, Spec, R>
