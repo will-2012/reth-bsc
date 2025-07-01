@@ -63,6 +63,7 @@ where
         Fut: Future<Output = eyre::Result<()>>,
     {
         // Add network name if available to the logs dir
+        // todo: log path
         if let Some(chain_spec) = self.command.chain_spec() {
             self.logs.log_file_directory =
                 self.logs.log_file_directory.join(chain_spec.chain().to_string());
@@ -74,11 +75,14 @@ where
         // Install the prometheus recorder to be sure to record all metrics
         let _ = install_prometheus_recorder();
 
+        // todo: bsc components...
         let components =
             |spec: Arc<C::ChainSpec>| (BscEvmConfig::new(spec.clone()), BscConsensus::new(spec));
 
         match self.command {
+            // todo: node command
             Commands::Node(command) => runner.run_command_until_exit(|ctx| {
+                // todo: 
                 command.execute(ctx, FnLauncher::new::<C, Ext>(launcher))
             }),
             Commands::Init(command) => {
