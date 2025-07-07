@@ -1,50 +1,21 @@
 //! Skeleton implementation for Parlia (Proof-of-Staked-Authority) consensus.
 //!
-//! This is **phase-1** of the full port. For now we only define the core data
-//! structures (snapshot & signer) and stub traits so that other crates can
-//! depend on them without compilation errors. Real validation logic will be
-//! added in subsequent milestones.
+//! Phase-2: full data-structures ported from the abandoned `zoro_reth` project.
+//! Validation & fork-choice logic will follow in subsequent PRs.
 
-use alloy_primitives::{address, Address, B256};
-use std::collections::{BTreeMap, BTreeSet};
+// Re-export core sub-modules so that external crates can simply do:
+// `use loocapro_reth_bsc::consensus::parlia::{Snapshot, VoteAddress, ...};`
+pub mod vote;
+pub mod snapshot;
+
+pub use snapshot::{Snapshot, ValidatorInfo, CHECKPOINT_INTERVAL};
+pub use vote::{VoteAddress, VoteAttestation, VoteData, VoteEnvelope, VoteSignature, ValidatorsBitSet};
 
 /// Epoch length (200 blocks on BSC main-net).
 pub const EPOCH: u64 = 200;
 
 // ============================================================================
-// Snapshot
-// ============================================================================
-
-/// An in-memory view of the validator set at a specific block.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Snapshot {
-    /// Block number the snapshot corresponds to.
-    pub number: u64,
-    /// Block hash at that height.
-    pub hash: B256,
-    /// Ordered validator addresses (Proof-of-Authority).
-    pub validators: BTreeSet<Address>,
-}
-
-impl Snapshot {
-    /// Returns `true` if `addr` is an authorised validator in this snapshot.
-    pub fn contains(&self, addr: &Address) -> bool {
-        self.validators.contains(addr)
-    }
-}
-
-impl Default for Snapshot {
-    fn default() -> Self {
-        Self {
-            number: 0,
-            hash: B256::ZERO,
-            validators: BTreeSet::from([address!("0x0000000000000000000000000000000000000000")]),
-        }
-    }
-}
-
-// ============================================================================
-// Signer helper (future: recover signer from seal)
+// Signer helper (rotation schedule)
 // ============================================================================
 
 /// Helper that rotates proposers based on `block.number % epoch`.
@@ -61,7 +32,7 @@ impl StepSigner {
 }
 
 // ============================================================================
-// Consensus Engine stub (will implement traits in PR-2)
+// Consensus Engine stub (will implement traits in later milestones)
 // ============================================================================
 
 #[derive(Debug, Default, Clone)]
@@ -72,4 +43,6 @@ impl ParliaEngine {
 }
 
 // The real trait impls (HeaderValidator, Consensus, FullConsensus) will be
-// added in a later milestone. For now we only ensure the module compiles. 
+// added in a later milestone. For now we only ensure the module compiles.
+
+pub mod db; 

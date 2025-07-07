@@ -9665,6 +9665,7 @@ dependencies = [
  "revm",
  "secp256k1 0.28.2",
  "serde",
+ "serde_cbor",
  "serde_json",
  "tendermint",
  "thiserror 1.0.69",
