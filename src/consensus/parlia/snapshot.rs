@@ -112,17 +112,20 @@ impl Snapshot {
 
     /// Apply `next_header` (proposed by `validator`) plus any epoch changes to produce a new snapshot.
     #[allow(clippy::too_many_arguments)]
-    pub fn apply(
+    pub fn apply<H>(
         &self,
         validator: Address,
-        next_header: &alloy_consensus::Header,
+        next_header: &H,
         mut new_validators: Vec<Address>,
         vote_addrs: Option<Vec<VoteAddress>>, // for epoch switch
         attestation: Option<VoteAttestation>,
         turn_length: Option<u8>,
         is_bohr: bool,
-    ) -> Option<Self> {
-        let block_number = next_header.number;
+    ) -> Option<Self>
+    where
+        H: alloy_consensus::BlockHeader + alloy_primitives::Sealable,
+    {
+        let block_number = next_header.number();
         if self.block_number + 1 != block_number {
             return None; // non-continuous block
         }
@@ -157,13 +160,13 @@ impl Snapshot {
         // sync without the full ChainConfig wired in.
 
         if snap.epoch_num == DEFAULT_EPOCH_LENGTH
-            && next_header.number % LORENTZ_EPOCH_LENGTH == 0
+            && block_number % LORENTZ_EPOCH_LENGTH == 0
         {
             snap.epoch_num = LORENTZ_EPOCH_LENGTH;
             snap.turn_length = Some(LORENTZ_TURN_LENGTH);
             snap.block_interval = LORENTZ_BLOCK_INTERVAL_SECS;
         } else if snap.epoch_num == LORENTZ_EPOCH_LENGTH
-            && next_header.number % MAXWELL_EPOCH_LENGTH == 0
+            && block_number % MAXWELL_EPOCH_LENGTH == 0
         {
             snap.epoch_num = MAXWELL_EPOCH_LENGTH;
             snap.turn_length = Some(MAXWELL_TURN_LENGTH);
@@ -171,7 +174,7 @@ impl Snapshot {
         }
 
         // Epoch change driven by new validator set / checkpoint header.
-        let epoch_key = u64::MAX - next_header.number / snap.epoch_num;
+        let epoch_key = u64::MAX - block_number / snap.epoch_num;
         if !new_validators.is_empty() && (!is_bohr || !snap.recent_proposers.contains_key(&epoch_key)) {
             new_validators.sort();
             if let Some(tl) = turn_length { snap.turn_length = Some(tl) }

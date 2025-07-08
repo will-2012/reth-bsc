@@ -59,7 +59,20 @@ where
             return Err(ConsensusError::Other("wrong difficulty for proposer turn".to_string()));
         }
 
-        // TODO: advance snapshot here once Snapshot::apply generic signature matches header type.
+        // Advance snapshot so provider is ready for child validations.
+        if let Some(parent_snap) = self.provider.snapshot(parent_number) {
+            if let Some(new_snap) = parent_snap.apply(
+                miner,
+                header.header(),
+                Vec::new(),
+                None,
+                None,
+                None,
+                false,
+            ) {
+                self.provider.insert(new_snap);
+            }
+        }
         Ok(())
     }
 

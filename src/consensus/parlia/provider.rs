@@ -45,4 +45,71 @@ impl SnapshotProvider for InMemorySnapshotProvider {
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// MDBX‐backed snapshot provider with LRU front‐cache
+// ---------------------------------------------------------------------------
+
+use reth_db::{Database, DatabaseError};
+use reth_db::transaction::{DbTx, DbTxMut};
+use reth_db::cursor::DbCursorRO;
+use schnellru::{ByLength, LruMap};
+
+/// `DbSnapshotProvider` wraps an MDBX database; it keeps a small in-memory LRU to avoid hitting
+/// storage for hot epochs. The DB layer persists snapshots as CBOR blobs via the `ParliaSnapshots`
+/// table that is already defined in `db.rs`.
+#[derive(Debug)]
+pub struct DbSnapshotProvider<DB: Database> {
+    db: DB,
+    /// Front cache keyed by *block number*.
+    cache: RwLock<LruMap<u64, Snapshot, ByLength>>,
+}
+
+impl<DB: Database> DbSnapshotProvider<DB> {
+    pub fn new(db: DB, capacity: usize) -> Self {
+        Self { db, cache: RwLock::new(LruMap::new(ByLength::new(capacity as u32))) }
+    }
+
+    fn load_from_db(&self, block_number: u64) -> Option<Snapshot> {
+        let tx = self.db.tx().ok()?;
+        let mut cursor = tx.cursor_read::<crate::consensus::parlia::db::ParliaSnapshots>().ok()?;
+        let mut iter = cursor.walk_range(..=block_number).ok()?;
+        let mut last: Option<Snapshot> = None;
+        while let Some(Ok((_, v))) = iter.next() {
+            last = Some(v);
+        }
+        last
+    }
+
+    fn persist_to_db(&self, snap: &Snapshot) -> Result<(), DatabaseError> {
+        let mut tx = self.db.tx_mut()?;
+        tx.put::<crate::consensus::parlia::db::ParliaSnapshots>(snap.block_number, snap.clone())?;
+        tx.commit()?;
+        Ok(())
+    }
+}
+
+impl<DB: Database + 'static> SnapshotProvider for DbSnapshotProvider<DB> {
+    fn snapshot(&self, block_number: u64) -> Option<Snapshot> {
+        // fast path: cache
+        {
+            let mut guard = self.cache.write();
+            if let Some(snap) = guard.get(&block_number) {
+                return Some(snap.clone());
+            }
+        }
+
+        // slow path: DB scan
+        let snap = self.load_from_db(block_number)?;
+        self.cache.write().insert(block_number, snap.clone());
+        Some(snap)
+    }
+
+    fn insert(&self, snapshot: Snapshot) {
+        // update cache
+        self.cache.write().insert(snapshot.block_number, snapshot.clone());
+        // persist (fire-and-forget)
+        let _ = self.persist_to_db(&snapshot);
+    }
 } 
