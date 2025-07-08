@@ -8,6 +8,9 @@ use std::sync::Arc;
 pub trait SnapshotProvider: Send + Sync {
     /// Returns the snapshot that is valid for the given `block_number` (usually parent block).
     fn snapshot(&self, block_number: u64) -> Option<Snapshot>;
+
+    /// Inserts (or replaces) the snapshot in the provider.
+    fn insert(&self, snapshot: Snapshot);
 }
 
 /// Header validator for Parlia consensus.
@@ -55,6 +58,8 @@ where
         if header.difficulty() != expected_diff {
             return Err(ConsensusError::Other("wrong difficulty for proposer turn".to_string()));
         }
+
+        // TODO: advance snapshot here once Snapshot::apply generic signature matches header type.
         Ok(())
     }
 
@@ -70,12 +75,23 @@ where
                 block_number: header.number(),
             });
         }
-        // timestamp monotonicity
+        // timestamp checks
         if header.timestamp() <= parent.timestamp() {
             return Err(ConsensusError::TimestampIsInPast {
                 parent_timestamp: parent.timestamp(),
                 timestamp: header.timestamp(),
             });
+        }
+
+        // Ensure block is not too far in the future w.r.t configured interval.
+        let interval_secs = if let Some(snap) = self.provider.snapshot(parent.number()) {
+            snap.block_interval
+        } else {
+            3 // default safety fallback
+        };
+
+        if header.timestamp() > parent.timestamp() + interval_secs {
+            return Err(ConsensusError::Other("timestamp exceeds expected block interval".into()));
         }
         Ok(())
     }

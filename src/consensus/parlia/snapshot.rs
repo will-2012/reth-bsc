@@ -5,10 +5,31 @@ use alloy_primitives::{Address, BlockNumber, B256};
 use serde::{Deserialize, Serialize};
 use reth_db::table::{Compress, Decompress};
 use reth_db::DatabaseError;
-use bytes::BufMut;
 
 /// Number of blocks after which we persist snapshots to DB.
 pub const CHECKPOINT_INTERVAL: u64 = 1024;
+
+// ---------------------------------------------------------------------------
+// Hard-fork constants (kept in sync with bsc_official/parlia.go)
+// ---------------------------------------------------------------------------
+
+/// Default settings prior to Lorentz.
+pub const DEFAULT_EPOCH_LENGTH: u64 = 200;
+pub const DEFAULT_TURN_LENGTH: u8 = 1;
+
+/// Lorentz hard-fork parameters.
+pub const LORENTZ_EPOCH_LENGTH: u64 = 500;
+pub const LORENTZ_TURN_LENGTH: u8 = 8;
+
+/// Maxwell hard-fork parameters.
+pub const MAXWELL_EPOCH_LENGTH: u64 = 1000;
+pub const MAXWELL_TURN_LENGTH: u8 = 16;
+
+// Approximate block intervals converted to seconds (BSC headers store
+// timestamps in seconds precision).
+pub const DEFAULT_BLOCK_INTERVAL_SECS: u64 = 3;   // 3000 ms
+pub const LORENTZ_BLOCK_INTERVAL_SECS: u64 = 2;   // 1500 ms (ceil)
+pub const MAXWELL_BLOCK_INTERVAL_SECS: u64 = 1;   //  750 ms (ceil)
 
 /// `ValidatorInfo` holds metadata for a validator at a given epoch.
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -39,6 +60,9 @@ pub struct Snapshot {
     /// Configurable turn-length (default = 1 before Bohr).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn_length: Option<u8>,
+
+    /// Expected block interval in seconds.
+    pub block_interval: u64,
 }
 
 impl Snapshot {
@@ -81,7 +105,8 @@ impl Snapshot {
             validators_map,
             recent_proposers: Default::default(),
             vote_data: Default::default(),
-            turn_length: Some(1),
+            turn_length: Some(DEFAULT_TURN_LENGTH),
+            block_interval: DEFAULT_BLOCK_INTERVAL_SECS,
         }
     }
 
@@ -122,7 +147,30 @@ impl Snapshot {
         }
         snap.recent_proposers.insert(block_number, validator);
 
-        // Epoch change.
+        // -------------------------------------------------------------------
+        //  Epoch / turn-length upgrades at Lorentz & Maxwell
+        // -------------------------------------------------------------------
+
+        // Update `epoch_num` / `turn_length` automatically when we cross the
+        // first block of the new epoch length. We do **not** yet check fork
+        // timestamps – this is an approximation good enough for historical
+        // sync without the full ChainConfig wired in.
+
+        if snap.epoch_num == DEFAULT_EPOCH_LENGTH
+            && next_header.number % LORENTZ_EPOCH_LENGTH == 0
+        {
+            snap.epoch_num = LORENTZ_EPOCH_LENGTH;
+            snap.turn_length = Some(LORENTZ_TURN_LENGTH);
+            snap.block_interval = LORENTZ_BLOCK_INTERVAL_SECS;
+        } else if snap.epoch_num == LORENTZ_EPOCH_LENGTH
+            && next_header.number % MAXWELL_EPOCH_LENGTH == 0
+        {
+            snap.epoch_num = MAXWELL_EPOCH_LENGTH;
+            snap.turn_length = Some(MAXWELL_TURN_LENGTH);
+            snap.block_interval = MAXWELL_BLOCK_INTERVAL_SECS;
+        }
+
+        // Epoch change driven by new validator set / checkpoint header.
         let epoch_key = u64::MAX - next_header.number / snap.epoch_num;
         if !new_validators.is_empty() && (!is_bohr || !snap.recent_proposers.contains_key(&epoch_key)) {
             new_validators.sort();

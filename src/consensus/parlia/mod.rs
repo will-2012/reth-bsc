@@ -7,10 +7,12 @@
 // `use loocapro_reth_bsc::consensus::parlia::{Snapshot, VoteAddress, ...};`
 pub mod vote;
 pub mod snapshot;
+pub mod provider;
 pub mod validator;
 
 pub use snapshot::{Snapshot, ValidatorInfo, CHECKPOINT_INTERVAL};
 pub use vote::{VoteAddress, VoteAttestation, VoteData, VoteEnvelope, VoteSignature, ValidatorsBitSet};
+pub use provider::InMemorySnapshotProvider;
 pub use validator::{ParliaHeaderValidator, SnapshotProvider};
 
 /// Epoch length (200 blocks on BSC main-net).
