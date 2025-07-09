@@ -1,4 +1,4 @@
-use super::{bsc::bsc_mainnet, BscChainSpec};
+use super::{bsc::bsc_mainnet, bsc_chapel::bsc_testnet, BscChainSpec};
 use reth_cli::chainspec::ChainSpecParser;
 use std::sync::Arc;
 
@@ -10,7 +10,7 @@ pub struct BscChainSpecParser;
 impl ChainSpecParser for BscChainSpecParser {
     type ChainSpec = BscChainSpec;
 
-    const SUPPORTED_CHAINS: &'static [&'static str] = &["bsc"];
+    const SUPPORTED_CHAINS: &'static [&'static str] = &["bsc", "bsc-testnet"];
 
     fn parse(s: &str) -> eyre::Result<Arc<Self::ChainSpec>> {
         chain_value_parser(s)
@@ -24,6 +24,7 @@ impl ChainSpecParser for BscChainSpecParser {
 pub fn chain_value_parser(s: &str) -> eyre::Result<Arc<BscChainSpec>> {
     match s {
         "bsc" => Ok(Arc::new(BscChainSpec { inner: bsc_mainnet() })),
+        "bsc-testnet" => Ok(Arc::new(BscChainSpec { inner: bsc_testnet() })),
         _ => Err(eyre::eyre!("Unsupported chain: {}", s)),
     }
 }

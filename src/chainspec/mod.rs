@@ -6,13 +6,14 @@ use alloy_genesis::Genesis;
 use alloy_primitives::{Address, B256, U256};
 use reth_chainspec::{
     BaseFeeParams, ChainSpec, DepositContract, EthChainSpec, EthereumHardfork, EthereumHardforks,
-    ForkCondition, ForkFilter, ForkId, Hardforks, Head,
+    ForkCondition, ForkFilter, ForkId, Hardforks, Head, NamedChain,
 };
 use reth_discv4::NodeRecord;
 use reth_evm::eth::spec::EthExecutorSpec;
 use std::{fmt::Display, sync::Arc};
 
 pub mod bsc;
+pub mod bsc_chapel;
 pub mod parser;
 
 /// Bsc chain spec type.
@@ -70,7 +71,11 @@ impl EthChainSpec for BscChainSpec {
     }
 
     fn bootnodes(&self) -> Option<Vec<NodeRecord>> {
-        self.inner.bootnodes()
+        match self.inner.chain().try_into().ok()? {
+            NamedChain::BinanceSmartChain => Some(crate::node::network::bootnodes::bsc_mainnet_nodes()),
+            NamedChain::BinanceSmartChainTestnet => Some(crate::node::network::bootnodes::bsc_testnet_nodes()),
+            _ => None,
+        }
     }
 
     fn is_optimism(&self) -> bool {
@@ -123,6 +128,17 @@ impl BscHardforks for BscChainSpec {
 impl EthExecutorSpec for BscChainSpec {
     fn deposit_contract_address(&self) -> Option<Address> {
         None
+    }
+}
+
+impl BscChainSpec {
+    /// Get the head information for this chain spec
+    pub fn head(&self) -> Head {
+        match self.inner.chain().try_into().ok().unwrap_or(NamedChain::BinanceSmartChain) {
+            NamedChain::BinanceSmartChain => bsc::head(),
+            NamedChain::BinanceSmartChainTestnet => bsc_chapel::head(),
+            _ => bsc::head(),
+        }   
     }
 }
 
