@@ -1,5 +1,5 @@
 use alloy_primitives::{keccak256, BlockNumber, B256, FixedBytes};
-use alloy_rlp::{RlpDecodable, RlpEncodable};
+use alloy_rlp::{RlpDecodable, RlpEncodable, Decodable};
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
@@ -63,4 +63,11 @@ pub struct VoteAttestation {
     pub data: VoteData,
     /// Reserved for future use.
     pub extra: Bytes,
+}
+
+impl VoteAttestation {
+    /// Decode a RLP‐encoded attestation.
+    pub fn decode_rlp(bytes: &[u8]) -> alloy_rlp::Result<Self> {
+        Self::decode(&mut &*bytes)
+    }
 } 
