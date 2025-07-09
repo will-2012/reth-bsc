@@ -1,20 +1,23 @@
 use super::constants::*;
 use super::vote::VoteAttestation;
-use alloy_consensus::Header;
 use alloy_rlp as rlp;
+use alloy_consensus::BlockHeader as BlockHeaderTrait;
 
 /// Extract the `VoteAttestation` bytes slice from `header.extra_data` if present and decode.
 ///
 /// * `epoch_len` – current epoch length (200/500/1000) so we can determine if block is an epoch boundary.
 /// * `is_luban` – true once Luban hard-fork active (extraData format changes).
 /// * `is_bohr`  – true once Bohr hard-fork active (turnLength byte present).
-pub fn parse_vote_attestation_from_header(
-    header: &Header,
+pub fn parse_vote_attestation_from_header<H>(
+    header: &H,
     epoch_len: u64,
     is_luban: bool,
     is_bohr: bool,
-) -> Option<VoteAttestation> {
-    let extra = header.extra_data.as_ref();
+) -> Option<VoteAttestation>
+where
+    H: BlockHeaderTrait,
+{
+    let extra = header.extra_data().as_ref();
     if extra.len() <= EXTRA_VANITY + EXTRA_SEAL {
         return None;
     }
@@ -23,7 +26,7 @@ pub fn parse_vote_attestation_from_header(
     }
 
     // Determine attestation slice boundaries.
-    let number = header.number;
+    let number = header.number();
 
     let att_bytes = if number % epoch_len == 0 {
         // Epoch block (contains validator bytes + optional turnLength)

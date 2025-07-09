@@ -1,8 +1,11 @@
-use super::snapshot::Snapshot;
+use super::snapshot::{Snapshot, DEFAULT_TURN_LENGTH};
+use super::{parse_vote_attestation_from_header, EXTRA_SEAL, EXTRA_VANITY};
 use alloy_primitives::{Address, U256};
 use reth::consensus::{ConsensusError, HeaderValidator};
 use reth_primitives_traits::SealedHeader;
 use std::sync::Arc;
+use super::vote::{MAX_ATTESTATION_EXTRA_LENGTH};
+use bls_on_arkworks as bls;
 
 /// Very light-weight snapshot provider (trait object) so the header validator can fetch the latest snapshot.
 pub trait SnapshotProvider: Send + Sync {
@@ -49,6 +52,20 @@ where
         };
 
         let miner: Address = header.beneficiary();
+
+        // Determine fork status for attestation parsing.
+        let extra_len = header.header().extra_data().len();
+        let is_luban = extra_len > EXTRA_VANITY + EXTRA_SEAL;
+        let is_bohr = snap.turn_length.unwrap_or(DEFAULT_TURN_LENGTH) > DEFAULT_TURN_LENGTH;
+
+        // Try parsing vote attestation (may be None).
+        let _ = parse_vote_attestation_from_header(
+            header.header(),
+            snap.epoch_num,
+            is_luban,
+            is_bohr,
+        );
+
         if !snap.validators.contains(&miner) {
             return Err(ConsensusError::Other("unauthorised validator".to_string()));
         }
@@ -58,21 +75,6 @@ where
         if header.difficulty() != expected_diff {
             return Err(ConsensusError::Other("wrong difficulty for proposer turn".to_string()));
         }
-
-        // Advance snapshot so provider is ready for child validations.
-        if let Some(parent_snap) = self.provider.snapshot(parent_number) {
-            if let Some(new_snap) = parent_snap.apply(
-                miner,
-                header.header(),
-                Vec::new(),
-                None,
-                None,
-                None,
-                false,
-            ) {
-                self.provider.insert(new_snap);
-            }
-        }
         Ok(())
     }
 
@@ -81,14 +83,15 @@ where
         header: &SealedHeader<H>,
         parent: &SealedHeader<H>,
     ) -> Result<(), ConsensusError> {
-        // basic chain-order check (number increment already done by stages, but keep)
+        // --------------------------------------------------------------------
+        // 1. Basic parent/child sanity checks (number & timestamp ordering)
+        // --------------------------------------------------------------------
         if header.number() != parent.number() + 1 {
             return Err(ConsensusError::ParentBlockNumberMismatch {
                 parent_block_number: parent.number(),
                 block_number: header.number(),
             });
         }
-        // timestamp checks
         if header.timestamp() <= parent.timestamp() {
             return Err(ConsensusError::TimestampIsInPast {
                 parent_timestamp: parent.timestamp(),
@@ -96,16 +99,118 @@ where
             });
         }
 
-        // Ensure block is not too far in the future w.r.t configured interval.
-        let interval_secs = if let Some(snap) = self.provider.snapshot(parent.number()) {
-            snap.block_interval
-        } else {
-            3 // default safety fallback
+        // --------------------------------------------------------------------
+        // 2. Snapshot of the *parent* block (needed for attestation verification)
+        // --------------------------------------------------------------------
+        let Some(parent_snap) = self.provider.snapshot(parent.number()) else {
+            return Err(ConsensusError::Other("missing snapshot".into()));
         };
 
-        if header.timestamp() > parent.timestamp() + interval_secs {
+        // Use snapshot‐configured block interval to ensure header.timestamp is not too far ahead.
+        if header.timestamp() > parent.timestamp() + parent_snap.block_interval {
             return Err(ConsensusError::Other("timestamp exceeds expected block interval".into()));
         }
+
+        // --------------------------------------------------------------------
+        // 3. Parse and verify vote attestation (Fast-Finality)
+        // --------------------------------------------------------------------
+        // Determine fork status for attestation parsing.
+        let extra_len = header.header().extra_data().len();
+        let is_luban = extra_len > EXTRA_VANITY + EXTRA_SEAL;
+        let is_bohr = parent_snap.turn_length.unwrap_or(DEFAULT_TURN_LENGTH) > DEFAULT_TURN_LENGTH;
+
+        let attestation_opt = parse_vote_attestation_from_header(
+            header.header(),
+            parent_snap.epoch_num,
+            is_luban,
+            is_bohr,
+        );
+
+        if let Some(ref att) = attestation_opt {
+            // 3.1 extra bytes length guard
+            if att.extra.len() > MAX_ATTESTATION_EXTRA_LENGTH {
+                return Err(ConsensusError::Other("attestation extra too long".into()));
+            }
+
+            // 3.2 Attestation target MUST be the parent block.
+            if att.data.target_number != parent.number() || att.data.target_hash != parent.hash() {
+                return Err(ConsensusError::Other("invalid attestation target block".into()));
+            }
+
+            // 3.3 Attestation source MUST equal the latest justified checkpoint stored in snapshot.
+            if att.data.source_number != parent_snap.vote_data.target_number ||
+                att.data.source_hash != parent_snap.vote_data.target_hash
+            {
+                return Err(ConsensusError::Other("invalid attestation source checkpoint".into()));
+            }
+
+            // 3.4 Build list of voter BLS pub-keys from snapshot according to bit-set.
+            let total_validators = parent_snap.validators.len();
+            let bitset = att.vote_address_set;
+            let voted_cnt = bitset.count_ones() as usize;
+
+            if voted_cnt > total_validators {
+                return Err(ConsensusError::Other("attestation vote count exceeds validator set".into()));
+            }
+
+            // collect vote addresses
+            let mut pubkeys: Vec<Vec<u8>> = Vec::with_capacity(voted_cnt);
+            for (idx, val_addr) in parent_snap.validators.iter().enumerate() {
+                if (bitset & (1u64 << idx)) == 0 {
+                    continue;
+                }
+                let Some(info) = parent_snap.validators_map.get(val_addr) else {
+                    return Err(ConsensusError::Other("validator vote address missing".into()));
+                };
+                // Ensure vote address is non-zero (Bohr upgrade guarantees availability)
+                if info.vote_addr.as_slice().iter().all(|b| *b == 0) {
+                    return Err(ConsensusError::Other("validator vote address is zero".into()));
+                }
+                pubkeys.push(info.vote_addr.to_vec());
+            }
+
+            // 3.5 quorum check: ≥ 2/3 +1 of total validators
+            let min_votes = (total_validators * 2 + 2) / 3; // ceil((2/3) * n)
+            if pubkeys.len() < min_votes {
+                return Err(ConsensusError::Other("insufficient attestation quorum".into()));
+            }
+
+            // 3.6 BLS aggregate signature verification.
+            let message_hash = att.data.hash();
+            let msg_vec = message_hash.as_slice().to_vec();
+            let signature_bytes = att.agg_signature.to_vec();
+
+            let mut msgs = Vec::with_capacity(pubkeys.len());
+            msgs.resize(pubkeys.len(), msg_vec.clone());
+
+            const BLS_DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+
+            let sig_ok = if pubkeys.len() == 1 {
+                bls::verify(&pubkeys[0], &msg_vec, &signature_bytes, &BLS_DST.to_vec())
+            } else {
+                bls::aggregate_verify(pubkeys.clone(), msgs, &signature_bytes, &BLS_DST.to_vec())
+            };
+
+            if !sig_ok {
+                return Err(ConsensusError::Other("invalid BLS aggregate signature".into()));
+            }
+        }
+
+        // --------------------------------------------------------------------
+        // 4. Advance snapshot once all parent-dependent checks are passed.
+        // --------------------------------------------------------------------
+        if let Some(new_snap) = parent_snap.apply(
+            header.beneficiary(),
+            header.header(),
+            Vec::new(),
+            None,
+            attestation_opt,
+            None,
+            is_bohr,
+        ) {
+            self.provider.insert(new_snap);
+        }
+
         Ok(())
     }
 } 
