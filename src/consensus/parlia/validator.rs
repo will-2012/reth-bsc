@@ -136,6 +136,11 @@ where
         if header.difficulty() != expected_diff {
             return Err(ConsensusError::Other("wrong difficulty for proposer turn".to_string()));
         }
+
+        // Milestone-3: proposer over-propose rule
+        if snap.sign_recently(miner) {
+            return Err(ConsensusError::Other("validator has exceeded proposer quota in recent window".to_string()));
+        }
         Ok(())
     }
 
