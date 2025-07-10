@@ -98,6 +98,7 @@ where
             return Ok(());
         }
 
+        // todo: hardfork related
         let contracts = get_upgrade_system_contracts(
             &self.spec,
             self.evm.block().number.to(),
@@ -265,6 +266,8 @@ where
         Ok(())
     }
 
+
+    // todo: check more...
     /// Distributes block rewards to the validator.
     fn distribute_block_rewards(&mut self, validator: Address) -> Result<(), BlockExecutionError> {
         let system_account = self
@@ -359,6 +362,7 @@ where
         Ok(Some(0))
     }
 
+    // todo:
     fn execute_transaction_with_result_closure(
         &mut self,
         tx: impl ExecutableTx<Self>
