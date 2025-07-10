@@ -189,7 +189,13 @@ where
             beneficiary: header.beneficiary(),
             timestamp: header.timestamp(),
             difficulty: if eth_spec >= SpecId::MERGE { U256::ZERO } else { header.difficulty() },
-            prevrandao: if eth_spec >= SpecId::MERGE { header.mix_hash() } else { None },
+            // BSC does not replace the DIFFICULTY output with prevrandao so here we are setting
+            // this to the difficulty values to ensure correct opcode outputs
+            prevrandao: if eth_spec >= SpecId::MERGE {
+                Some(header.difficulty().into())
+            } else {
+                None
+            },
             gas_limit: header.gas_limit(),
             basefee: header.base_fee_per_gas().unwrap_or_default(),
             blob_excess_gas_and_price,
