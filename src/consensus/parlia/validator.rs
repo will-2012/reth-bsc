@@ -4,8 +4,69 @@ use alloy_primitives::{Address, U256};
 use reth::consensus::{ConsensusError, HeaderValidator};
 use reth_primitives_traits::SealedHeader;
 use std::sync::Arc;
-use super::vote::{MAX_ATTESTATION_EXTRA_LENGTH};
+use super::vote::{MAX_ATTESTATION_EXTRA_LENGTH, VoteAddress};
+use super::constants::{VALIDATOR_BYTES_LEN_BEFORE_LUBAN, VALIDATOR_NUMBER_SIZE, VALIDATOR_BYTES_LEN_AFTER_LUBAN, TURN_LENGTH_SIZE};
 use bls_on_arkworks as bls;
+
+// ---------------------------------------------------------------------------
+// Helper: parse epoch update (validator set & turn-length) from a header.
+// Returns (validators, vote_addresses (if any), turn_length)
+// ---------------------------------------------------------------------------
+fn parse_epoch_update<H>(
+    header: &H,
+    is_luban: bool,
+    is_bohr: bool,
+) -> (Vec<Address>, Option<Vec<VoteAddress>>, Option<u8>)
+where
+    H: alloy_consensus::BlockHeader,
+{
+    let extra = header.extra_data().as_ref();
+    if extra.len() <= EXTRA_VANITY + EXTRA_SEAL {
+        return (Vec::new(), None, None);
+    }
+
+    // Epoch bytes start right after vanity
+    let mut cursor = EXTRA_VANITY;
+
+    // Pre-Luban epoch block: validators list only (20-byte each)
+    if !is_luban {
+        let validator_bytes = &extra[cursor..extra.len() - EXTRA_SEAL];
+        let num = validator_bytes.len() / VALIDATOR_BYTES_LEN_BEFORE_LUBAN;
+        let mut vals = Vec::with_capacity(num);
+        for i in 0..num {
+            let start = cursor + i * VALIDATOR_BYTES_LEN_BEFORE_LUBAN;
+            let end = start + VALIDATOR_BYTES_LEN_BEFORE_LUBAN;
+            vals.push(Address::from_slice(&extra[start..end]));
+        }
+        return (vals, None, None);
+    }
+
+    // Luban & later: 1-byte validator count
+    let num_validators = extra[cursor] as usize;
+    let _ = VALIDATOR_BYTES_LEN_AFTER_LUBAN;
+    cursor += VALIDATOR_NUMBER_SIZE;
+
+    let mut vals = Vec::with_capacity(num_validators);
+    let mut vote_vals = Vec::with_capacity(num_validators);
+    for _ in 0..num_validators {
+        // 20-byte consensus addr
+        vals.push(Address::from_slice(&extra[cursor..cursor + 20]));
+        cursor += 20;
+        // 48-byte BLS vote addr
+        vote_vals.push(VoteAddress::from_slice(&extra[cursor..cursor + 48]));
+        cursor += 48;
+    }
+
+    // Optional turnLength byte in Bohr headers
+    let turn_len = if is_bohr {
+        let tl = extra[cursor];
+        Some(tl)
+    } else {
+        None
+    };
+
+    (vals, Some(vote_vals), turn_len)
+}
 
 /// Very light-weight snapshot provider (trait object) so the header validator can fetch the latest snapshot.
 pub trait SnapshotProvider: Send + Sync {
@@ -199,13 +260,18 @@ where
         // --------------------------------------------------------------------
         // 4. Advance snapshot once all parent-dependent checks are passed.
         // --------------------------------------------------------------------
+        // Detect epoch checkpoint and parse validator set / turnLength if applicable
+        let (new_validators, vote_addrs, turn_len) = if header.number() % parent_snap.epoch_num == 0 {
+            parse_epoch_update(header.header(), is_luban, is_bohr)
+        } else { (Vec::new(), None, None) };
+
         if let Some(new_snap) = parent_snap.apply(
             header.beneficiary(),
             header.header(),
-            Vec::new(),
-            None,
+            new_validators,
+            vote_addrs,
             attestation_opt,
-            None,
+            turn_len,
             is_bohr,
         ) {
             self.provider.insert(new_snap);
