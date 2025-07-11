@@ -1,107 +1,81 @@
-use super::BscEvmInner;
-use crate::evm::{handler::BscHandler, spec::BscSpecId, transaction::BscTxTr};
+use crate::evm::{
+    api::{BscContext, BscEvm},
+    handler::BscHandler,
+    transaction::BscTxEnv,
+};
+use reth_evm::Database;
 use revm::{
-    context::{ContextSetters, JournalOutput},
+    context::{BlockEnv, ContextSetters},
     context_interface::{
         result::{EVMError, ExecutionResult, ResultAndState},
-        Cfg, ContextTr, Database, JournalTr,
+        ContextTr,
     },
-    handler::{instructions::EthInstructions, EthFrame, EvmTr, Handler, PrecompileProvider},
-    inspector::{InspectCommitEvm, InspectEvm, Inspector, InspectorHandler, JournalExt},
-    interpreter::{interpreter::EthInterpreter, InterpreterResult},
+    handler::Handler,
+    inspector::{InspectCommitEvm, InspectEvm, Inspector, InspectorHandler},
+    state::EvmState,
     DatabaseCommit, ExecuteCommitEvm, ExecuteEvm,
 };
 
-// Type alias for BSC context
-pub trait BscContextTr:
-    ContextTr<Journal: JournalTr<FinalOutput = JournalOutput>, Tx: BscTxTr, Cfg: Cfg<Spec = BscSpecId>>
-{
-}
-
-impl<T> BscContextTr for T where
-    T: ContextTr<
-        Journal: JournalTr<FinalOutput = JournalOutput>,
-        Tx: BscTxTr,
-        Cfg: Cfg<Spec = BscSpecId>,
-    >
-{
-}
-
-/// Type alias for the error type of the BscEvm.
-type BscError<CTX> = EVMError<<<CTX as ContextTr>::Db as Database>::Error>;
-
-impl<CTX, INSP, PRECOMPILE> ExecuteEvm
-    for BscEvmInner<CTX, INSP, EthInstructions<EthInterpreter, CTX>, PRECOMPILE>
+impl<DB, INSP> ExecuteEvm for BscEvm<DB, INSP>
 where
-    CTX: BscContextTr + ContextSetters,
-    PRECOMPILE: PrecompileProvider<CTX, Output = InterpreterResult>,
+    DB: Database,
 {
-    type Output = Result<ResultAndState, BscError<CTX>>;
-
-    type Tx = <CTX as ContextTr>::Tx;
-
-    type Block = <CTX as ContextTr>::Block;
-
-    fn set_tx(&mut self, tx: Self::Tx) {
-        self.0.ctx.set_tx(tx);
-    }
+    type ExecutionResult = ExecutionResult;
+    type State = EvmState;
+    type Error = EVMError<DB::Error>;
+    type Tx = BscTxEnv;
+    type Block = BlockEnv;
 
     fn set_block(&mut self, block: Self::Block) {
-        self.0.ctx.set_block(block);
+        self.inner.set_block(block);
     }
 
-    fn replay(&mut self) -> Self::Output {
-        let mut h = BscHandler::<_, _, EthFrame<_, _, _>>::new();
-        h.run(self)
+    fn transact_one(&mut self, tx: Self::Tx) -> Result<Self::ExecutionResult, Self::Error> {
+        self.inner.ctx.set_tx(tx);
+        BscHandler::new().run(self)
     }
-}
 
-impl<CTX, INSP, PRECOMPILE> ExecuteCommitEvm
-    for BscEvmInner<CTX, INSP, EthInstructions<EthInterpreter, CTX>, PRECOMPILE>
-where
-    CTX: BscContextTr<Db: DatabaseCommit> + ContextSetters,
-    PRECOMPILE: PrecompileProvider<CTX, Output = InterpreterResult>,
-{
-    type CommitOutput = Result<ExecutionResult, BscError<CTX>>;
+    fn finalize(&mut self) -> Self::State {
+        self.inner.finalize()
+    }
 
-    fn replay_commit(&mut self) -> Self::CommitOutput {
-        self.replay().map(|r| {
-            self.ctx().db().commit(r.state);
-            r.result
+    fn replay(&mut self) -> Result<ResultAndState, Self::Error> {
+        BscHandler::new().run(self).map(|result| {
+            let state = self.finalize();
+            ResultAndState::new(result, state)
         })
     }
 }
 
-impl<CTX, INSP, PRECOMPILE> InspectEvm
-    for BscEvmInner<CTX, INSP, EthInstructions<EthInterpreter, CTX>, PRECOMPILE>
+impl<DB, INSP> ExecuteCommitEvm for BscEvm<DB, INSP>
 where
-    CTX: BscContextTr<Journal: JournalExt> + ContextSetters,
-    INSP: Inspector<CTX, EthInterpreter>,
-    PRECOMPILE: PrecompileProvider<CTX, Output = InterpreterResult>,
+    DB: Database + DatabaseCommit,
+{
+    fn commit(&mut self, state: Self::State) {
+        self.inner.ctx.db_mut().commit(state);
+    }
+}
+
+impl<DB, INSP> InspectEvm for BscEvm<DB, INSP>
+where
+    DB: Database,
+    INSP: Inspector<BscContext<DB>>,
 {
     type Inspector = INSP;
 
     fn set_inspector(&mut self, inspector: Self::Inspector) {
-        self.0.inspector = inspector;
+        self.inner.set_inspector(inspector);
     }
 
-    fn inspect_replay(&mut self) -> Self::Output {
-        let mut h = BscHandler::<_, _, EthFrame<_, _, _>>::new();
-        h.inspect_run(self)
+    fn inspect_one_tx(&mut self, tx: Self::Tx) -> Result<Self::ExecutionResult, Self::Error> {
+        self.inner.ctx.set_tx(tx);
+        BscHandler::new().inspect_run(self)
     }
 }
 
-impl<CTX, INSP, PRECOMPILE> InspectCommitEvm
-    for BscEvmInner<CTX, INSP, EthInstructions<EthInterpreter, CTX>, PRECOMPILE>
+impl<DB, INSP> InspectCommitEvm for BscEvm<DB, INSP>
 where
-    CTX: BscContextTr<Journal: JournalExt, Db: DatabaseCommit> + ContextSetters,
-    INSP: Inspector<CTX, EthInterpreter>,
-    PRECOMPILE: PrecompileProvider<CTX, Output = InterpreterResult>,
+    DB: Database + DatabaseCommit,
+    INSP: Inspector<BscContext<DB>>,
 {
-    fn inspect_replay_commit(&mut self) -> Self::CommitOutput {
-        self.inspect_replay().map(|r| {
-            self.ctx().db().commit(r.state);
-            r.result
-        })
-    }
 }

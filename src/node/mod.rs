@@ -24,14 +24,15 @@ use reth::{
         NodeComponentsBuilder,
     },
 };
+use reth_engine_local::LocalPayloadAttributesBuilder;
 use reth_engine_primitives::BeaconConsensusEngineHandle;
 use reth_node_ethereum::node::EthereumPoolBuilder;
+use reth_payload_primitives::{PayloadAttributesBuilder, PayloadTypes};
 use reth_primitives::BlockBody;
 use reth_trie_db::MerklePatriciaTrie;
 use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
 
-pub mod cli;
 pub mod consensus;
 pub mod engine;
 pub mod evm;
@@ -138,5 +139,11 @@ where
                 sidecars: None,
             },
         }
+    }
+
+    fn local_payload_attributes_builder(
+        chain_spec: &Self::ChainSpec,
+    ) -> impl PayloadAttributesBuilder<<Self::Payload as PayloadTypes>::PayloadAttributes> {
+        LocalPayloadAttributesBuilder::new(Arc::new(chain_spec.clone()))
     }
 }

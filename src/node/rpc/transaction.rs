@@ -1,22 +1,14 @@
 use super::BscNodeCore;
-use crate::{node::rpc::BscEthApi, BscPrimitives};
-use alloy_network::{Ethereum, Network};
-use alloy_primitives::{Bytes, Signature, B256};
+use crate::node::rpc::BscEthApi;
+use alloy_primitives::{Bytes, B256};
 use reth::{
-    builder::FullNodeComponents,
-    primitives::{Receipt, Recovered, TransactionSigned},
-    providers::ReceiptProvider,
-    rpc::{
-        eth::helpers::types::EthRpcConverter,
-        server_types::eth::{utils::recover_raw_transaction, EthApiError},
-        types::{TransactionInfo, TransactionRequest},
-    },
+    rpc::server_types::eth::utils::recover_raw_transaction,
     transaction_pool::{PoolTransaction, TransactionOrigin, TransactionPool},
 };
 use reth_provider::{BlockReader, BlockReaderIdExt, ProviderTx, TransactionsProvider};
 use reth_rpc_eth_api::{
     helpers::{EthSigner, EthTransactions, LoadTransaction, SpawnBlocking},
-    FromEthApiError, FullEthApiTypes, RpcNodeCore, RpcNodeCoreExt, TransactionCompat,
+    FromEthApiError, FullEthApiTypes, RpcNodeCore, RpcNodeCoreExt,
 };
 impl<N> LoadTransaction for BscEthApi<N>
 where
@@ -24,38 +16,6 @@ where
     N: BscNodeCore<Provider: TransactionsProvider, Pool: TransactionPool>,
     Self::Pool: TransactionPool,
 {
-}
-
-impl<N> TransactionCompat for BscEthApi<N>
-where
-    N: FullNodeComponents<Provider: ReceiptProvider<Receipt = Receipt>>,
-{
-    type Primitives = BscPrimitives;
-    type Transaction = <Ethereum as Network>::TransactionResponse;
-
-    type Error = EthApiError;
-
-    fn fill(
-        &self,
-        tx: Recovered<TransactionSigned>,
-        tx_info: TransactionInfo,
-    ) -> Result<Self::Transaction, Self::Error> {
-        let builder = EthRpcConverter::default();
-        builder.fill(tx, tx_info)
-    }
-
-    fn build_simulate_v1_transaction(
-        &self,
-        request: TransactionRequest,
-    ) -> Result<TransactionSigned, Self::Error> {
-        let Ok(tx) = request.build_typed_tx() else {
-            return Err(EthApiError::TransactionConversionError)
-        };
-
-        // Create an empty signature for the transaction.
-        let signature = Signature::new(Default::default(), Default::default(), false);
-        Ok(TransactionSigned::new_unhashed(tx.into(), signature))
-    }
 }
 
 impl<N> EthTransactions for BscEthApi<N>
