@@ -5,7 +5,7 @@ use reth::consensus::{ConsensusError, HeaderValidator};
 use reth_primitives_traits::SealedHeader;
 use std::sync::Arc;
 use super::vote::{MAX_ATTESTATION_EXTRA_LENGTH, VoteAddress};
-use super::constants::{VALIDATOR_BYTES_LEN_BEFORE_LUBAN, VALIDATOR_NUMBER_SIZE, VALIDATOR_BYTES_LEN_AFTER_LUBAN, TURN_LENGTH_SIZE};
+use super::constants::{VALIDATOR_BYTES_LEN_BEFORE_LUBAN, VALIDATOR_NUMBER_SIZE, VALIDATOR_BYTES_LEN_AFTER_LUBAN};
 use bls_on_arkworks as bls;
 
 // ---------------------------------------------------------------------------

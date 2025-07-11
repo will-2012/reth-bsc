@@ -282,4 +282,39 @@ impl Decompress for Snapshot {
     fn decompress(value: &[u8]) -> Result<Self, DatabaseError> {
         serde_cbor::from_slice(value).map_err(|_| DatabaseError::Decode)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::B256;
+
+    fn addr(n: u64) -> Address {
+        // simple helper to create distinct addresses with different last byte.
+        Address::repeat_byte((n & 0xff) as u8)
+    }
+
+    #[test]
+    fn sign_recently_detects_over_propose() {
+        // three validators
+        let validators = vec![addr(1), addr(2), addr(3)];
+        let mut snap = Snapshot::new(validators.clone(), 0, B256::ZERO, DEFAULT_EPOCH_LENGTH, None);
+
+        // simulate that validator 1 proposed previous block 0
+        snap.recent_proposers.insert(1, addr(1));
+        snap.block_number = 1;
+
+        // now at block 1, same validator proposes again -> should be flagged
+        assert!(snap.sign_recently(addr(1)));
+        // other validator should be fine
+        assert!(!snap.sign_recently(addr(2)));
+    }
+
+    #[test]
+    fn sign_recently_allows_within_limit() {
+        let validators = vec![addr(1), addr(2), addr(3)];
+        let snap = Snapshot::new(validators, 0, B256::ZERO, DEFAULT_EPOCH_LENGTH, None);
+        // no recent entries, validator should be allowed
+        assert!(!snap.sign_recently(addr(1)));
+    }
 } 
