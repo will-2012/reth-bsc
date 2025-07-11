@@ -1,20 +1,11 @@
-use super::BscEvm;
 use crate::evm::{
-    api::{
-        builder::BscBuilder,
-        ctx::{BscContext, DefaultBsc},
-    },
-    precompiles::BscPrecompiles,
+    api::{BscContext, BscEvm},
     spec::BscSpecId,
     transaction::BscTxEnv,
 };
-use reth_evm::{precompiles::PrecompilesMap, EvmEnv, EvmFactory};
-use reth_revm::{Context, Database};
+use reth_evm::{precompiles::PrecompilesMap, Database, EvmEnv, EvmFactory};
 use revm::{
-    context::{
-        result::{EVMError, HaltReason},
-        TxEnv,
-    },
+    context::result::{EVMError, HaltReason},
     inspector::NoOpInspector,
     Inspector,
 };
@@ -25,50 +16,28 @@ use revm::{
 pub struct BscEvmFactory;
 
 impl EvmFactory for BscEvmFactory {
-    type Evm<DB: Database<Error: Send + Sync + 'static>, I: Inspector<BscContext<DB>>> =
-        BscEvm<DB, I, Self::Precompiles>;
-    type Context<DB: Database<Error: Send + Sync + 'static>> = BscContext<DB>;
-    type Tx = BscTxEnv<TxEnv>;
+    type Evm<DB: Database, I: Inspector<BscContext<DB>>> = BscEvm<DB, I>;
+    type Context<DB: Database> = BscContext<DB>;
+    type Tx = BscTxEnv;
     type Error<DBError: core::error::Error + Send + Sync + 'static> = EVMError<DBError>;
     type HaltReason = HaltReason;
     type Spec = BscSpecId;
     type Precompiles = PrecompilesMap;
 
-    fn create_evm<DB: Database<Error: Send + Sync + 'static>>(
+    fn create_evm<DB: Database>(
         &self,
         db: DB,
         input: EvmEnv<BscSpecId>,
     ) -> Self::Evm<DB, NoOpInspector> {
-        let precompiles = BscPrecompiles::new(input.cfg_env.spec).precompiles();
-        BscEvm {
-            inner: Context::bsc()
-                .with_block(input.block_env)
-                .with_cfg(input.cfg_env)
-                .with_db(db)
-                .build_bsc_with_inspector(NoOpInspector {})
-                .with_precompiles(PrecompilesMap::from_static(precompiles)),
-            inspect: false,
-        }
+        BscEvm::new(input, db, NoOpInspector {}, false)
     }
 
-    fn create_evm_with_inspector<
-        DB: Database<Error: Send + Sync + 'static>,
-        I: Inspector<Self::Context<DB>>,
-    >(
+    fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
         &self,
         db: DB,
         input: EvmEnv<BscSpecId>,
         inspector: I,
     ) -> Self::Evm<DB, I> {
-        let precompiles = BscPrecompiles::new(input.cfg_env.spec).precompiles();
-        BscEvm {
-            inner: Context::bsc()
-                .with_block(input.block_env)
-                .with_cfg(input.cfg_env)
-                .with_db(db)
-                .build_bsc_with_inspector(inspector)
-                .with_precompiles(PrecompilesMap::from_static(precompiles)),
-            inspect: true,
-        }
+        BscEvm::new(input, db, inspector, true)
     }
 }

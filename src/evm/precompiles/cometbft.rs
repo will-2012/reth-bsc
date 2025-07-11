@@ -298,7 +298,7 @@ fn decode_consensus_state(input: &Bytes) -> DecodeConsensusStateResult {
     let minimum_length = CHAIN_ID_LENGTH + HEIGHT_LENGTH + VALIDATOR_SET_HASH_LENGTH;
     let input_length = input.len() as u64;
     if input_length <= minimum_length ||
-        (input_length - minimum_length) % SINGLE_VALIDATOR_BYTES_LENGTH != 0
+        !(input_length - minimum_length).is_multiple_of(SINGLE_VALIDATOR_BYTES_LENGTH)
     {
         return Err(BscPrecompileError::CometBftInvalidInput.into());
     }

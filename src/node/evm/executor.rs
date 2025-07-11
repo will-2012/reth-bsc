@@ -10,7 +10,7 @@ use crate::{
 use alloy_consensus::{Transaction, TxReceipt};
 use alloy_eips::{eip7685::Requests, Encodable2718};
 use alloy_evm::{block::ExecutableTx, eth::receipt_builder::ReceiptBuilderCtx};
-use alloy_primitives::{Address, TxKind, U256};
+use alloy_primitives::{uint, Address, TxKind, U256};
 use alloy_sol_macro::sol;
 use alloy_sol_types::SolCall;
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
@@ -69,7 +69,7 @@ where
     R: ReceiptBuilder<Transaction = TransactionSigned, Receipt: TxReceipt>,
     <R as ReceiptBuilder>::Transaction: Unpin + From<TransactionSigned>,
     <EVM as alloy_evm::Evm>::Tx: FromTxWithEncoded<<R as ReceiptBuilder>::Transaction>,
-    BscTxEnv<TxEnv>: IntoTxEnv<<EVM as alloy_evm::Evm>::Tx>,
+    BscTxEnv: IntoTxEnv<<EVM as alloy_evm::Evm>::Tx>,
     R::Transaction: Into<TransactionSigned>,
 {
     /// Creates a new BscBlockExecutor.
@@ -94,15 +94,16 @@ where
 
     /// Applies system contract upgrades if the Feynman fork is not yet active.
     fn apply_upgrade_contracts_if_before_feynman(&mut self) -> Result<(), BlockExecutionError> {
-        if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp) {
+        if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
             return Ok(());
         }
 
         let contracts = get_upgrade_system_contracts(
             &self.spec,
-            self.evm.block().number,
-            self.evm.block().timestamp,
-            self.evm.block().timestamp - 3_000, // TODO: how to get parent block timestamp?
+            self.evm.block().number.to(),
+            self.evm.block().timestamp.to(),
+            self.evm.block().timestamp.to::<u64>() - 3_000, /* TODO: how to get parent block
+                                                             * timestamp? */
         )
         .map_err(|_| BlockExecutionError::msg("Failed to get upgrade system contracts"))?;
 
@@ -298,7 +299,7 @@ where
 
         // Kepler introduced a max system reward limit, so we need to pay the system reward to the
         // system contract if the limit is not exceeded.
-        if !self.spec.is_kepler_active_at_timestamp(self.evm.block().timestamp) &&
+        if !self.spec.is_kepler_active_at_timestamp(self.evm.block().timestamp.to()) &&
             system_reward_balance < U256::from(MAX_SYSTEM_REWARD)
         {
             let reward_to_system = block_reward >> SYSTEM_REWARD_PERCENT;
@@ -329,7 +330,7 @@ where
     R: ReceiptBuilder<Transaction = TransactionSigned, Receipt: TxReceipt>,
     <R as ReceiptBuilder>::Transaction: Unpin + From<TransactionSigned>,
     <E as alloy_evm::Evm>::Tx: FromTxWithEncoded<<R as ReceiptBuilder>::Transaction>,
-    BscTxEnv<TxEnv>: IntoTxEnv<<E as alloy_evm::Evm>::Tx>,
+    BscTxEnv: IntoTxEnv<<E as alloy_evm::Evm>::Tx>,
     R::Transaction: Into<TransactionSigned>,
 {
     type Transaction = TransactionSigned;
@@ -339,7 +340,7 @@ where
     fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
         // Set state clear flag if the block is after the Spurious Dragon hardfork.
         let state_clear_flag =
-            self.spec.is_spurious_dragon_active_at_block(self.evm.block().number);
+            self.spec.is_spurious_dragon_active_at_block(self.evm.block().number.to());
         self.evm.db_mut().set_state_clear_flag(state_clear_flag);
 
         // TODO: (Consensus Verify cascading fields)[https://github.com/bnb-chain/reth/blob/main/crates/bsc/evm/src/pre_execution.rs#L43]
@@ -416,13 +417,13 @@ where
         // Consensus: Verify turn length
 
         // If first block deploy genesis contracts
-        if self.evm.block().number == 1 {
+        if self.evm.block().number == uint!(1U256) {
             self.deploy_genesis_contracts(self.evm.block().beneficiary)?;
         }
 
         self.apply_upgrade_contracts_if_before_feynman()?;
 
-        if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp) {
+        if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
             self.deploy_feynman_contracts(self.evm.block().beneficiary)?;
         }
 
@@ -433,7 +434,7 @@ where
 
         self.distribute_block_rewards(self.evm.block().beneficiary)?;
 
-        if self.spec.is_plato_active_at_block(self.evm.block().number) {
+        if self.spec.is_plato_active_at_block(self.evm.block().number.to()) {
             for tx in system_txs {
                 self.handle_finality_reward_tx(&tx)?;
             }

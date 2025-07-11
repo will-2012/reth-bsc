@@ -31,11 +31,14 @@ use reth_rpc_eth_api::{
         AddDevSigners, EthApiSpec, EthFees, EthSigner, EthState, LoadBlock, LoadFee, LoadState,
         SpawnBlocking, Trace,
     },
-    EthApiTypes, FromEvmError, RpcNodeCore, RpcNodeCoreExt,
+    EthApiTypes, FromEvmError, RpcConverter, RpcNodeCore, RpcNodeCoreExt,
 };
-use std::{fmt, sync::Arc};
+use std::{
+    fmt::{self, Debug},
+    sync::Arc,
+};
 
-use crate::BscPrimitives;
+use crate::{node::evm::config::BscEvmConfig, BscPrimitives};
 
 mod block;
 mod call;
@@ -57,6 +60,8 @@ pub(crate) struct BscEthApiInner<N: BscNodeCore> {
 pub struct BscEthApi<N: BscNodeCore> {
     /// Gateway to node's core components.
     pub(crate) inner: Arc<BscEthApiInner<N>>,
+    /// Convertions for RPC types.
+    pub(crate) tx_resp_builder: RpcConverter<Ethereum, BscEvmConfig, EthApiError>,
 }
 
 impl<N: BscNodeCore> fmt::Debug for BscEthApi<N> {
@@ -72,10 +77,10 @@ where
 {
     type Error = EthApiError;
     type NetworkTypes = Ethereum;
-    type TransactionCompat = Self;
+    type RpcConvert = RpcConverter<Ethereum, BscEvmConfig, EthApiError>;
 
-    fn tx_resp_builder(&self) -> &Self::TransactionCompat {
-        self
+    fn tx_resp_builder(&self) -> &Self::RpcConvert {
+        &self.tx_resp_builder
     }
 }
 
@@ -184,7 +189,7 @@ where
     }
 
     #[inline]
-    fn fee_history_cache(&self) -> &FeeHistoryCache {
+    fn fee_history_cache(&self) -> &FeeHistoryCache<ProviderHeader<Self::Provider>> {
         self.inner.eth_api.fee_history_cache()
     }
 }
@@ -210,7 +215,11 @@ where
 
 impl<N> EthFees for BscEthApi<N>
 where
-    Self: LoadFee,
+    Self: LoadFee<
+        Provider: ChainSpecProvider<
+            ChainSpec: EthChainSpec<Header = ProviderHeader<Self::Provider>>,
+        >,
+    >,
     N: BscNodeCore,
 {
 }
@@ -268,6 +277,9 @@ where
         .proof_permits(ctx.config.proof_permits)
         .build_inner();
 
-        Ok(BscEthApi { inner: Arc::new(BscEthApiInner { eth_api }) })
+        Ok(BscEthApi {
+            inner: Arc::new(BscEthApiInner { eth_api }),
+            tx_resp_builder: Default::default(),
+        })
     }
 }

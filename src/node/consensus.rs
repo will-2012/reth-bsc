@@ -1,4 +1,5 @@
 use crate::{hardforks::BscHardforks, node::BscNode, BscBlock, BscBlockBody, BscPrimitives};
+use alloy_consensus::Header;
 use reth::{
     api::FullNodeTypes,
     beacon_consensus::EthBeaconConsensus,
@@ -72,7 +73,9 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
     }
 }
 
-impl<ChainSpec: EthChainSpec + BscHardforks> Consensus<BscBlock> for BscConsensus<ChainSpec> {
+impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> Consensus<BscBlock>
+    for BscConsensus<ChainSpec>
+{
     type Error = ConsensusError;
 
     fn validate_body_against_header(
@@ -114,7 +117,7 @@ impl<ChainSpec: EthChainSpec + BscHardforks> Consensus<BscBlock> for BscConsensu
     }
 }
 
-impl<ChainSpec: EthChainSpec + BscHardforks> FullConsensus<BscPrimitives>
+impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> FullConsensus<BscPrimitives>
     for BscConsensus<ChainSpec>
 {
     fn validate_block_post_execution(
