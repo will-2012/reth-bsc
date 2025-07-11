@@ -347,6 +347,30 @@ where
 
         self.apply_upgrade_contracts_if_before_feynman()?;
 
+        // -----------------------------------------------------------------
+        // Consensus hooks: pre-execution (rewards/slashing system-txs)
+        // -----------------------------------------------------------------
+        use crate::consensus::parlia::{hooks::{ParliaHooks, PreExecutionHook}, snapshot::Snapshot};
+
+        // For now we don't have snapshot wiring inside the executor yet, but the hook requires
+        // one. Use an empty default snapshot – this is sufficient for rewarding the
+        // beneficiary; over-propose slashing is already handled by `slash_pool`.
+        let snap_placeholder = Snapshot::default();
+        let beneficiary = self.evm.block().beneficiary;
+
+        // Assume in-turn for now; detailed check requires snapshot state which will be wired
+        // later.
+        let in_turn = true;
+
+        let pre_out = (ParliaHooks, &self.system_contracts)
+            .on_pre_execution(&snap_placeholder, beneficiary, in_turn);
+
+        // Reserve block gas (simple accounting) and queue system-transactions for execution.
+        if pre_out.reserved_gas > 0 {
+            self.gas_used += pre_out.reserved_gas;
+        }
+        self.system_txs.extend(pre_out.system_txs.into_iter());
+
         Ok(())
     }
 
@@ -455,14 +479,6 @@ where
 
         for tx in &system_txs {
             self.handle_slash_tx(tx)?;
-        }
-
-        self.distribute_block_rewards(self.evm.block().beneficiary)?;
-
-        if self.spec.is_plato_active_at_block(self.evm.block().number) {
-            for tx in system_txs {
-                self.handle_finality_reward_tx(&tx)?;
-            }
         }
 
         // TODO:
