@@ -109,7 +109,10 @@ impl<DB: Database + 'static> SnapshotProvider for DbSnapshotProvider<DB> {
     fn insert(&self, snapshot: Snapshot) {
         // update cache
         self.cache.write().insert(snapshot.block_number, snapshot.clone());
-        // persist (fire-and-forget)
-        let _ = self.persist_to_db(&snapshot);
+        // Persist only at checkpoint boundaries to reduce I/O.
+        if snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
+            // fire-and-forget DB write; errors are logged but not fatal
+            let _ = self.persist_to_db(&snapshot);
+        }
     }
 } 
