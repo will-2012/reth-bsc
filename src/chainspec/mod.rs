@@ -72,8 +72,12 @@ impl EthChainSpec for BscChainSpec {
 
     fn bootnodes(&self) -> Option<Vec<NodeRecord>> {
         match self.inner.chain().try_into().ok()? {
-            NamedChain::BinanceSmartChain => Some(crate::node::network::bootnodes::bsc_mainnet_nodes()),
-            NamedChain::BinanceSmartChainTestnet => Some(crate::node::network::bootnodes::bsc_testnet_nodes()),
+            NamedChain::BinanceSmartChain => {
+                Some(crate::node::network::bootnodes::bsc_mainnet_nodes())
+            }
+            NamedChain::BinanceSmartChainTestnet => {
+                Some(crate::node::network::bootnodes::bsc_testnet_nodes())
+            }
             _ => None,
         }
     }
@@ -138,7 +142,7 @@ impl BscChainSpec {
             NamedChain::BinanceSmartChain => bsc::head(),
             NamedChain::BinanceSmartChainTestnet => bsc_chapel::head(),
             _ => bsc::head(),
-        }   
+        }
     }
 }
 

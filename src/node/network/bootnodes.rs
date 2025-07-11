@@ -14,7 +14,6 @@ pub fn parse_nodes(nodes: impl IntoIterator<Item = impl AsRef<str>>) -> Vec<Node
     nodes.into_iter().map(|s| s.as_ref().parse().unwrap()).collect()
 }
 
-
 /// Bsc mainnet boot nodes.
 pub static BSC_MAINNET_BOOTNODES: &[&str] = &[
     "enode://433c8bfdf53a3e2268ccb1b829e47f629793291cbddf0c76ae626da802f90532251fc558e2e0d10d6725e759088439bf1cd4714716b03a259a35d4b2e4acfa7f@52.69.102.73:30311",

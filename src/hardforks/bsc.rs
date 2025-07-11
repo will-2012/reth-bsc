@@ -218,18 +218,25 @@ impl BscHardfork {
             (EthereumHardfork::London.boxed(), ForkCondition::Block(31302048)),
             (Self::Hertz.boxed(), ForkCondition::Block(31302048)),
             (Self::HertzFix.boxed(), ForkCondition::Block(34140700)),
-            (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1705996800)), // 2024-01-23 08:00:00 AM UTC
-            (Self::Kepler.boxed(), ForkCondition::Timestamp(1705996800)), // 2024-01-23 08:00:00 AM UTC
-            (Self::Feynman.boxed(), ForkCondition::Timestamp(1713419340)), // 2024-04-18 05:49:00 AM UTC
-            (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1713419340)), // 2024-04-18 05:49:00 AM UTC
-            (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1718863500)),// 2024-06-20 06:05:00 AM UTC
-            (Self::Haber.boxed(), ForkCondition::Timestamp(1718863500)), // 2024-06-20 06:05:00 AM UTC
-            (Self::HaberFix.boxed(), ForkCondition::Timestamp(1727316120)),  // 2024-09-26 02:02:00 AM UTC
-            (Self::Bohr.boxed(), ForkCondition::Timestamp(1727317200)), // 2024-09-26 02:20:00 AM UTC
-            (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1742436600)), // 2025-03-20 02:10:00 AM UTC
-            (Self::Pascal.boxed(), ForkCondition::Timestamp(1742436600)), // 2025-03-20 02:10:00 AM UTC
-            (Self::Lorentz.boxed(), ForkCondition::Timestamp(1745903100)), // 2025-04-29 05:05:00 AM UTC
-            (Self::Maxwell.boxed(), ForkCondition::Timestamp(1751250600)), // 2025-06-30 02:30:00 AM UTC
+            (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1705996800)), /* 2024-01-23 08:00:00 AM UTC */
+            (Self::Kepler.boxed(), ForkCondition::Timestamp(1705996800)), /* 2024-01-23 08:00:00
+                                                                           * AM UTC */
+            (Self::Feynman.boxed(), ForkCondition::Timestamp(1713419340)), /* 2024-04-18
+                                                                            * 05:49:00 AM UTC */
+            (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1713419340)), /* 2024-04-18 05:49:00 AM UTC */
+            (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC */
+            (Self::Haber.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00
+                                                                          * AM UTC */
+            (Self::HaberFix.boxed(), ForkCondition::Timestamp(1727316120)), /* 2024-09-26 02:02:00 AM UTC */
+            (Self::Bohr.boxed(), ForkCondition::Timestamp(1727317200)), /* 2024-09-26 02:20:00
+                                                                         * AM UTC */
+            (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1742436600)), /* 2025-03-20 02:10:00 AM UTC */
+            (Self::Pascal.boxed(), ForkCondition::Timestamp(1742436600)), /* 2025-03-20 02:10:00
+                                                                           * AM UTC */
+            (Self::Lorentz.boxed(), ForkCondition::Timestamp(1745903100)), /* 2025-04-29
+                                                                            * 05:05:00 AM UTC */
+            (Self::Maxwell.boxed(), ForkCondition::Timestamp(1751250600)), /* 2025-06-30
+                                                                            * 02:30:00 AM UTC */
         ])
     }
 

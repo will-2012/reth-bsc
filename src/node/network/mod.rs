@@ -17,7 +17,7 @@ use reth::{
     transaction_pool::{PoolTransaction, TransactionPool},
 };
 use reth_chainspec::EthChainSpec;
-use reth_discv4::{Discv4Config};
+use reth_discv4::Discv4Config;
 use reth_engine_primitives::BeaconConsensusEngineHandle;
 use reth_eth_wire::{BasicNetworkPrimitives, NewBlock, NewBlockPayload};
 use reth_ethereum_primitives::PooledTransactionVariant;
@@ -160,7 +160,7 @@ impl BscNetworkBuilder {
 
         let network_builder = ctx.network_config_builder()?;
         let mut discv4 = Discv4Config::builder();
-        
+
         if let Some(boot_nodes) = ctx.chain_spec().bootnodes() {
             discv4.add_boot_nodes(boot_nodes);
         }
