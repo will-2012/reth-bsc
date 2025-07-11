@@ -11,6 +11,9 @@ pub mod provider;
 pub mod validator;
 pub mod constants;
 pub mod attestation;
+pub mod gas;
+pub mod hooks;
+pub mod slash_pool;
 
 pub use snapshot::{Snapshot, ValidatorInfo, CHECKPOINT_INTERVAL};
 pub use vote::{VoteAddress, VoteAttestation, VoteData, VoteEnvelope, VoteSignature, ValidatorsBitSet};

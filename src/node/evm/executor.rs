@@ -426,7 +426,33 @@ where
             self.deploy_feynman_contracts(self.evm.block().beneficiary)?;
         }
 
-        let system_txs = self.system_txs.clone();
+        // Prepare system transactions list and append slash transactions collected from consensus.
+        let mut system_txs = self.system_txs.clone();
+
+        // Drain slashing evidence collected by header-validation for this block.
+        for spoiled in crate::consensus::parlia::slash_pool::drain() {
+            use alloy_sol_macro::sol;
+            use alloy_sol_types::SolCall;
+            use crate::system_contracts::SLASH_CONTRACT;
+            sol!(
+                function slash(address);
+            );
+            let input = slashCall(spoiled).abi_encode();
+            let tx = reth_primitives::TransactionSigned::new_unhashed(
+                reth_primitives::Transaction::Legacy(alloy_consensus::TxLegacy {
+                    chain_id: Some(self.spec.chain().id()),
+                    nonce: 0,
+                    gas_limit: u64::MAX / 2,
+                    gas_price: 0,
+                    value: alloy_primitives::U256::ZERO,
+                    input: alloy_primitives::Bytes::from(input),
+                    to: alloy_primitives::TxKind::Call(SLASH_CONTRACT.parse().unwrap()),
+                }),
+                alloy_primitives::Signature::new(Default::default(), Default::default(), false),
+            );
+            system_txs.push(tx);
+        }
+
         for tx in &system_txs {
             self.handle_slash_tx(tx)?;
         }

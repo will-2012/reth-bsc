@@ -7,6 +7,8 @@ use std::sync::Arc;
 use super::vote::{MAX_ATTESTATION_EXTRA_LENGTH, VoteAddress};
 use super::constants::{VALIDATOR_BYTES_LEN_BEFORE_LUBAN, VALIDATOR_NUMBER_SIZE, VALIDATOR_BYTES_LEN_AFTER_LUBAN};
 use bls_on_arkworks as bls;
+use super::gas::validate_gas_limit;
+use super::slash_pool;
 
 // ---------------------------------------------------------------------------
 // Helper: parse epoch update (validator set & turn-length) from a header.
@@ -166,11 +168,19 @@ where
         }
 
         // --------------------------------------------------------------------
-        // 2. Snapshot of the *parent* block (needed for attestation verification)
+        // 2. Snapshot of the *parent* block (needed for gas-limit & attestation verification)
         // --------------------------------------------------------------------
         let Some(parent_snap) = self.provider.snapshot(parent.number()) else {
             return Err(ConsensusError::Other("missing snapshot".into()));
         };
+
+        // Gas-limit rule verification (Lorentz divisor switch).
+        let epoch_len = parent_snap.epoch_num;
+        let parent_gas_limit = parent.gas_limit();
+        let gas_limit = header.gas_limit();
+        if let Err(e) = validate_gas_limit(parent_gas_limit, gas_limit, epoch_len) {
+            return Err(ConsensusError::Other(format!("invalid gas limit: {e}")));
+        }
 
         // Use snapshot‐configured block interval to ensure header.timestamp is not too far ahead.
         if header.timestamp() > parent.timestamp() + parent_snap.block_interval {
@@ -280,6 +290,15 @@ where
             is_bohr,
         ) {
             self.provider.insert(new_snap);
+        }
+
+        // Report slashing evidence if proposer is not in-turn and previous inturn validator hasn't signed recently.
+        let inturn_validator_eq_miner = header.beneficiary() == parent_snap.inturn_validator();
+        if !inturn_validator_eq_miner {
+            let spoiled = parent_snap.inturn_validator();
+            if !parent_snap.sign_recently(spoiled) {
+                slash_pool::report(spoiled);
+            }
         }
 
         Ok(())
