@@ -169,7 +169,7 @@ where
                 // gas limit
                 gas_price: 0,
                 // The chain ID check is not relevant here and is disabled if set to None
-                chain_id: Some(56),
+                chain_id: Some(self.spec.chain().id()),
                 // Setting the gas priority fee to None ensures the effective gas price is
                 //derived         // from the `gas_price` field, which we need to be zero
                 gas_priority_fee: None,
