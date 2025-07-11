@@ -107,6 +107,7 @@ where
         .map_err(|_| BlockExecutionError::msg("Failed to get upgrade system contracts"))?;
 
         for (address, maybe_code) in contracts {
+            tracing::info!("upgrade system contract: {:?} at block: {:?}", address, self.evm.block().number);
             if let Some(code) = maybe_code {
                 self.upgrade_system_contract(address, code)?;
             }
