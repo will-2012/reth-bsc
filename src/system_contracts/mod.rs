@@ -184,7 +184,7 @@ lazy_static! {
 
     /// mainnet system contracts: hardfork -> address -> Bytecode
     pub(crate) static ref BSC_MAINNET_CONTRACTS: HashMap<String, HashMap<String, Option<Bytecode>>> =
-        read_all_system_contracts(&bsc_mainnet());
+        read_all_system_contracts(&bsc_mainnet()).expect("Failed to load system contracts, please check the contract files");
 
 
 }
@@ -260,6 +260,10 @@ pub enum SystemContractError {
     /// Error when updating the contract fails.
     #[error("Cannot deploy contract")]
     FailToUpdate,
+
+    /// Error when loading the contract fails.
+    #[error("Cannot load contracts")]
+    FailToLoad,
 }
 
 /// Return hardforks which contain upgrades of system contracts.
@@ -311,7 +315,7 @@ fn hardfork_to_dir_name(hardfork: &BscHardfork) -> Result<String, SystemContract
 /// Get all system contracts with byte codes.
 fn read_all_system_contracts(
     spec: &ChainSpec,
-) -> HashMap<String, HashMap<String, Option<Bytecode>>> {
+) -> Result<HashMap<String, HashMap<String, Option<Bytecode>>>, SystemContractError> {
     let dir: String;
     if spec.chain.eq(&Chain::bsc_mainnet()) {
         dir = "mainnet".to_string();
@@ -346,9 +350,16 @@ fn read_all_system_contracts(
             };
             inner_map.insert(c.address.to_string(), Some(Bytecode::new_raw(bytes.into())));
         }
-        outer_map.insert(hardfork.name().to_string(), inner_map);
+        if inner_map.len() > 0 {
+            outer_map.insert(hardfork.name().to_string(), inner_map);
+        }
     }
-    outer_map
+
+    if outer_map.is_empty() {
+        Err(SystemContractError::FailToLoad)
+    } else {
+        Ok(outer_map)
+    }
 }
 /// Get byte codes for a specific hardfork.
 fn get_system_contract_codes<ChainSpec>(
