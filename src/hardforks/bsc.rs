@@ -3,13 +3,17 @@ use alloy_chains::Chain;
 use core::any::Any;
 use reth_chainspec::ForkCondition;
 use reth_ethereum_forks::{hardfork, ChainHardforks, EthereumHardfork, Hardfork};
+use revm::primitives::hardfork::SpecId;
 
 hardfork!(
     /// The name of a bsc hardfork.
     ///
     /// When building a list of hardforks for a chain, it's still expected to mix with [`EthereumHardfork`].
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+    #[derive(Default)]
     BscHardfork {
+        /// Initial hardfork of BSC.
+        Frontier,
         /// BSC `Ramanujan` hardfork
         Ramanujan,
         /// BSC `Niels` hardfork
@@ -53,6 +57,7 @@ hardfork!(
         /// BSC `Lorentz` hardfork
         Lorentz,
         /// BSC `Maxwell` hardfork
+        #[default]
         Maxwell,
     }
 );
@@ -329,6 +334,35 @@ where
         return hardfork_fn(fork)
     }
     fork.downcast_ref::<BscHardfork>().and_then(bsc_hardfork_fn)
+}
+
+impl From<BscHardfork> for SpecId {
+    fn from(spec: BscHardfork) -> Self {
+        match spec {
+            BscHardfork::Frontier |
+            BscHardfork::Ramanujan |
+            BscHardfork::Niels |
+            BscHardfork::MirrorSync |
+            BscHardfork::Bruno |
+            BscHardfork::Euler |
+            BscHardfork::Gibbs |
+            BscHardfork::Nano |
+            BscHardfork::Moran |
+            BscHardfork::Planck |
+            BscHardfork::Luban |
+            BscHardfork::Plato => SpecId::MUIR_GLACIER,
+            BscHardfork::Hertz | BscHardfork::HertzFix => SpecId::LONDON,
+            BscHardfork::Kepler | BscHardfork::Feynman | BscHardfork::FeynmanFix => {
+                SpecId::SHANGHAI
+            }
+            BscHardfork::Haber |
+            BscHardfork::HaberFix |
+            BscHardfork::Bohr |
+            BscHardfork::Pascal |
+            BscHardfork::Lorentz |
+            BscHardfork::Maxwell => SpecId::CANCUN,
+        }
+    }
 }
 
 #[cfg(test)]

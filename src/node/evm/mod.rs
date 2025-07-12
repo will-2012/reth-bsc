@@ -1,9 +1,9 @@
 use crate::{
     evm::{
         api::{BscContext, BscEvm},
-        spec::BscSpecId,
         transaction::BscTxEnv,
     },
+    hardforks::bsc::BscHardfork,
     node::BscNode,
 };
 use alloy_primitives::{Address, Bytes};
@@ -36,7 +36,7 @@ where
     type Tx = BscTxEnv;
     type Error = EVMError<DB::Error>;
     type HaltReason = HaltReason;
-    type Spec = BscSpecId;
+    type Spec = BscHardfork;
     type Precompiles = PrecompilesMap;
     type Inspector = I;
 

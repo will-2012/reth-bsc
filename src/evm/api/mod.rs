@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::evm::{spec::BscSpecId, transaction::BscTxEnv};
+use crate::{evm::transaction::BscTxEnv, hardforks::bsc::BscHardfork};
 
 use super::precompiles::BscPrecompiles;
 use reth_evm::{precompiles::PrecompilesMap, Database, EvmEnv};
@@ -19,7 +19,7 @@ use revm::{
 mod exec;
 
 /// Type alias for the default context type of the BscEvm.
-pub type BscContext<DB> = Context<BlockEnv, BscTxEnv, CfgEnv<BscSpecId>, DB>;
+pub type BscContext<DB> = Context<BlockEnv, BscTxEnv, CfgEnv<BscHardfork>, DB>;
 
 /// BSC EVM implementation.
 ///
@@ -39,7 +39,7 @@ pub struct BscEvm<DB: revm::database::Database, I> {
 
 impl<DB: Database, I> BscEvm<DB, I> {
     /// Creates a new [`BscEvm`].
-    pub fn new(env: EvmEnv<BscSpecId>, db: DB, inspector: I, inspect: bool) -> Self {
+    pub fn new(env: EvmEnv<BscHardfork>, db: DB, inspector: I, inspect: bool) -> Self {
         let precompiles =
             PrecompilesMap::from_static(BscPrecompiles::new(env.cfg_env.spec).precompiles());
 
