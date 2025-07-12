@@ -1,7 +1,9 @@
-use crate::evm::{
-    api::{BscContext, BscEvm},
-    spec::BscSpecId,
-    transaction::BscTxEnv,
+use crate::{
+    evm::{
+        api::{BscContext, BscEvm},
+        transaction::BscTxEnv,
+    },
+    hardforks::bsc::BscHardfork,
 };
 use reth_evm::{precompiles::PrecompilesMap, Database, EvmEnv, EvmFactory};
 use revm::{
@@ -21,13 +23,13 @@ impl EvmFactory for BscEvmFactory {
     type Tx = BscTxEnv;
     type Error<DBError: core::error::Error + Send + Sync + 'static> = EVMError<DBError>;
     type HaltReason = HaltReason;
-    type Spec = BscSpecId;
+    type Spec = BscHardfork;
     type Precompiles = PrecompilesMap;
 
     fn create_evm<DB: Database>(
         &self,
         db: DB,
-        input: EvmEnv<BscSpecId>,
+        input: EvmEnv<BscHardfork>,
     ) -> Self::Evm<DB, NoOpInspector> {
         BscEvm::new(input, db, NoOpInspector {}, false)
     }
@@ -35,7 +37,7 @@ impl EvmFactory for BscEvmFactory {
     fn create_evm_with_inspector<DB: Database, I: Inspector<Self::Context<DB>>>(
         &self,
         db: DB,
-        input: EvmEnv<BscSpecId>,
+        input: EvmEnv<BscHardfork>,
         inspector: I,
     ) -> Self::Evm<DB, I> {
         BscEvm::new(input, db, inspector, true)

@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use super::spec::BscSpecId;
+use crate::hardforks::bsc::BscHardfork;
 use cfg_if::cfg_if;
 use once_cell::{race::OnceBox, sync::Lazy};
 use revm::{
@@ -31,28 +31,28 @@ pub struct BscPrecompiles {
 impl BscPrecompiles {
     /// Create a new precompile provider with the given bsc spec.
     #[inline]
-    pub fn new(spec: BscSpecId) -> Self {
-        let precompiles = if spec >= BscSpecId::HABER {
+    pub fn new(spec: BscHardfork) -> Self {
+        let precompiles = if spec >= BscHardfork::Haber {
             haber()
-        } else if spec >= BscSpecId::FEYNMAN {
+        } else if spec >= BscHardfork::Feynman {
             feynman()
-        } else if spec >= BscSpecId::HERTZ {
+        } else if spec >= BscHardfork::Hertz {
             hertz()
-        } else if spec >= BscSpecId::PLATO {
+        } else if spec >= BscHardfork::Plato {
             plato()
-        } else if spec >= BscSpecId::LUBAN {
+        } else if spec >= BscHardfork::Luban {
             luban()
-        } else if spec >= BscSpecId::PLANCK {
+        } else if spec >= BscHardfork::Planck {
             planck()
-        } else if spec >= BscSpecId::MORAN {
+        } else if spec >= BscHardfork::Moran {
             moran()
-        } else if spec >= BscSpecId::NANO {
+        } else if spec >= BscHardfork::Nano {
             nano()
         } else {
             istanbul()
         };
 
-        Self { inner: EthPrecompiles { precompiles, spec: spec.into_eth_spec() } }
+        Self { inner: EthPrecompiles { precompiles, spec: spec.into() } }
     }
 
     #[inline]
@@ -170,7 +170,7 @@ pub fn haber() -> &'static Precompiles {
 
 impl<CTX> PrecompileProvider<CTX> for BscPrecompiles
 where
-    CTX: ContextTr<Cfg: Cfg<Spec = BscSpecId>>,
+    CTX: ContextTr<Cfg: Cfg<Spec = BscHardfork>>,
 {
     type Output = InterpreterResult;
 
@@ -205,6 +205,6 @@ where
 
 impl Default for BscPrecompiles {
     fn default() -> Self {
-        Self::new(BscSpecId::default())
+        Self::new(BscHardfork::default())
     }
 }

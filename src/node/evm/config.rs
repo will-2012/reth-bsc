@@ -1,8 +1,8 @@
 use super::{executor::BscBlockExecutor, factory::BscEvmFactory};
 use crate::{
     chainspec::BscChainSpec,
-    evm::{spec::BscSpecId, transaction::BscTxEnv},
-    hardforks::BscHardforks,
+    evm::transaction::BscTxEnv,
+    hardforks::{bsc::BscHardfork, BscHardforks},
     system_contracts::SystemContract,
     BscPrimitives,
 };
@@ -159,7 +159,7 @@ where
         self
     }
 
-    fn evm_env(&self, header: &Header) -> EvmEnv<BscSpecId> {
+    fn evm_env(&self, header: &Header) -> EvmEnv<BscHardfork> {
         let blob_params = self.chain_spec().blob_params_at_timestamp(header.timestamp);
         let spec = revm_spec_by_timestamp_and_block_number(
             self.chain_spec().clone(),
@@ -183,7 +183,7 @@ where
                 BlobExcessGasAndPrice { excess_blob_gas, blob_gasprice }
             });
 
-        let eth_spec = spec.into_eth_spec();
+        let eth_spec = SpecId::from(spec);
 
         let block_env = BlockEnv {
             number: U256::from(header.number()),
@@ -209,7 +209,7 @@ where
         &self,
         parent: &Header,
         attributes: &Self::NextBlockEnvCtx,
-    ) -> Result<EvmEnv<BscSpecId>, Self::Error> {
+    ) -> Result<EvmEnv<BscHardfork>, Self::Error> {
         // ensure we're not missing any timestamp based hardforks
         let spec_id = revm_spec_by_timestamp_and_block_number(
             self.chain_spec().clone(),
@@ -227,7 +227,7 @@ where
         // cancun now, we need to set the excess blob gas to the default value(0)
         let blob_excess_gas_and_price = parent
             .maybe_next_block_excess_blob_gas(blob_params)
-            .or_else(|| (spec_id.into_eth_spec().is_enabled_in(SpecId::CANCUN)).then_some(0))
+            .or_else(|| (SpecId::from(spec_id).is_enabled_in(SpecId::CANCUN)).then_some(0))
             .map(|excess_blob_gas| {
                 let blob_gasprice =
                     blob_params.unwrap_or_else(BlobParams::cancun).calc_blob_fee(excess_blob_gas);
@@ -302,55 +302,55 @@ where
     }
 }
 
-/// Map the latest active hardfork at the given timestamp or block number to a [`BscSpecId`].
+/// Map the latest active hardfork at the given timestamp or block number to a [`BscHardfork`].
 pub fn revm_spec_by_timestamp_and_block_number(
     chain_spec: impl BscHardforks,
     timestamp: u64,
     block_number: u64,
-) -> BscSpecId {
+) -> BscHardfork {
     if chain_spec.is_lorentz_active_at_timestamp(timestamp) {
-        BscSpecId::LORENTZ
+        BscHardfork::Lorentz
     } else if chain_spec.is_pascal_active_at_timestamp(timestamp) {
-        BscSpecId::PASCAL
+        BscHardfork::Pascal
     } else if chain_spec.is_bohr_active_at_timestamp(timestamp) {
-        BscSpecId::BOHR
+        BscHardfork::Bohr
     } else if chain_spec.is_haber_fix_active_at_timestamp(timestamp) {
-        BscSpecId::HABER_FIX
+        BscHardfork::HaberFix
     } else if chain_spec.is_haber_active_at_timestamp(timestamp) {
-        BscSpecId::HABER
+        BscHardfork::Haber
     } else if chain_spec.is_feynman_fix_active_at_timestamp(timestamp) {
-        BscSpecId::FEYNMAN_FIX
+        BscHardfork::FeynmanFix
     } else if chain_spec.is_feynman_active_at_timestamp(timestamp) {
-        BscSpecId::FEYNMAN
+        BscHardfork::Feynman
     } else if chain_spec.is_kepler_active_at_timestamp(timestamp) {
-        BscSpecId::KEPLER
+        BscHardfork::Kepler
     } else if chain_spec.is_hertz_fix_active_at_block(block_number) {
-        BscSpecId::HERTZ_FIX
+        BscHardfork::HertzFix
     } else if chain_spec.is_hertz_active_at_block(block_number) {
-        BscSpecId::HERTZ
+        BscHardfork::Hertz
     } else if chain_spec.is_plato_active_at_block(block_number) {
-        BscSpecId::PLATO
+        BscHardfork::Plato
     } else if chain_spec.is_luban_active_at_block(block_number) {
-        BscSpecId::LUBAN
+        BscHardfork::Luban
     } else if chain_spec.is_planck_active_at_block(block_number) {
-        BscSpecId::PLANCK
+        BscHardfork::Planck
     } else if chain_spec.is_gibbs_active_at_block(block_number) {
-        BscSpecId::GIBBS
+        BscHardfork::Gibbs
     } else if chain_spec.is_moran_active_at_block(block_number) {
-        BscSpecId::MORAN
+        BscHardfork::Moran
     } else if chain_spec.is_nano_active_at_block(block_number) {
-        BscSpecId::NANO
+        BscHardfork::Nano
     } else if chain_spec.is_euler_active_at_block(block_number) {
-        BscSpecId::EULER
+        BscHardfork::Euler
     } else if chain_spec.is_bruno_active_at_block(block_number) {
-        BscSpecId::BRUNO
+        BscHardfork::Bruno
     } else if chain_spec.is_mirror_sync_active_at_block(block_number) {
-        BscSpecId::MIRROR_SYNC
+        BscHardfork::MirrorSync
     } else if chain_spec.is_niels_active_at_block(block_number) {
-        BscSpecId::NIELS
+        BscHardfork::Niels
     } else if chain_spec.is_ramanujan_active_at_block(block_number) {
-        BscSpecId::RAMANUJAN
+        BscHardfork::Ramanujan
     } else {
-        BscSpecId::FRONTIER
+        BscHardfork::Frontier
     }
 }
