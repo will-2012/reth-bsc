@@ -198,6 +198,7 @@ impl BscHardfork {
 
     /// Bsc mainnet list of hardforks.
     pub fn bsc_mainnet() -> ChainHardforks {
+        // todo: add more hardforks
         ChainHardforks::new(vec![
             (EthereumHardfork::Frontier.boxed(), ForkCondition::Block(0)),
             (EthereumHardfork::Homestead.boxed(), ForkCondition::Block(0)),
