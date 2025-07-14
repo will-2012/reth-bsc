@@ -1,31 +1,51 @@
-use reth_bsc::consensus::parlia::hooks::{ParliaHooks, PreExecutionHook};
-use reth_bsc::consensus::parlia::snapshot::Snapshot;
 use bytes::Bytes;
-use reth_bsc::consensus::parlia::hooks::SystemTxMaker;
-use reth_bsc::system_contracts::SLASH_CONTRACT;
+
+use reth_bsc::consensus::parlia::hooks::{ParliaHooks, PreExecutionHook, SystemTxMaker};
+use reth_bsc::consensus::parlia::snapshot::Snapshot;
+use reth_bsc::SLASH_CONTRACT;
 use alloy_primitives::{Address, U256};
+use alloy_consensus::Transaction as _;
+
+// Dummy maker that builds minimal transactions for testing
+struct DummyMaker;
+
+impl SystemTxMaker for DummyMaker {
+    type Tx = reth_primitives::TransactionSigned;
+
+    fn make_system_tx(&self, _from: Address, to: Address, _data: Bytes, _value: U256) -> Self::Tx {
+        // minimal tx with to address for testing
+        reth_primitives::TransactionSigned::new_unhashed(
+            reth_primitives::Transaction::Legacy(alloy_consensus::TxLegacy {
+                chain_id: None,
+                nonce: 0,
+                gas_limit: 21000,
+                gas_price: 0,
+                value: U256::ZERO,
+                input: alloy_primitives::Bytes::default(),
+                to: alloy_primitives::TxKind::Call(to),
+            }),
+            alloy_primitives::Signature::new(Default::default(), Default::default(), false),
+        )
+    }
+}
+
+// Implement SystemTxMaker for a reference to DummyMaker since the hooks expect &M
+impl<'a> SystemTxMaker for &'a DummyMaker {
+    type Tx = reth_primitives::TransactionSigned;
+
+    fn make_system_tx(
+        &self,
+        from: Address,
+        to: Address,
+        data: Bytes,
+        value: U256,
+    ) -> Self::Tx {
+        (*self).make_system_tx(from, to, data, value)
+    }
+}
 
 #[test]
 fn reward_tx_sent_to_beneficiary() {
-    struct DummyMaker;
-    impl SystemTxMaker for DummyMaker {
-        type Tx = reth_primitives::TransactionSigned;
-        fn make_system_tx(&self, _from: Address, to: Address, _data: Bytes, _value: U256) -> Self::Tx {
-            // minimal tx with to address for testing
-            reth_primitives::TransactionSigned::new_unhashed(
-                reth_primitives::Transaction::Legacy(alloy_consensus::TxLegacy {
-                    chain_id: None,
-                    nonce: 0,
-                    gas_limit: 21000,
-                    gas_price: 0,
-                    value: U256::ZERO,
-                    input: alloy_primitives::Bytes::default(),
-                    to: alloy_primitives::TxKind::Call(to),
-                }),
-                alloy_primitives::Signature::new(Default::default(), Default::default(), false),
-            )
-        }
-    }
     let maker = DummyMaker;
 
     let snap = Snapshot::default();

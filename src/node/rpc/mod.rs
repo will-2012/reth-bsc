@@ -20,7 +20,7 @@ use reth::{
 };
 use reth_evm::ConfigureEvm;
 use reth_network::NetworkInfo;
-use reth_optimism_rpc::eth::EthApiNodeBackend;
+use reth_rpc::eth::core::EthApiInner;
 use reth_primitives::NodePrimitives;
 use reth_provider::{
     BlockNumReader, BlockReader, BlockReaderIdExt, ProviderBlock, ProviderHeader, ProviderReceipt,
@@ -53,20 +53,50 @@ impl<T> BscNodeCore for T where T: RpcNodeCore<Provider: BlockReader> {}
 #[allow(missing_debug_implementations)]
 pub(crate) struct BscEthApiInner<N: BscNodeCore> {
     /// Gateway to node's core components.
-    pub(crate) eth_api: EthApiNodeBackend<N>,
+    pub(crate) eth_api: EthApiInner<
+        <N as RpcNodeCore>::Provider,
+        <N as RpcNodeCore>::Pool,
+        <N as RpcNodeCore>::Network,
+        <N as RpcNodeCore>::Evm,
+    >,
 }
 
-#[derive(Clone)]
-pub struct BscEthApi<N: BscNodeCore> {
+// Local alias identical to Optimism’s helper but generic over the node core.
+type EthApiNodeBackend<N> = EthApiInner<
+    <N as RpcNodeCore>::Provider,
+    <N as RpcNodeCore>::Pool,
+    <N as RpcNodeCore>::Network,
+    <N as RpcNodeCore>::Evm,
+>;
+
+pub struct BscEthApi<N>
+where
+    N: BscNodeCore + Clone,
+{
     /// Gateway to node's core components.
     pub(crate) inner: Arc<BscEthApiInner<N>>,
     /// Convertions for RPC types.
     pub(crate) tx_resp_builder: RpcConverter<Ethereum, BscEvmConfig, EthApiError>,
 }
 
-impl<N: BscNodeCore> fmt::Debug for BscEthApi<N> {
+impl<N> fmt::Debug for BscEthApi<N>
+where
+    N: BscNodeCore + Clone,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BscEthApi").finish_non_exhaustive()
+    }
+}
+
+impl<N> Clone for BscEthApi<N>
+where
+    N: BscNodeCore + Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+            tx_resp_builder: self.tx_resp_builder.clone(),
+        }
     }
 }
 

@@ -18,6 +18,16 @@ use reth_primitives::SealedBlock;
 use tokio::sync::{broadcast, mpsc};
 use tracing::warn;
 
+// Additional imports for execution payload conversions
+use alloy_rpc_types_engine::{
+    BlobsBundleV1, BlobsBundleV2, ExecutionPayloadEnvelopeV2, ExecutionPayloadEnvelopeV3,
+    ExecutionPayloadEnvelopeV4, ExecutionPayloadEnvelopeV5, ExecutionPayloadFieldV2,
+    ExecutionPayloadV1, ExecutionPayloadV3,
+};
+// Bring `Block` trait into scope so we can use its extension methods
+use reth_primitives_traits::Block as _;
+use core::convert::Infallible;
+
 /// Built payload for BSC. This is similar to [`EthBuiltPayload`] but without sidecars as those
 /// included into [`BscBlock`].
 #[derive(Debug, Clone)]
@@ -43,6 +53,92 @@ impl BuiltPayload for BscBuiltPayload {
 
     fn requests(&self) -> Option<Requests> {
         self.requests.clone()
+    }
+}
+
+// === Conversion impls to satisfy `EngineTypes` bounds ===
+
+// V1 engine_getPayloadV1 response
+impl From<BscBuiltPayload> for ExecutionPayloadV1 {
+    fn from(value: BscBuiltPayload) -> Self {
+        let sealed_block = Arc::unwrap_or_clone(value.block);
+        // Convert custom BSC block into the canonical ethereum block representation so that
+        // `from_block_unchecked` accepts it.
+        let eth_block = sealed_block.clone().into_block().into_ethereum_block();
+
+        Self::from_block_unchecked(sealed_block.hash(), &eth_block)
+    }
+}
+
+// V2 engine_getPayloadV2 response
+impl From<BscBuiltPayload> for ExecutionPayloadEnvelopeV2 {
+    fn from(value: BscBuiltPayload) -> Self {
+        let BscBuiltPayload { block, fees, .. } = value;
+
+        let sealed_block = Arc::unwrap_or_clone(block);
+        let eth_block = sealed_block.clone().into_block().into_ethereum_block();
+
+        Self {
+            block_value: fees,
+            execution_payload: ExecutionPayloadFieldV2::from_block_unchecked(
+                sealed_block.hash(),
+                &eth_block,
+            ),
+        }
+    }
+}
+
+impl TryFrom<BscBuiltPayload> for ExecutionPayloadEnvelopeV3 {
+    type Error = Infallible;
+
+    fn try_from(value: BscBuiltPayload) -> Result<Self, Self::Error> {
+        let BscBuiltPayload { block, fees, .. } = value;
+
+        let sealed_block = Arc::unwrap_or_clone(block);
+        let eth_block = sealed_block.clone().into_block().into_ethereum_block();
+
+        Ok(ExecutionPayloadEnvelopeV3 {
+            execution_payload: ExecutionPayloadV3::from_block_unchecked(
+                sealed_block.hash(),
+                &eth_block,
+            ),
+            block_value: fees,
+            should_override_builder: false,
+            blobs_bundle: BlobsBundleV1::empty(),
+        })
+    }
+}
+
+impl TryFrom<BscBuiltPayload> for ExecutionPayloadEnvelopeV4 {
+    type Error = Infallible;
+
+    fn try_from(value: BscBuiltPayload) -> Result<Self, Self::Error> {
+        let requests = value.requests.clone().unwrap_or_default();
+        let envelope_inner: ExecutionPayloadEnvelopeV3 = value.try_into()?;
+
+        Ok(ExecutionPayloadEnvelopeV4 { execution_requests: requests, envelope_inner })
+    }
+}
+
+impl TryFrom<BscBuiltPayload> for ExecutionPayloadEnvelopeV5 {
+    type Error = Infallible;
+
+    fn try_from(value: BscBuiltPayload) -> Result<Self, Self::Error> {
+        let BscBuiltPayload { block, fees, requests, .. } = value;
+
+        let sealed_block = Arc::unwrap_or_clone(block);
+        let eth_block = sealed_block.clone().into_block().into_ethereum_block();
+
+        Ok(ExecutionPayloadEnvelopeV5 {
+            execution_payload: ExecutionPayloadV3::from_block_unchecked(
+                sealed_block.hash(),
+                &eth_block,
+            ),
+            block_value: fees,
+            should_override_builder: false,
+            blobs_bundle: BlobsBundleV2::empty(),
+            execution_requests: requests.unwrap_or_default(),
+        })
     }
 }
 

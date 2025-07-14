@@ -478,17 +478,13 @@ where
             system_txs.push(tx);
         }
 
-<<<<<<< HEAD
-        for tx in &system_txs {
-            self.handle_slash_tx(tx)?;
-=======
+        // ---- post-system-tx handling ---------------------------------
         self.distribute_block_rewards(self.evm.block().beneficiary)?;
 
         if self.spec.is_plato_active_at_block(self.evm.block().number.to()) {
             for tx in system_txs {
                 self.handle_finality_reward_tx(&tx)?;
             }
->>>>>>> upstream/main
         }
 
         // TODO:

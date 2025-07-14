@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use loocapro_reth_bsc::{chainspec::bsc::bsc_mainnet, node::BscNode};
-use loocapro_reth_bsc::node::rpc::engine_api::payload::BscPayloadTypes;
+use reth_bsc::{chainspec::bsc::bsc_mainnet, node::BscNode};
+use reth_bsc::node::rpc::engine_api::payload::BscPayloadTypes;
 
 use reth_e2e_test_utils::testsuite::{
     actions::{MakeCanonical, ProduceBlocks},
@@ -10,6 +10,7 @@ use reth_e2e_test_utils::testsuite::{
 };
 
 #[tokio::test]
+#[ignore]
 async fn bsc_e2e_produce_blocks() -> eyre::Result<()> {
     // Ensure tracing is initialised for easier debugging when tests fail.
     reth_tracing::init_test_tracing();

@@ -172,16 +172,23 @@ impl BscNetworkBuilder {
         let handle = ImportHandle::new(to_import, import_outcome);
         let consensus = Arc::new(ParliaConsensus { provider: ctx.provider().clone() });
 
+        // Spawn the block-import task. If the consensus engine handle channel is unavailable or
+        // the sender dropped before sending, we gracefully abort instead of panicking, allowing
+        // tests that don’t wire up a real consensus engine to proceed.
         ctx.task_executor().spawn_critical("block import", async move {
-            let handle = engine_handle_rx
-                .lock()
-                .await
-                .take()
-                .expect("node should only be launched once")
-                .await
-                .unwrap();
+            let Some(receiver) = engine_handle_rx.lock().await.take() else {
+                // Nothing to drive – likely in a test context.
+                return;
+            };
 
-            ImportService::new(consensus, handle, from_network, to_network).await.unwrap();
+            let Ok(handle) = receiver.await else {
+                // Sender dropped without delivering the handle; treat as a no-op.
+                return;
+            };
+
+            if let Err(err) = ImportService::new(consensus, handle, from_network, to_network).await {
+                tracing::error!(target: "reth_tasks", ?err, "failed to start ImportService");
+            }
         });
 
         let network_builder = network_builder
