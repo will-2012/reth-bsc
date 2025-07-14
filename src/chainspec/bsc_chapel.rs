@@ -32,6 +32,7 @@ pub fn bsc_testnet() -> ChainSpec {
 }
 
 // Dummy Head for BSC Testnet
+// todo:
 pub fn head() -> Head {
     Head {
         number: 57_638_970,

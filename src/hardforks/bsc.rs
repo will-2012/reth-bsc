@@ -280,6 +280,10 @@ impl BscHardfork {
             (Self::Haber.boxed(), ForkCondition::Timestamp(1716962820)),
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1719986788)),
             (Self::Bohr.boxed(), ForkCondition::Timestamp(1724116996)),
+            (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1740452880)),
+            (Self::Pascal.boxed(), ForkCondition::Timestamp(1740452880)),
+            (Self::Lorentz.boxed(), ForkCondition::Timestamp(1744097580)),
+            (Self::Maxwell.boxed(), ForkCondition::Timestamp(1748243100)),
         ])
     }
 
