@@ -233,8 +233,9 @@ impl BscHardfork {
             (Self::Haber.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00
                                                                           * AM UTC */
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1727316120)), /* 2024-09-26 02:02:00 AM UTC */
-            (Self::Bohr.boxed(), ForkCondition::Timestamp(1727317200)), /* 2024-09-26 02:20:00
-                                                                         * AM UTC */
+            (Self::Bohr.boxed(), ForkCondition::Timestamp(1727317200)),     /* 2024-09-26
+                                                                             * 02:20:00
+                                                                             * AM UTC */
             (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1742436600)), /* 2025-03-20 02:10:00 AM UTC */
             (Self::Pascal.boxed(), ForkCondition::Timestamp(1742436600)), /* 2025-03-20 02:10:00
                                                                            * AM UTC */
