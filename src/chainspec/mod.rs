@@ -16,6 +16,8 @@ pub mod bsc;
 pub mod bsc_chapel;
 pub mod parser;
 
+pub use bsc_chapel::bsc_testnet;
+
 /// Bsc chain spec type.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct BscChainSpec {
