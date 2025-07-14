@@ -2,6 +2,7 @@
 //! Credits to <https://github.com/bnb-chain/reth/blob/main/crates/bsc/primitives/src/system_contracts/mod.rs>
 use crate::{
     chainspec::bsc::bsc_mainnet,
+    chainspec::bsc_chapel::bsc_testnet,
     hardforks::{bsc::BscHardfork, BscHardforks},
 };
 use abi::{STAKE_HUB_ABI, VALIDATOR_SET_ABI};
@@ -185,6 +186,9 @@ lazy_static! {
     /// mainnet system contracts: hardfork -> address -> Bytecode
     pub(crate) static ref BSC_MAINNET_CONTRACTS: HashMap<String, HashMap<String, Option<Bytecode>>> =
         read_all_system_contracts(&bsc_mainnet());
+    pub(crate) static ref BSC_TESTNET_CONTRACTS: HashMap<String, HashMap<String, Option<Bytecode>>> =
+        read_all_system_contracts(&bsc_testnet());
+
 
 
 }
@@ -364,7 +368,13 @@ where
         } else {
             Ok(HashMap::new())
         }
-    } else {
+    } else if spec.chain().eq(&Chain::bsc_testnet()) {
+        if let Some(m) = BSC_TESTNET_CONTRACTS.get(hardfork) {
+            Ok(m.clone())
+        } else {
+            Ok(HashMap::new())
+        }
+    } else{
         Err(SystemContractError::InvalidSpec)
     }
 }
