@@ -19,7 +19,7 @@ use reth::{
 };
 use reth_chainspec::{EthChainSpec, EthereumHardforks};
 use reth_evm::{ConfigureEvm, NextBlockEnvAttributes};
-use reth_primitives_traits::BlockBody as _;
+use reth_primitives_traits::SignerRecoverable;
 use reth_provider::{
     BlockReader, ChainSpecProvider, HeaderProvider, ProviderBlock, ProviderReceipt, ProviderTx,
     StateProviderFactory,
@@ -27,7 +27,7 @@ use reth_provider::{
 use reth_rpc_eth_api::{
     helpers::{EthBlocks, LoadBlock, LoadPendingBlock, LoadReceipt, SpawnBlocking},
     types::RpcTypes,
-    FromEthApiError, RpcNodeCore, RpcNodeCoreExt, RpcReceipt,
+    FromEthApiError, RpcConvert, RpcNodeCore, RpcNodeCoreExt, RpcReceipt,
 };
 
 impl<N> EthBlocks for BscEthApi<N>
@@ -55,9 +55,7 @@ where
             let blob_params = self.provider().chain_spec().blob_params_at_timestamp(timestamp);
 
             return block
-                .body()
-                .transactions()
-                .iter()
+                .transactions_recovered()
                 .zip(receipts.iter())
                 .enumerate()
                 .map(|(idx, (tx, receipt))| {
@@ -70,8 +68,7 @@ where
                         excess_blob_gas,
                         timestamp,
                     };
-                    EthReceiptBuilder::new(tx, meta, receipt, &receipts, blob_params)
-                        .map(|builder| builder.build())
+                    Ok(EthReceiptBuilder::new(tx, meta, receipt, &receipts, blob_params).build())
                 })
                 .collect::<Result<Vec<_>, Self::Error>>()
                 .map(Some)
@@ -102,6 +99,7 @@ where
                 Header = alloy_rpc_types_eth::Header<ProviderHeader<Self::Provider>>,
             >,
             Error: FromEvmError<Self::Evm>,
+            RpcConvert: RpcConvert<Network = Self::NetworkTypes>,
         >,
     N: RpcNodeCore<
         Provider: BlockReaderIdExt<
@@ -162,6 +160,14 @@ where
             .ok_or(EthApiError::HeaderNotFound(hash.into()))?;
         let blob_params = self.provider().chain_spec().blob_params_at_timestamp(meta.timestamp);
 
-        Ok(EthReceiptBuilder::new(&tx, meta, &receipt, &all_receipts, blob_params)?.build())
+        Ok(EthReceiptBuilder::new(
+            // Note: we assume this transaction is valid, because it's mined and therefore valid
+            tx.try_into_recovered_unchecked()?.as_recovered_ref(),
+            meta,
+            &receipt,
+            &all_receipts,
+            blob_params,
+        )
+        .build())
     }
 }

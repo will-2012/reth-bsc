@@ -1,134 +1,172 @@
+use std::ops::{Deref, DerefMut};
+
+use crate::{evm::transaction::BscTxEnv, hardforks::bsc::BscHardfork};
+
 use super::precompiles::BscPrecompiles;
+use reth_evm::{precompiles::PrecompilesMap, Database, EvmEnv};
 use revm::{
-    context::{ContextSetters, Evm as EvmCtx},
-    context_interface::ContextTr,
+    context::{BlockEnv, CfgEnv, Evm as EvmCtx, FrameStack, JournalTr},
     handler::{
-        instructions::{EthInstructions, InstructionProvider},
-        EvmTr, PrecompileProvider,
+        evm::{ContextDbError, FrameInitResult},
+        instructions::EthInstructions,
+        EthFrame, EvmTr, FrameInitOrResult, FrameResult,
     },
-    inspector::{InspectorEvmTr, JournalExt},
-    interpreter::{interpreter::EthInterpreter, Interpreter, InterpreterAction, InterpreterTypes},
-    Inspector,
+    inspector::InspectorEvmTr,
+    interpreter::{interpreter::EthInterpreter, interpreter_action::FrameInit},
+    Context, Inspector, Journal,
 };
 
-pub mod builder;
-pub mod ctx;
 mod exec;
 
-pub struct BscEvmInner<CTX, INSP, I = EthInstructions<EthInterpreter, CTX>, P = BscPrecompiles>(
-    pub EvmCtx<CTX, INSP, I, P>,
-);
+/// Type alias for the default context type of the BscEvm.
+pub type BscContext<DB> = Context<BlockEnv, BscTxEnv, CfgEnv<BscHardfork>, DB>;
 
-impl<CTX: ContextTr, INSP>
-    BscEvmInner<CTX, INSP, EthInstructions<EthInterpreter, CTX>, BscPrecompiles>
-{
-    pub fn new(ctx: CTX, inspector: INSP) -> Self {
-        Self(EvmCtx {
-            ctx,
-            inspector,
-            instruction: EthInstructions::new_mainnet(),
-            precompiles: BscPrecompiles::default(),
-        })
-    }
+/// BSC EVM implementation.
+///
+/// This is a wrapper type around the `revm` evm with optional [`Inspector`] (tracing)
+/// support. [`Inspector`] support is configurable at runtime because it's part of the underlying
+#[allow(missing_debug_implementations)]
+pub struct BscEvm<DB: revm::database::Database, I> {
+    pub inner: EvmCtx<
+        BscContext<DB>,
+        I,
+        EthInstructions<EthInterpreter, BscContext<DB>>,
+        PrecompilesMap,
+        EthFrame,
+    >,
+    pub inspect: bool,
+}
 
-    /// Consumes self and returns a new Evm type with given Precompiles.
-    pub fn with_precompiles<OP>(
-        self,
-        precompiles: OP,
-    ) -> BscEvmInner<CTX, INSP, EthInstructions<EthInterpreter, CTX>, OP> {
-        BscEvmInner(self.0.with_precompiles(precompiles))
+impl<DB: Database, I> BscEvm<DB, I> {
+    /// Creates a new [`BscEvm`].
+    pub fn new(env: EvmEnv<BscHardfork>, db: DB, inspector: I, inspect: bool) -> Self {
+        let precompiles =
+            PrecompilesMap::from_static(BscPrecompiles::new(env.cfg_env.spec).precompiles());
+
+        Self {
+            inner: EvmCtx {
+                ctx: Context {
+                    block: env.block_env,
+                    cfg: env.cfg_env,
+                    journaled_state: Journal::new(db),
+                    tx: Default::default(),
+                    chain: Default::default(),
+                    local: Default::default(),
+                    error: Ok(()),
+                },
+                inspector,
+                instruction: EthInstructions::new_mainnet(),
+                precompiles,
+                frame_stack: Default::default(),
+            },
+            inspect,
+        }
     }
 }
 
-impl<CTX, INSP, I, P> InspectorEvmTr for BscEvmInner<CTX, INSP, I, P>
+impl<DB: Database, I> BscEvm<DB, I> {
+    /// Provides a reference to the EVM context.
+    pub const fn ctx(&self) -> &BscContext<DB> {
+        &self.inner.ctx
+    }
+
+    /// Provides a mutable reference to the EVM context.
+    pub fn ctx_mut(&mut self) -> &mut BscContext<DB> {
+        &mut self.inner.ctx
+    }
+}
+
+impl<DB: Database, I> Deref for BscEvm<DB, I> {
+    type Target = BscContext<DB>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        self.ctx()
+    }
+}
+
+impl<DB: Database, I> DerefMut for BscEvm<DB, I> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.ctx_mut()
+    }
+}
+
+impl<DB, INSP> EvmTr for BscEvm<DB, INSP>
 where
-    CTX: ContextTr<Journal: JournalExt> + ContextSetters,
-    I: InstructionProvider<
-        Context = CTX,
-        InterpreterTypes: InterpreterTypes<Output = InterpreterAction>,
-    >,
-    INSP: Inspector<CTX, I::InterpreterTypes>,
-    P: PrecompileProvider<CTX>,
+    DB: Database,
+{
+    type Context = BscContext<DB>;
+    type Instructions = EthInstructions<EthInterpreter, BscContext<DB>>;
+    type Precompiles = PrecompilesMap;
+    type Frame = EthFrame;
+
+    fn ctx(&mut self) -> &mut Self::Context {
+        self.inner.ctx_mut()
+    }
+
+    fn ctx_ref(&self) -> &Self::Context {
+        self.inner.ctx_ref()
+    }
+
+    fn ctx_instructions(&mut self) -> (&mut Self::Context, &mut Self::Instructions) {
+        self.inner.ctx_instructions()
+    }
+
+    fn ctx_precompiles(&mut self) -> (&mut Self::Context, &mut Self::Precompiles) {
+        self.inner.ctx_precompiles()
+    }
+
+    /// Returns a mutable reference to the frame stack.
+    fn frame_stack(&mut self) -> &mut FrameStack<Self::Frame> {
+        self.inner.frame_stack()
+    }
+
+    fn frame_init(
+        &mut self,
+        frame_input: FrameInit,
+    ) -> Result<FrameInitResult<'_, Self::Frame>, ContextDbError<Self::Context>> {
+        self.inner.frame_init(frame_input)
+    }
+
+    fn frame_run(
+        &mut self,
+    ) -> Result<FrameInitOrResult<Self::Frame>, ContextDbError<Self::Context>> {
+        self.inner.frame_run()
+    }
+
+    fn frame_return_result(
+        &mut self,
+        result: FrameResult,
+    ) -> Result<Option<FrameResult>, ContextDbError<Self::Context>> {
+        self.inner.frame_return_result(result)
+    }
+}
+
+impl<DB, INSP> InspectorEvmTr for BscEvm<DB, INSP>
+where
+    DB: Database,
+    INSP: Inspector<BscContext<DB>>,
 {
     type Inspector = INSP;
 
     fn inspector(&mut self) -> &mut Self::Inspector {
-        &mut self.0.inspector
+        self.inner.inspector()
     }
 
     fn ctx_inspector(&mut self) -> (&mut Self::Context, &mut Self::Inspector) {
-        (&mut self.0.ctx, &mut self.0.inspector)
+        self.inner.ctx_inspector()
     }
 
-    fn run_inspect_interpreter(
+    fn ctx_inspector_frame(
         &mut self,
-        interpreter: &mut Interpreter<
-            <Self::Instructions as InstructionProvider>::InterpreterTypes,
-        >,
-    ) -> <<Self::Instructions as InstructionProvider>::InterpreterTypes as InterpreterTypes>::Output
-    {
-        self.0.run_inspect_interpreter(interpreter)
+    ) -> (&mut Self::Context, &mut Self::Inspector, &mut Self::Frame) {
+        self.inner.ctx_inspector_frame()
     }
-}
 
-impl<CTX, INSP, I, P> EvmTr for BscEvmInner<CTX, INSP, I, P>
-where
-    CTX: ContextTr,
-    I: InstructionProvider<
-        Context = CTX,
-        InterpreterTypes: InterpreterTypes<Output = InterpreterAction>,
-    >,
-    P: PrecompileProvider<CTX>,
-{
-    type Context = CTX;
-    type Instructions = I;
-    type Precompiles = P;
-
-    fn run_interpreter(
+    fn ctx_inspector_frame_instructions(
         &mut self,
-        interpreter: &mut Interpreter<
-            <Self::Instructions as InstructionProvider>::InterpreterTypes,
-        >,
-    ) -> <<Self::Instructions as InstructionProvider>::InterpreterTypes as InterpreterTypes>::Output
-    {
-        let context = &mut self.0.ctx;
-        let instructions = &mut self.0.instruction;
-        interpreter.run_plain(instructions.instruction_table(), context)
-    }
-
-    fn ctx(&mut self) -> &mut Self::Context {
-        &mut self.0.ctx
-    }
-
-    fn ctx_ref(&self) -> &Self::Context {
-        &self.0.ctx
-    }
-
-    fn ctx_instructions(&mut self) -> (&mut Self::Context, &mut Self::Instructions) {
-        (&mut self.0.ctx, &mut self.0.instruction)
-    }
-
-    fn ctx_precompiles(&mut self) -> (&mut Self::Context, &mut Self::Precompiles) {
-        (&mut self.0.ctx, &mut self.0.precompiles)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::{builder::BscBuilder, ctx::DefaultBsc};
-    use revm::{
-        inspector::{InspectEvm, NoOpInspector},
-        Context, ExecuteEvm,
-    };
-
-    #[test]
-    fn default_run_bsc() {
-        let ctx = Context::bsc();
-        let mut evm = ctx.build_bsc_with_inspector(NoOpInspector {});
-
-        // execute
-        let _ = evm.replay();
-        // inspect
-        let _ = evm.inspect_replay();
+    ) -> (&mut Self::Context, &mut Self::Inspector, &mut Self::Frame, &mut Self::Instructions) {
+        self.inner.ctx_inspector_frame_instructions()
     }
 }

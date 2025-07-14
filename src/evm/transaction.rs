@@ -1,47 +1,29 @@
-use alloy_rpc_types::AccessList;
-use auto_impl::auto_impl;
+use alloy_rpc_types::{AccessList, TransactionRequest};
 use reth_evm::{FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, TransactionEnv};
 use reth_primitives::TransactionSigned;
+use reth_rpc_eth_api::transaction::TryIntoTxEnv;
 use revm::{
-    context::TxEnv,
+    context::{BlockEnv, CfgEnv, TxEnv},
     context_interface::transaction::Transaction,
     primitives::{Address, Bytes, TxKind, B256, U256},
 };
 
-#[auto_impl(&, &mut, Box, Arc)]
-pub trait BscTxTr: Transaction {
-    /// Whether the transaction is a system transaction
-    fn is_system_transaction(&self) -> bool;
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct BscTxEnv<T: Transaction> {
-    pub base: T,
+pub struct BscTxEnv {
+    pub base: TxEnv,
     pub is_system_transaction: bool,
 }
 
-impl<T: Transaction> BscTxEnv<T> {
-    pub fn new(base: T) -> Self {
+impl BscTxEnv {
+    pub fn new(base: TxEnv) -> Self {
         Self { base, is_system_transaction: false }
     }
 }
 
-impl Default for BscTxEnv<TxEnv> {
-    fn default() -> Self {
-        Self { base: TxEnv::default(), is_system_transaction: false }
-    }
-}
-
-impl<T: Transaction> Transaction for BscTxEnv<T> {
-    type AccessListItem<'a>
-        = T::AccessListItem<'a>
-    where
-        T: 'a;
-    type Authorization<'a>
-        = T::Authorization<'a>
-    where
-        T: 'a;
+impl Transaction for BscTxEnv {
+    type AccessListItem<'a> = <TxEnv as Transaction>::AccessListItem<'a>;
+    type Authorization<'a> = <TxEnv as Transaction>::Authorization<'a>;
 
     fn tx_type(&self) -> u8 {
         self.base.tx_type()
@@ -64,7 +46,7 @@ impl<T: Transaction> Transaction for BscTxEnv<T> {
     }
 
     fn nonce(&self) -> u64 {
-        self.base.nonce()
+        Transaction::nonce(&self.base)
     }
 
     fn kind(&self) -> TxKind {
@@ -112,25 +94,19 @@ impl<T: Transaction> Transaction for BscTxEnv<T> {
     }
 }
 
-impl<T: Transaction> BscTxTr for BscTxEnv<T> {
-    fn is_system_transaction(&self) -> bool {
-        self.is_system_transaction
-    }
-}
-
-impl<T: revm::context::Transaction> IntoTxEnv<Self> for BscTxEnv<T> {
+impl IntoTxEnv<Self> for BscTxEnv {
     fn into_tx_env(self) -> Self {
         self
     }
 }
 
-impl FromRecoveredTx<TransactionSigned> for BscTxEnv<TxEnv> {
+impl FromRecoveredTx<TransactionSigned> for BscTxEnv {
     fn from_recovered_tx(tx: &TransactionSigned, sender: Address) -> Self {
         Self::new(TxEnv::from_recovered_tx(tx, sender))
     }
 }
 
-impl FromTxWithEncoded<TransactionSigned> for BscTxEnv<TxEnv> {
+impl FromTxWithEncoded<TransactionSigned> for BscTxEnv {
     fn from_encoded_tx(tx: &TransactionSigned, sender: Address, _encoded: Bytes) -> Self {
         let base = match tx.clone().into_typed_transaction() {
             reth_primitives::Transaction::Legacy(tx) => TxEnv::from_recovered_tx(&tx, sender),
@@ -144,7 +120,7 @@ impl FromTxWithEncoded<TransactionSigned> for BscTxEnv<TxEnv> {
     }
 }
 
-impl<T: TransactionEnv> TransactionEnv for BscTxEnv<T> {
+impl TransactionEnv for BscTxEnv {
     fn set_gas_limit(&mut self, gas_limit: u64) {
         self.base.set_gas_limit(gas_limit);
     }
@@ -159,6 +135,21 @@ impl<T: TransactionEnv> TransactionEnv for BscTxEnv<T> {
 
     fn set_access_list(&mut self, access_list: AccessList) {
         self.base.set_access_list(access_list);
+    }
+}
+
+impl TryIntoTxEnv<BscTxEnv> for TransactionRequest {
+    type Err = <TransactionRequest as TryIntoTxEnv<TxEnv>>::Err;
+
+    fn try_into_tx_env<Spec>(
+        self,
+        cfg_env: &CfgEnv<Spec>,
+        block_env: &BlockEnv,
+    ) -> Result<BscTxEnv, Self::Err> {
+        Ok(BscTxEnv {
+            base: self.try_into_tx_env(cfg_env, block_env)?,
+            is_system_transaction: false,
+        })
     }
 }
 
