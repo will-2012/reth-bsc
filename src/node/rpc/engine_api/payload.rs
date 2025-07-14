@@ -5,6 +5,11 @@ use reth::{
 };
 use reth_node_ethereum::engine::EthPayloadAttributes;
 use reth_payload_primitives::{BuiltPayload, PayloadTypes};
+use alloy_rpc_types_engine::{
+    ExecutionPayloadEnvelopeV2, ExecutionPayloadEnvelopeV3, ExecutionPayloadEnvelopeV4,
+    ExecutionPayloadEnvelopeV5, ExecutionPayloadV1,
+};
+use reth_engine_primitives::EngineTypes;
 
 /// A default payload type for [`BscPayloadTypes`]
 #[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
@@ -24,4 +29,14 @@ impl PayloadTypes for BscPayloadTypes {
     ) -> Self::ExecutionData {
         BscExecutionData(block.into_block())
     }
+}
+
+impl EngineTypes for BscPayloadTypes {
+    // Re-use the upstream Ethereum execution payload envelope types. This is sufficient for the
+    // e2e test-suite, which treats these as opaque data structures.
+    type ExecutionPayloadEnvelopeV1 = ExecutionPayloadV1;
+    type ExecutionPayloadEnvelopeV2 = ExecutionPayloadEnvelopeV2;
+    type ExecutionPayloadEnvelopeV3 = ExecutionPayloadEnvelopeV3;
+    type ExecutionPayloadEnvelopeV4 = ExecutionPayloadEnvelopeV4;
+    type ExecutionPayloadEnvelopeV5 = ExecutionPayloadEnvelopeV5;
 }

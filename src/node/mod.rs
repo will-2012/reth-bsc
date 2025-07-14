@@ -58,6 +58,17 @@ impl BscNode {
     }
 }
 
+impl Default for BscNode {
+    fn default() -> Self {
+        // Create a fresh channel and discard the sender. The receiver side is stored inside the
+        // node instance and is later consumed by `BscNetworkBuilder` when the node launches. This
+        // mirrors the behaviour of `BscNode::new()` while satisfying the `Default` requirement
+        // imposed by the e2e-test-utils `NodeBuilderHelper` blanket implementation.
+        let (node, _sender) = Self::new();
+        node
+    }
+}
+
 impl BscNode {
     pub fn components<Node>(
         &self,

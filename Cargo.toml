@@ -48,7 +48,7 @@ reth-trie-db = { git = "https://github.com/paradigmxyz/reth", rev = "85ddd1f" }
 revm = { version = "24.0.1", features = ["secp256r1"] }
 
 # alloy dependencies
-alloy-genesis = "1.0.9"
+alloy-genesis = { version = "1.0.20", features = ["trie"], default-features = false }
 alloy-consensus = "1.0.9"
 alloy-chains = "0.2.0"
 alloy-eips = "1.0.9"
@@ -147,3 +147,6 @@ client = [
     "jsonrpsee/async-client",
     "reth-rpc-eth-api/client",
 ]
+
+[dev-dependencies]
+reth-e2e-test-utils = { version = "*", path = "../reth/crates/e2e-test-utils" }
