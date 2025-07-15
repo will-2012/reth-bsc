@@ -274,6 +274,8 @@ fn hardforks_with_system_contracts() -> Vec<BscHardfork> {
         BscHardfork::HaberFix,
         BscHardfork::Bohr,
         BscHardfork::Pascal,
+        BscHardfork::Lorentz,
+        BscHardfork::Maxwell,
     ]
 }
 
@@ -296,6 +298,8 @@ fn hardfork_to_dir_name(hardfork: &BscHardfork) -> Result<String, SystemContract
         BscHardfork::HaberFix => "haber_fix",
         BscHardfork::Bohr => "bohr",
         BscHardfork::Pascal => "pascal",
+        BscHardfork::Lorentz => "lorentz",
+        BscHardfork::Maxwell => "maxwell",
         _ => {
             return Err(SystemContractError::InvalidHardfork);
         }
@@ -365,7 +369,7 @@ where
         } else {
             Ok(HashMap::new())
         }
-    } else{
+    } else {
         Err(SystemContractError::InvalidSpec)
     }
 }
@@ -382,8 +386,8 @@ where
 {
     let mut m = HashMap::new();
     for (fork, condition) in spec.forks_iter() {
-        if condition.transitions_at_block(block_number) ||
-            condition.transitions_at_timestamp(block_time, parent_block_time)
+        if condition.transitions_at_block(block_number)
+            || condition.transitions_at_timestamp(block_time, parent_block_time)
         {
             if let Ok(contracts) = get_system_contract_codes(spec, fork.name()) {
                 for (address, v) in &contracts {
