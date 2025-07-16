@@ -17,6 +17,8 @@ use std::sync::Arc;
 // Parlia header validation integration ------------------------------------
 use crate::consensus::parlia::{InMemorySnapshotProvider, ParliaHeaderValidator, SnapshotProvider};
 use std::fmt::Debug;
+use alloy_primitives::Address;
+use alloy_consensus::BlockHeader;
 
 /// A basic Bsc consensus builder.
 #[derive(Debug, Default, Clone, Copy)]
@@ -49,7 +51,46 @@ impl<ChainSpec: EthChainSpec + BscHardforks> BscConsensus<ChainSpec> {
     /// Create a new instance of [`BscConsensus`] with an in-memory snapshot provider.
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
         // For now we keep a simple RAM snapshot cache. A DB-backed provider can be wired in later.
+        // ----------------------------------------------------------------
+        // 1. Build initial snapshot from the chain-spec genesis header.
+        // ----------------------------------------------------------------
+        use crate::consensus::parlia::snapshot::{Snapshot, DEFAULT_EPOCH_LENGTH};
+        use crate::consensus::parlia::constants::{EXTRA_VANITY, EXTRA_SEAL};
+
+        let genesis_header = chain_spec.genesis_header();
+        let extra = genesis_header.extra_data().as_ref();
+
+        // Extract validator addresses encoded in extra-data (legacy format).
+        let mut validators = Vec::new();
+        if extra.len() > EXTRA_VANITY + EXTRA_SEAL {
+            let validator_bytes = &extra[EXTRA_VANITY..extra.len() - EXTRA_SEAL];
+            for chunk in validator_bytes.chunks(20) {
+                if chunk.len() == 20 {
+                    validators.push(Address::from_slice(chunk));
+                }
+            }
+        }
+
+        // Fallback: include beneficiary if no list found – keeps snapshot non-empty.
+        if validators.is_empty() {
+            validators.push(genesis_header.beneficiary());
+        }
+
+        let genesis_hash = chain_spec.genesis_hash();
+        let snapshot = Snapshot::new(
+            validators,
+            0,
+            genesis_hash,
+            DEFAULT_EPOCH_LENGTH,
+            None,
+        );
+
+        // ----------------------------------------------------------------
+        // 2. Create provider, seed snapshot, and instantiate Parlia validator.
+        // ----------------------------------------------------------------
         let provider = Arc::new(InMemorySnapshotProvider::default());
+        provider.insert(snapshot);
+
         let parlia = ParliaHeaderValidator::new(provider);
 
         Self { inner: EthBeaconConsensus::new(chain_spec.clone()), parlia, chain_spec }
