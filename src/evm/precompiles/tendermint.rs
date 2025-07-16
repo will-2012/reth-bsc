@@ -17,6 +17,7 @@ pub(crate) const TENDERMINT_HEADER_VALIDATION_NANO: PrecompileWithAddress =
 
 /// Run the Tendermint header validation precompile after Nano hardfork.
 fn tendermint_header_validation_run_nano(input: &[u8], _gas_limit: u64) -> PrecompileResult {
+    println!("try debug tendermint_header_validation_run_nano: function is suspended");
     Err(PrecompileError::other("suspended"))
 }
 

@@ -32,6 +32,7 @@ fn iavl_proof_validation_run(input: &[u8], gas_limit: u64) -> PrecompileResult {
 
 /// Run Iavl proof validation with Nano hardfork.
 fn iavl_proof_validation_run_nano(_input: &[u8], _gas_limit: u64) -> PrecompileResult {
+    println!("try debug iavl_proof_validation_run_nano: function is suspended");    
     Err(PrecompileError::other("suspended"))
 }
 

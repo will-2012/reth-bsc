@@ -32,6 +32,8 @@ impl BscPrecompiles {
     /// Create a new precompile provider with the given bsc spec.
     #[inline]
     pub fn new(spec: BscHardfork) -> Self {
+        println!("=== BscPrecompiles::new() called ===");
+        println!("try debug new precompiles: {:?}", spec);
         let precompiles = if spec >= BscHardfork::Haber {
             haber()
         } else if spec >= BscHardfork::Feynman {

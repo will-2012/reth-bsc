@@ -40,6 +40,7 @@ pub struct BscEvm<DB: revm::database::Database, I> {
 impl<DB: Database, I> BscEvm<DB, I> {
     /// Creates a new [`BscEvm`].
     pub fn new(env: EvmEnv<BscHardfork>, db: DB, inspector: I, inspect: bool) -> Self {
+        println!("=== BscEvm::new() called ===");
         let precompiles =
             PrecompilesMap::from_static(BscPrecompiles::new(env.cfg_env.spec).precompiles());
 
