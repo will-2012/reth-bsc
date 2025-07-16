@@ -7,17 +7,17 @@
 use alloy_primitives::{Address, U256};
 use bytes::Bytes;
 use once_cell::sync::Lazy;
-
 use super::snapshot::Snapshot;
 
-// Use constants from system_contracts module.
+// Import canonical addresses from `system_contracts` crate to avoid duplication.
+use crate::system_contracts::SLASH_CONTRACT as SLASH_CONTRACT_STR;
+
 /// StakeHub contract address (system reward pool).
 /// `0x0000000000000000000000000000000000002000` on BSC main-net/test-net.
-pub const STAKE_HUB_CONTRACT: Address =
-    Address::repeat_byte(0x20); // last two bytes 0x20 0x00
+pub const STAKE_HUB_CONTRACT: Address = Address::repeat_byte(0x20); // 0x…2000
 
-/// Slash contract address.
-pub const SLASH_CONTRACT: Address = Address::repeat_byte(0x10);
+/// Slash contract address parsed from the canonical hex string constant.
+pub static SLASH_CONTRACT: Lazy<Address> = Lazy::new(|| SLASH_CONTRACT_STR.parse().unwrap());
 
 /// Base block reward (wei). Mainnet uses 2 BNB.
 pub static BASE_BLOCK_REWARD: Lazy<U256> = Lazy::new(|| U256::from(2_000_000_000_000_000_000u128));
@@ -64,7 +64,7 @@ impl ParliaHooks {
     where
         TxMaker: SystemTxMaker,
     {
-        maker.make_system_tx(STAKE_HUB_CONTRACT, SLASH_CONTRACT, Bytes::new(), amount)
+        maker.make_system_tx(STAKE_HUB_CONTRACT, *SLASH_CONTRACT, Bytes::new(), amount)
     }
 }
 

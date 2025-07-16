@@ -42,8 +42,12 @@ pub mod rpc;
 pub mod storage;
 
 /// Bsc addons configuring RPC types
-pub type BscNodeAddOns<N> =
-    RpcAddOns<N, BscEthApiBuilder, BscEngineValidatorBuilder, BscEngineApiBuilder>;
+pub type BscNodeAddOns<N> = RpcAddOns<
+    N,
+    BscEthApiBuilder,
+    BscEngineValidatorBuilder,
+    BscEngineApiBuilder<BscEngineValidatorBuilder>,
+>;
 
 /// Type configuration for a regular BSC node.
 #[derive(Debug, Clone)]

@@ -30,6 +30,10 @@ reth-eth-wire-types = "1.5.1"
 reth-evm = "1.5.1"
 reth-evm-ethereum = "1.5.1"
 reth-node-core = "1.5.1"
+reth-node-api = "1.5.1"
+reth-node-builder = "1.5.1"
+reth-payload-builder = "1.5.1"
+reth-transaction-pool = { path = "../reth/crates/transaction-pool" }
 reth-revm = "1.5.1"
 reth-network = { version = "1.5.1", features = ["test-utils"] }
 reth-network-p2p = "1.5.1"
@@ -42,6 +46,7 @@ reth-primitives-traits = "1.5.1"
 reth-provider = { version = "1.5.1", features = ["test-utils"] }
 reth-rpc-eth-api = "1.5.1"
 reth-rpc-engine-api = "1.5.1"
+reth-rpc-api = "1.5.1"
 reth-tracing = "1.5.1"
 reth-trie-common = "1.5.1"
 reth-trie-db = "1.5.1"
@@ -213,6 +218,7 @@ reth-rpc-engine-api = { path = "../reth/crates/rpc/rpc-engine-api" }
 reth-rpc = { path = "../reth/crates/rpc/rpc" }
 reth-tracing = { path = "../reth/crates/tracing" }
 reth = { path = "../reth/bin/reth" }
+reth-transaction-pool = { path = "../reth/crates/transaction-pool" }
 
 [patch.crates-io]
 reth = { path = "../reth/bin/reth" }
@@ -258,4 +264,5 @@ reth-revm = { path = "../reth/crates/revm" }
 reth-rpc-eth-api = { path = "../reth/crates/rpc/rpc-eth-api" }
 reth-rpc-engine-api = { path = "../reth/crates/rpc/rpc-engine-api" }
 reth-rpc = { path = "../reth/crates/rpc/rpc" }
+reth-rpc-api = { path = "../reth/crates/rpc/rpc-api" }
 reth-chainspec = { path = "../reth/crates/chainspec" }
