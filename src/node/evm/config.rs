@@ -337,7 +337,14 @@ pub fn revm_spec_by_timestamp_and_block_number(
     } else if chain_spec.is_planck_active_at_block(block_number) {
         BscHardfork::Planck
     } else if chain_spec.is_gibbs_active_at_block(block_number) {
-        BscHardfork::Gibbs
+        // bsc mainnet and testnet have different order for Moran, Nano and Gibbs
+        if chain_spec.is_moran_active_at_block(block_number) {
+            BscHardfork::Moran
+        } else if chain_spec.is_nano_active_at_block(block_number) {
+            BscHardfork::Nano
+        } else {
+            BscHardfork::Euler
+        }
     } else if chain_spec.is_moran_active_at_block(block_number) {
         BscHardfork::Moran
     } else if chain_spec.is_nano_active_at_block(block_number) {
