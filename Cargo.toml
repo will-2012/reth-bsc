@@ -29,6 +29,7 @@ reth-eth-wire = "1.5.1"
 reth-eth-wire-types = "1.5.1"
 reth-evm = "1.5.1"
 reth-evm-ethereum = "1.5.1"
+reth-execution-types = { path = "../reth/crates/evm/execution-types" }
 reth-node-core = "1.5.1"
 reth-node-api = "1.5.1"
 reth-node-builder = "1.5.1"

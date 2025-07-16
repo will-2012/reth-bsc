@@ -10,7 +10,6 @@ use reth_e2e_test_utils::testsuite::{
 };
 
 #[tokio::test]
-#[ignore]
 async fn bsc_e2e_produce_blocks() -> eyre::Result<()> {
     // Ensure tracing is initialised for easier debugging when tests fail.
     reth_tracing::init_test_tracing();

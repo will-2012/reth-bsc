@@ -9,6 +9,7 @@ use super::constants::{VALIDATOR_BYTES_LEN_BEFORE_LUBAN, VALIDATOR_NUMBER_SIZE, 
 use bls_on_arkworks as bls;
 use super::gas::validate_gas_limit;
 use super::slash_pool;
+use reth_db::table::Compress; // for Snapshot::compress
 
 // ---------------------------------------------------------------------------
 // Helper: parse epoch update (validator set & turn-length) from a header.
@@ -289,7 +290,14 @@ where
             turn_len,
             is_bohr,
         ) {
-            self.provider.insert(new_snap);
+            self.provider.insert(new_snap.clone());
+            // If this is a checkpoint boundary, enqueue the compressed snapshot so the execution
+            // stage can persist it via `ExecutionOutcome`.
+            if new_snap.block_number % super::snapshot::CHECKPOINT_INTERVAL == 0 {
+                use reth_execution_types::snapshot_pool;
+                let blob = new_snap.clone().compress();
+                snapshot_pool::push((new_snap.block_number, blob));
+            }
         }
 
         // Report slashing evidence if proposer is not in-turn and previous inturn validator hasn't signed recently.
