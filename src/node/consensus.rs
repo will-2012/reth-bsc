@@ -14,6 +14,9 @@ use reth_chainspec::EthChainSpec;
 use reth_primitives::{Receipt, RecoveredBlock, SealedBlock, SealedHeader};
 use reth_provider::BlockExecutionResult;
 use std::sync::Arc;
+// Parlia header validation integration ------------------------------------
+use crate::consensus::parlia::{InMemorySnapshotProvider, ParliaHeaderValidator, SnapshotProvider};
+use std::fmt::Debug;
 
 /// A basic Bsc consensus builder.
 #[derive(Debug, Default, Clone, Copy)]
@@ -35,23 +38,32 @@ where
 ///
 /// Provides basic checks as outlined in the execution specs.
 #[derive(Debug, Clone)]
-pub struct BscConsensus<ChainSpec> {
+pub struct BscConsensus<ChainSpec, P = InMemorySnapshotProvider> {
     inner: EthBeaconConsensus<ChainSpec>,
+    /// Parlia‐specific header validator.
+    parlia: ParliaHeaderValidator<P>,
     chain_spec: Arc<ChainSpec>,
 }
 
 impl<ChainSpec: EthChainSpec + BscHardforks> BscConsensus<ChainSpec> {
-    /// Create a new instance of [`BscConsensus`]
+    /// Create a new instance of [`BscConsensus`] with an in-memory snapshot provider.
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
-        Self { inner: EthBeaconConsensus::new(chain_spec.clone()), chain_spec }
+        // For now we keep a simple RAM snapshot cache. A DB-backed provider can be wired in later.
+        let provider = Arc::new(InMemorySnapshotProvider::default());
+        let parlia = ParliaHeaderValidator::new(provider);
+
+        Self { inner: EthBeaconConsensus::new(chain_spec.clone()), parlia, chain_spec }
     }
 }
 
-impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<ChainSpec> {
-    fn validate_header(&self, _header: &SealedHeader) -> Result<(), ConsensusError> {
-        // TODO: doesn't work because of extradata check
-        // self.inner.validate_header(header)
-
+impl<ChainSpec, P> HeaderValidator for BscConsensus<ChainSpec, P>
+where
+    ChainSpec: EthChainSpec + BscHardforks,
+    P: SnapshotProvider + Debug + 'static,
+{
+    fn validate_header(&self, header: &SealedHeader) -> Result<(), ConsensusError> {
+        // Run Parlia-specific validations.
+        self.parlia.validate_header(header)?;
         Ok(())
     }
 
@@ -60,11 +72,14 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
         header: &SealedHeader,
         parent: &SealedHeader,
     ) -> Result<(), ConsensusError> {
-        validate_against_parent_hash_number(header.header(), parent)?;
+        // Parlia checks (gas-limit, attestation, snapshot advancement, …)
+        self.parlia.validate_header_against_parent(header, parent)?;
 
+        // Generic execution-layer parent checks reused from Beacon spec.
+        validate_against_parent_hash_number(header.header(), parent)?;
         validate_against_parent_timestamp(header.header(), parent.header())?;
 
-        // ensure that the blob gas fields for this block
+        // Ensure blob-gas fields consistency for Cancun and later.
         if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
             validate_against_parent_4844(header.header(), parent.header(), blob_params)?;
         }
@@ -73,8 +88,10 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
     }
 }
 
-impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> Consensus<BscBlock>
-    for BscConsensus<ChainSpec>
+impl<ChainSpec, P> Consensus<BscBlock> for BscConsensus<ChainSpec, P>
+where
+    ChainSpec: EthChainSpec<Header = Header> + BscHardforks,
+    P: SnapshotProvider + Debug + 'static,
 {
     type Error = ConsensusError;
 
@@ -117,8 +134,10 @@ impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> Consensus<BscBlock
     }
 }
 
-impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> FullConsensus<BscPrimitives>
-    for BscConsensus<ChainSpec>
+impl<ChainSpec, P> FullConsensus<BscPrimitives> for BscConsensus<ChainSpec, P>
+where
+    ChainSpec: EthChainSpec<Header = Header> + BscHardforks,
+    P: SnapshotProvider + Debug + 'static,
 {
     fn validate_block_post_execution(
         &self,
