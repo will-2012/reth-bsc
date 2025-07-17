@@ -1,26 +1,17 @@
 use crate::{
     chainspec::BscChainSpec,
-    node::{
-        primitives::BscPrimitives,
-        rpc::{
-            engine_api::{
-                builder::BscEngineApiBuilder, payload::BscPayloadTypes,
-                validator::BscEngineValidatorBuilder,
-            },
-            BscEthApiBuilder,
-        },
-        storage::BscStorage,
-    },
-    BscBlock, BscBlockBody,
+    hardforks::BscHardforks,
+    node::primitives::BscPrimitives,
 };
 use consensus::{BscConsensusBuilder, BscConsensus};
 use engine::BscPayloadServiceBuilder;
+use rpc::engine_api::validator::BscEngineValidator;
 use evm::{BscExecutorBuilder, BscEvmConfig};
 use network::BscNetworkBuilder;
 use reth::{
     api::{FullNodeComponents, FullNodeTypes, NodeTypes},
     builder::{
-        components::ComponentsBuilder, rpc::RpcAddOns, DebugNode, Node, NodeAdapter,
+        components::{ComponentsBuilder, PoolBuilder, PayloadServiceBuilder, NetworkBuilder, ExecutorBuilder, ConsensusBuilder}, rpc::RpcAddOns, DebugNode, Node, NodeAdapter,
         NodeComponentsBuilder,
     },
 };
@@ -33,6 +24,20 @@ use reth_trie_db::MerklePatriciaTrie;
 use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
 
+// Import BSC-specific RPC builders
+use rpc::{
+    BscEthApiBuilder,
+    engine_api::{
+        builder::BscEngineApiBuilder,
+        payload::BscPayloadTypes,
+        validator::BscEngineValidatorBuilder,
+    },
+};
+
+// Import BSC storage
+use storage::BscStorage;
+
+pub mod builder;
 pub mod consensus;
 pub mod engine;
 pub mod evm;
@@ -95,33 +100,31 @@ where
 {
     type Components = reth::builder::components::Components<
         N,
-        reth_network::NetworkHandle,
+        reth_network::NetworkHandle<crate::node::network::BscNetworkPrimitives>,
         reth_transaction_pool::EthTransactionPool<N::Provider, reth_transaction_pool::blobstore::DiskFileBlobStore>,
         crate::node::evm::BscEvmConfig,
-        crate::node::consensus::BscConsensus,
+        Arc<dyn reth::consensus::FullConsensus<crate::node::primitives::BscPrimitives, Error = reth::consensus::ConsensusError>>,
     >;
 
     async fn build_components(
         self,
         ctx: &reth::builder::BuilderContext<N>,
     ) -> eyre::Result<Self::Components> {
-        // Build each component manually
+        // Build each component manually using the proper traits
         let pool_builder = EthereumPoolBuilder::default();
-        let pool = pool_builder.build_pool(ctx).await?;
+        let pool = PoolBuilder::build_pool(pool_builder, ctx).await?;
 
         let executor_builder = BscExecutorBuilder;
-        let evm_config = executor_builder.build_evm(ctx).await?;
+        let evm_config = ExecutorBuilder::build_evm(executor_builder, ctx).await?;
 
         let network_builder = BscNetworkBuilder { engine_handle_rx: self.engine_handle_rx.clone() };
-        let network = network_builder.build_network(ctx, pool.clone()).await?;
+        let network = NetworkBuilder::build_network(network_builder, ctx, pool.clone()).await?;
 
         let payload_builder = BscPayloadServiceBuilder::default();
-        let payload_builder_handle = payload_builder
-            .spawn_payload_builder_service(ctx, pool.clone(), evm_config.clone())
-            .await?;
+        let payload_builder_handle = payload_builder.spawn_payload_builder_service(ctx, pool.clone(), evm_config.clone()).await?;
 
         let consensus_builder = BscConsensusBuilder;
-        let consensus = consensus_builder.build_consensus(ctx).await?;
+        let consensus = ConsensusBuilder::build_consensus(consensus_builder, ctx).await?;
 
         Ok(reth::builder::components::Components {
             transaction_pool: pool,
@@ -160,20 +163,17 @@ where
 {
     type RpcBlock = alloy_rpc_types::Block;
 
-    fn rpc_to_primitive_block(rpc_block: Self::RpcBlock) -> BscBlock {
+    fn rpc_to_primitive_block(rpc_block: Self::RpcBlock) -> reth_primitives::Block {
         let alloy_rpc_types::Block { header, transactions, withdrawals, .. } = rpc_block;
-        BscBlock {
+        reth_primitives::Block {
             header: header.inner,
-            body: BscBlockBody {
-                inner: BlockBody {
-                    transactions: transactions
-                        .into_transactions()
-                        .map(|tx| tx.inner.into_inner().into())
-                        .collect(),
-                    ommers: Default::default(),
-                    withdrawals,
-                },
-                sidecars: None,
+            body: reth_primitives::BlockBody {
+                transactions: transactions
+                    .into_transactions()
+                    .map(|tx| tx.inner.into_inner().into())
+                    .collect(),
+                ommers: Default::default(),
+                withdrawals,
             },
         }
     }

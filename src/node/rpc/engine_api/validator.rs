@@ -1,7 +1,8 @@
 use crate::{
-    node::primitives::{BscBlock, BscPrimitives},
+    node::primitives::BscPrimitives,
     chainspec::BscChainSpec,
 };
+use reth_primitives::Block;
 use reth::{
     api::{FullNodeComponents, NodeTypes},
     builder::{rpc::EngineValidatorBuilder, AddOnsContext},
@@ -18,7 +19,7 @@ use reth_payload_primitives::{
 pub struct BscEngineValidator;
 
 impl PayloadValidator for BscEngineValidator {
-    type Block = BscBlock;
+    type Block = Block;
     type ExecutionData = alloy_rpc_types_engine::ExecutionData;
 
     fn ensure_well_formed_payload(
@@ -27,7 +28,7 @@ impl PayloadValidator for BscEngineValidator {
     ) -> Result<reth_primitives::RecoveredBlock<Self::Block>, NewPayloadError> {
         // This is a no-op validator, so we can just return an empty block.
         // The block will be properly validated by the consensus engine.
-        let block = BscBlock::default();
+        let block: Block = Block::default();
         let recovered = reth_primitives::RecoveredBlock::new(
             block.clone(),
             Vec::new(),

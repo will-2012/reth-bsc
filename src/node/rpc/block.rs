@@ -1,8 +1,8 @@
 use crate::{
     chainspec::BscChainSpec,
-    node::rpc::{BscEthApi, BscNodeCore},
-    BscBlock, BscPrimitives,
+    node::{primitives::BscPrimitives, rpc::{BscEthApi, BscNodeCore}},
 };
+use reth_primitives::Block;
 use alloy_consensus::BlockHeader;
 use alloy_primitives::B256;
 use reth::{
@@ -104,7 +104,7 @@ where
     N: RpcNodeCore<
         Provider: BlockReaderIdExt<
             Transaction = TransactionSigned,
-            Block = BscBlock,
+            Block = Block,
             Receipt = Receipt,
             Header = alloy_consensus::Header,
         > + ChainSpecProvider<ChainSpec: EthChainSpec + EthereumHardforks>

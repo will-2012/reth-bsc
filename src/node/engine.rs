@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
-use crate::{
-    node::{BscNode},
-    BscBlock, BscPrimitives, BscBlockBody,
-};
+use crate::node::primitives::BscPrimitives;
+use reth_primitives::{Block, BlockBody};
 use alloy_eips::eip7685::Requests;
 use alloy_primitives::U256;
 use reth::{
@@ -15,7 +13,7 @@ use reth::{
 };
 use reth_evm::ConfigureEvm;
 use reth_payload_primitives::{BuiltPayload, PayloadBuilderError, PayloadBuilderAttributes};
-use reth_primitives::{SealedBlock, Header, BlockBody};
+use reth_primitives::{SealedBlock, Header};
 
 // Additional imports for the actual payload builder
 use reth_basic_payload_builder::{
@@ -47,7 +45,7 @@ use reth_ethereum_primitives::Receipt;
 #[derive(Debug, Clone)]
 pub struct BscBuiltPayload {
     /// The built block
-    pub(crate) block: Arc<SealedBlock<BscBlock>>,
+    pub(crate) block: Arc<SealedBlock<Block>>,
     /// The fees of the block
     pub(crate) fees: U256,
     /// The requests of the payload
@@ -57,7 +55,7 @@ pub struct BscBuiltPayload {
 impl BscBuiltPayload {
     /// Creates a new BSC built payload
     pub fn new(
-        block: Arc<SealedBlock<BscBlock>>, 
+        block: Arc<SealedBlock<Block>>, 
         fees: U256, 
         requests: Option<Requests>,
     ) -> Self {
@@ -94,16 +92,13 @@ impl BscBuiltPayload {
             requests_hash: None,
         };
 
-        let body = BscBlockBody {
-            inner: BlockBody {
-                transactions: vec![],
-                ommers: vec![],
-                withdrawals: None,
-            },
-            sidecars: None,
+        let body = BlockBody {
+            transactions: vec![],
+            ommers: vec![],
+            withdrawals: None,
         };
 
-        let block = BscBlock::new(header, body);
+        let block = Block::new(header, body);
         let sealed_block = block.seal_slow();
 
         Self {
@@ -122,7 +117,7 @@ impl BscBuiltPayload {
 impl BuiltPayload for BscBuiltPayload {
     type Primitives = BscPrimitives;
 
-    fn block(&self) -> &SealedBlock<BscBlock> {
+    fn block(&self) -> &SealedBlock<Block> {
         self.block.as_ref()
     }
 
@@ -260,7 +255,7 @@ impl<Node, Pool, Evm> PayloadServiceBuilder<Node, Pool, Evm> for BscPayloadServi
 where
     Node: FullNodeTypes,
     Node::Types: NodeTypes<Primitives = crate::node::primitives::BscPrimitives, ChainSpec = crate::chainspec::BscChainSpec, Payload = crate::node::rpc::engine_api::payload::BscPayloadTypes, StateCommitment = reth_trie_db::MerklePatriciaTrie, Storage = crate::node::storage::BscStorage>,
-    Pool: TransactionPool + Unpin + 'static + TaskSpawner,
+    Pool: TransactionPool + Unpin + 'static,
     Evm: ConfigureEvm + Clone + Unpin + 'static,
 {
     async fn spawn_payload_builder_service(
@@ -282,7 +277,7 @@ where
         // Create the payload job generator with BSC payload builder
         let payload_generator = BasicPayloadJobGenerator::with_builder(
             ctx.provider().clone(),
-            pool,
+            ctx.task_executor().clone(),
             payload_job_config,
             payload_builder,
         );

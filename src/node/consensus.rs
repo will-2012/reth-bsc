@@ -1,4 +1,5 @@
-use crate::{hardforks::BscHardforks, node::BscNode, BscBlock, BscPrimitives};
+use crate::{hardforks::BscHardforks, node::primitives::BscPrimitives};
+use reth_primitives::Block;
 use reth::{
     api::{FullNodeTypes, NodeTypes},
     builder::{components::ConsensusBuilder, BuilderContext},
@@ -64,7 +65,7 @@ where
     ChainSpec: Send + Sync + 'static + Unpin,
     P: Send + Sync + 'static + Unpin,
 {
-    type Block = BscBlock;
+    type Block = Block;
     type ExecutionData = alloy_rpc_types_engine::ExecutionData;
 
     fn ensure_well_formed_payload(
@@ -72,7 +73,7 @@ where
         _payload: Self::ExecutionData,
     ) -> Result<RecoveredBlock<Self::Block>, reth_payload_primitives::NewPayloadError> {
         // This is a no-op validator, so we can just return an empty block.
-        let block = BscBlock::default();
+        let block: Block = Block::default();
         let recovered = RecoveredBlock::new(
             block.clone(),
             Vec::new(),
@@ -136,7 +137,7 @@ where
     }
 }
 
-impl<ChainSpec, P> Consensus<BscBlock> for BscConsensus<ChainSpec, P>
+impl<ChainSpec, P> Consensus<Block> for BscConsensus<ChainSpec, P>
 where
     ChainSpec: Send + Sync + 'static + Debug,
     P: SnapshotProvider + Debug + 'static,
@@ -145,7 +146,7 @@ where
 
     fn validate_body_against_header(
         &self,
-        _body: &<BscBlock as BlockT>::Body,
+        _body: &<Block as BlockT>::Body,
         _header: &SealedHeader,
     ) -> Result<(), Self::Error> {
         Ok(())
@@ -153,7 +154,7 @@ where
 
     fn validate_block_pre_execution(
         &self,
-        _block: &SealedBlock<BscBlock>,
+        _block: &SealedBlock<Block>,
     ) -> Result<(), ConsensusError> {
         Ok(())
     }
@@ -166,7 +167,7 @@ where
 {
     fn validate_block_post_execution(
         &self,
-        _block: &RecoveredBlock<BscBlock>,
+        _block: &RecoveredBlock<Block>,
         _result: &BlockExecutionResult<Receipt>,
     ) -> Result<(), ConsensusError> {
         Ok(())
