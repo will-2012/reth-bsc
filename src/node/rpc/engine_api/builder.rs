@@ -6,6 +6,8 @@ use reth_node_builder::rpc::{EngineApiBuilder, EngineValidatorBuilder};
 use reth_node_core::version::{CARGO_PKG_VERSION, CLIENT_CODE, VERGEN_GIT_SHA};
 use reth_payload_builder::PayloadStore;
 use reth_rpc_engine_api::{EngineApi, EngineCapabilities};
+use reth_payload_primitives::PayloadTypes;
+use alloy_rpc_types_engine::ExecutionData;
 
 /// Generic builder that wires the BSC Engine API into the node depending on the
 /// concrete `EngineValidatorBuilder` supplied by the node‐builder macros.
@@ -20,8 +22,8 @@ where
     N: FullNodeComponents,
     // Additional bounds so we can extract associated types.
     N::Types: NodeTypes,
-    // The node's payload type must implement `EngineTypes` to be usable with `EngineApi`.
-    <N::Types as NodeTypes>::Payload: EngineTypes,
+    // The node's payload type must implement `EngineTypes` and expose the canonical ExecutionData.
+    <N::Types as NodeTypes>::Payload: EngineTypes + PayloadTypes<ExecutionData = ExecutionData>,
     // The chain spec must support hardfork checks required by EngineApi.
     <N::Types as NodeTypes>::ChainSpec: EthereumHardforks + Send + Sync + 'static,
     // Make sure the payload’s `ExecutionData` is declared (we don’t depend on it here).

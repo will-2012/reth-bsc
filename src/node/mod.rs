@@ -13,9 +13,9 @@ use crate::{
     },
     BscBlock, BscBlockBody,
 };
-use consensus::BscConsensusBuilder;
+use consensus::{BscConsensusBuilder, BscConsensus};
 use engine::BscPayloadServiceBuilder;
-use evm::BscExecutorBuilder;
+use evm::{BscExecutorBuilder, BscEvmConfig};
 use network::BscNetworkBuilder;
 use reth::{
     api::{FullNodeComponents, FullNodeTypes, NodeTypes},
@@ -74,29 +74,7 @@ impl Default for BscNode {
     }
 }
 
-impl BscNode {
-    pub fn components<Node>(
-        &self,
-    ) -> ComponentsBuilder<
-        Node,
-        EthereumPoolBuilder,
-        BscPayloadServiceBuilder,
-        BscNetworkBuilder,
-        BscExecutorBuilder,
-        BscConsensusBuilder,
-    >
-    where
-        Node: FullNodeTypes<Types = Self>,
-    {
-        ComponentsBuilder::default()
-            .node_types::<Node>()
-            .pool(EthereumPoolBuilder::default())
-            .executor(BscExecutorBuilder::default())
-            .payload(BscPayloadServiceBuilder::default())
-            .network(BscNetworkBuilder { engine_handle_rx: self.engine_handle_rx.clone() })
-            .consensus(BscConsensusBuilder::default())
-    }
-}
+
 
 impl NodeTypes for BscNode {
     type Primitives = BscPrimitives;
@@ -106,25 +84,69 @@ impl NodeTypes for BscNode {
     type Payload = BscPayloadTypes;
 }
 
+/// Custom BSC Components Builder that bypasses the generic ComponentsBuilder
+pub struct BscNodeComponentsBuilder {
+    engine_handle_rx: Arc<Mutex<Option<oneshot::Receiver<BeaconConsensusEngineHandle<BscPayloadTypes>>>>>,
+}
+
+impl<N> NodeComponentsBuilder<N> for BscNodeComponentsBuilder
+where
+    N: FullNodeTypes<Types = BscNode>,
+{
+    type Components = reth::builder::components::Components<
+        N,
+        reth_network::NetworkHandle,
+        reth_transaction_pool::EthTransactionPool<N::Provider, reth_transaction_pool::blobstore::DiskFileBlobStore>,
+        crate::node::evm::BscEvmConfig,
+        crate::node::consensus::BscConsensus,
+    >;
+
+    async fn build_components(
+        self,
+        ctx: &reth::builder::BuilderContext<N>,
+    ) -> eyre::Result<Self::Components> {
+        // Build each component manually
+        let pool_builder = EthereumPoolBuilder::default();
+        let pool = pool_builder.build_pool(ctx).await?;
+
+        let executor_builder = BscExecutorBuilder;
+        let evm_config = executor_builder.build_evm(ctx).await?;
+
+        let network_builder = BscNetworkBuilder { engine_handle_rx: self.engine_handle_rx.clone() };
+        let network = network_builder.build_network(ctx, pool.clone()).await?;
+
+        let payload_builder = BscPayloadServiceBuilder::default();
+        let payload_builder_handle = payload_builder
+            .spawn_payload_builder_service(ctx, pool.clone(), evm_config.clone())
+            .await?;
+
+        let consensus_builder = BscConsensusBuilder;
+        let consensus = consensus_builder.build_consensus(ctx).await?;
+
+        Ok(reth::builder::components::Components {
+            transaction_pool: pool,
+            evm_config,
+            network,
+            payload_builder_handle,
+            consensus,
+        })
+    }
+}
+
 impl<N> Node<N> for BscNode
 where
     N: FullNodeTypes<Types = Self>,
 {
-    type ComponentsBuilder = ComponentsBuilder<
-        N,
-        EthereumPoolBuilder,
-        BscPayloadServiceBuilder,
-        BscNetworkBuilder,
-        BscExecutorBuilder,
-        BscConsensusBuilder,
-    >;
+    type ComponentsBuilder = BscNodeComponentsBuilder;
 
     type AddOns = BscNodeAddOns<
         NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>,
     >;
 
     fn components_builder(&self) -> Self::ComponentsBuilder {
-        Self::components(self)
+        BscNodeComponentsBuilder {
+            engine_handle_rx: self.engine_handle_rx.clone(),
+        }
     }
 
     fn add_ons(&self) -> Self::AddOns {
@@ -159,6 +181,19 @@ where
     fn local_payload_attributes_builder(
         chain_spec: &Self::ChainSpec,
     ) -> impl PayloadAttributesBuilder<<Self::Payload as PayloadTypes>::PayloadAttributes> {
-        LocalPayloadAttributesBuilder::new(Arc::new(chain_spec.clone()))
+        // Return a builder that always sets withdrawals to None to satisfy BSC rules.
+        struct Builder { spec: Arc<BscChainSpec> }
+        impl PayloadAttributesBuilder<reth_node_ethereum::engine::EthPayloadAttributes> for Builder {
+            fn build(&self, timestamp: u64) -> reth_node_ethereum::engine::EthPayloadAttributes {
+                reth_node_ethereum::engine::EthPayloadAttributes {
+                    timestamp,
+                    prev_randao: alloy_primitives::B256::random(),
+                    suggested_fee_recipient: alloy_primitives::Address::random(),
+                    withdrawals: None,
+                    parent_beacon_block_root: None,
+                }
+            }
+        }
+        Builder { spec: Arc::new(chain_spec.clone()) }
     }
 }

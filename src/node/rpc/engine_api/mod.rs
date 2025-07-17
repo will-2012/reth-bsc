@@ -72,11 +72,12 @@ where
     Pool: reth_transaction_pool::TransactionPool + Clone + 'static,
     Validator: reth_engine_primitives::EngineValidator<EngineT> + Clone + 'static,
     ChainSpec: reth_chainspec::EthereumHardforks + Send + Sync + 'static,
+    EngineApi<Provider, EngineT, Pool, Validator, ChainSpec>: reth_rpc_api::servers::EngineApiServer<EngineT>,
 {
     fn into_rpc_module(self) -> RpcModule<()> {
-        // TODO: expose actual Engine API methods. For now we return an empty module to satisfy
-        // the node-builder requirements while Parlia consensus integration is completed.
-        RpcModule::new(())
+        // Delegates to the inner EngineApi implementation so that all Engine API methods
+        // (`engine_forkchoiceUpdatedV*`, `engine_getPayloadV*`, etc.) are exposed over JSON-RPC.
+        self.inner.into_rpc_module()
     }
 }
 

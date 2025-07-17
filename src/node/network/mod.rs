@@ -12,7 +12,7 @@ use crate::{
 use alloy_rlp::{Decodable, Encodable};
 use handshake::BscHandshake;
 use reth::{
-    api::{FullNodeTypes, TxTy},
+    api::{FullNodeTypes, NodeTypes, TxTy},
     builder::{components::NetworkBuilder, BuilderContext},
     transaction_pool::{PoolTransaction, TransactionPool},
 };
@@ -139,7 +139,7 @@ pub type BscNetworkPrimitives =
     BasicNetworkPrimitives<BscPrimitives, PooledTransactionVariant, BscNewBlock>;
 
 /// A basic bsc network builder.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct BscNetworkBuilder {
     pub(crate) engine_handle_rx:
         Arc<Mutex<Option<oneshot::Receiver<BeaconConsensusEngineHandle<BscPayloadTypes>>>>>,
@@ -154,7 +154,8 @@ impl BscNetworkBuilder {
         ctx: &BuilderContext<Node>,
     ) -> eyre::Result<NetworkConfig<Node::Provider, BscNetworkPrimitives>>
     where
-        Node: FullNodeTypes<Types = BscNode>,
+        Node: FullNodeTypes,
+        Node::Types: NodeTypes<Primitives = crate::node::primitives::BscPrimitives, ChainSpec = crate::chainspec::BscChainSpec, Payload = crate::node::rpc::engine_api::payload::BscPayloadTypes, StateCommitment = reth_trie_db::MerklePatriciaTrie, Storage = crate::node::storage::BscStorage>,
     {
         let Self { engine_handle_rx } = self;
 
@@ -207,7 +208,8 @@ impl BscNetworkBuilder {
 
 impl<Node, Pool> NetworkBuilder<Node, Pool> for BscNetworkBuilder
 where
-    Node: FullNodeTypes<Types = BscNode>,
+    Node: FullNodeTypes,
+    Node::Types: NodeTypes<Primitives = crate::node::primitives::BscPrimitives, ChainSpec = crate::chainspec::BscChainSpec, Payload = crate::node::rpc::engine_api::payload::BscPayloadTypes, StateCommitment = reth_trie_db::MerklePatriciaTrie, Storage = crate::node::storage::BscStorage>,
     Pool: TransactionPool<
             Transaction: PoolTransaction<
                 Consensus = TxTy<Node::Types>,

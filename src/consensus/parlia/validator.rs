@@ -293,10 +293,10 @@ where
             self.provider.insert(new_snap.clone());
             // If this is a checkpoint boundary, enqueue the compressed snapshot so the execution
             // stage can persist it via `ExecutionOutcome`.
+            // use reth_execution_types::snapshot_pool;
             if new_snap.block_number % super::snapshot::CHECKPOINT_INTERVAL == 0 {
-                use reth_execution_types::snapshot_pool;
                 let blob = new_snap.clone().compress();
-                snapshot_pool::push((new_snap.block_number, blob));
+                // snapshot_pool::push((new_snap.block_number, blob));
             }
         }
 

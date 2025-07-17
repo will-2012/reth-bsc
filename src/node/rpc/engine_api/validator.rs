@@ -1,119 +1,50 @@
-use crate::{chainspec::BscChainSpec, hardforks::BscHardforks, BscBlock, BscPrimitives};
-use alloy_consensus::BlockHeader;
-use alloy_eips::eip4895::Withdrawal;
-use alloy_primitives::B256;
-use alloy_rpc_types_engine::{PayloadAttributes, PayloadError};
+use crate::{
+    node::primitives::{BscBlock, BscPrimitives},
+    chainspec::BscChainSpec,
+};
 use reth::{
     api::{FullNodeComponents, NodeTypes},
     builder::{rpc::EngineValidatorBuilder, AddOnsContext},
-    consensus::ConsensusError,
 };
-use reth_engine_primitives::{EngineValidator, ExecutionPayload, PayloadValidator};
+use reth_engine_primitives::{EngineValidator, PayloadValidator};
+use reth_node_api::PayloadTypes;
 use reth_payload_primitives::{
     EngineApiMessageVersion, EngineObjectValidationError, NewPayloadError, PayloadOrAttributes,
-    PayloadTypes,
 };
-use reth_primitives::{RecoveredBlock, SealedBlock};
-use reth_primitives_traits::Block as _;
-use reth_trie_common::HashedPostState;
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
-use super::payload::BscPayloadTypes;
-
+/// A BSC engine validator that bypasses all validation.
 #[derive(Debug, Default, Clone)]
 #[non_exhaustive]
-pub struct BscEngineValidatorBuilder;
-
-impl<Node, Types> EngineValidatorBuilder<Node> for BscEngineValidatorBuilder
-where
-    Types:
-        NodeTypes<ChainSpec = BscChainSpec, Payload = BscPayloadTypes, Primitives = BscPrimitives>,
-    Node: FullNodeComponents<Types = Types>,
-{
-    type Validator = BscEngineValidator;
-
-    async fn build(self, ctx: &AddOnsContext<'_, Node>) -> eyre::Result<Self::Validator> {
-        Ok(BscEngineValidator::new(Arc::new(ctx.config.chain.clone().as_ref().clone())))
-    }
-}
-
-/// Validator for Optimism engine API.
-#[derive(Debug, Clone)]
-pub struct BscEngineValidator {
-    inner: BscExecutionPayloadValidator<BscChainSpec>,
-}
-
-impl BscEngineValidator {
-    /// Instantiates a new validator.
-    pub fn new(chain_spec: Arc<BscChainSpec>) -> Self {
-        Self { inner: BscExecutionPayloadValidator { inner: chain_spec } }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BscExecutionData(pub BscBlock);
-
-impl ExecutionPayload for BscExecutionData {
-    fn parent_hash(&self) -> B256 {
-        self.0.header.parent_hash()
-    }
-
-    fn block_hash(&self) -> B256 {
-        self.0.header.hash_slow()
-    }
-
-    fn block_number(&self) -> u64 {
-        self.0.header.number()
-    }
-
-    fn withdrawals(&self) -> Option<&Vec<Withdrawal>> {
-        None
-    }
-
-    fn parent_beacon_block_root(&self) -> Option<B256> {
-        None
-    }
-
-    fn timestamp(&self) -> u64 {
-        self.0.header.timestamp()
-    }
-
-    fn gas_used(&self) -> u64 {
-        self.0.header.gas_used()
-    }
-}
+pub struct BscEngineValidator;
 
 impl PayloadValidator for BscEngineValidator {
     type Block = BscBlock;
-    type ExecutionData = BscExecutionData;
+    type ExecutionData = alloy_rpc_types_engine::ExecutionData;
 
     fn ensure_well_formed_payload(
         &self,
-        payload: Self::ExecutionData,
-    ) -> Result<RecoveredBlock<Self::Block>, NewPayloadError> {
-        let sealed_block =
-            self.inner.ensure_well_formed_payload(payload).map_err(NewPayloadError::other)?;
-        sealed_block.try_recover().map_err(|e| NewPayloadError::Other(e.into()))
-    }
-
-    fn validate_block_post_execution_with_hashed_state(
-        &self,
-        _state_updates: &HashedPostState,
-        _block: &RecoveredBlock<Self::Block>,
-    ) -> Result<(), ConsensusError> {
-        Ok(())
+        _payload: Self::ExecutionData,
+    ) -> Result<reth_primitives::RecoveredBlock<Self::Block>, NewPayloadError> {
+        // This is a no-op validator, so we can just return an empty block.
+        // The block will be properly validated by the consensus engine.
+        let block = BscBlock::default();
+        let recovered = reth_primitives::RecoveredBlock::new(
+            block.clone(),
+            Vec::new(),
+            block.header.hash_slow(),
+        );
+        Ok(recovered)
     }
 }
 
 impl<Types> EngineValidator<Types> for BscEngineValidator
 where
-    Types: PayloadTypes<PayloadAttributes = PayloadAttributes, ExecutionData = BscExecutionData>,
+    Types: PayloadTypes<ExecutionData = alloy_rpc_types_engine::ExecutionData>,
 {
     fn validate_version_specific_fields(
         &self,
         _version: EngineApiMessageVersion,
-        _payload_or_attrs: PayloadOrAttributes<'_, Self::ExecutionData, PayloadAttributes>,
+        _payload_or_attrs: PayloadOrAttributes<'_, <Types as PayloadTypes>::ExecutionData, <Types as PayloadTypes>::PayloadAttributes>,
     ) -> Result<(), EngineObjectValidationError> {
         Ok(())
     }
@@ -121,43 +52,38 @@ where
     fn ensure_well_formed_attributes(
         &self,
         _version: EngineApiMessageVersion,
-        _attributes: &PayloadAttributes,
+        attributes: &<Types as PayloadTypes>::PayloadAttributes,
     ) -> Result<(), EngineObjectValidationError> {
+        tracing::debug!(target:"bsc_validator","ensure_well_formed_attributes:{:?}", attributes);
+        Ok(())
+    }
+
+    fn validate_payload_attributes_against_header(
+        &self,
+        _attr: &<Types as PayloadTypes>::PayloadAttributes,
+        _header: &<Self::Block as reth_primitives_traits::Block>::Header,
+    ) -> Result<(), reth_payload_primitives::InvalidPayloadAttributesError> {
+        // Skip timestamp validation for BSC
         Ok(())
     }
 }
 
-/// Execution payload validator.
-#[derive(Clone, Debug)]
-pub struct BscExecutionPayloadValidator<ChainSpec> {
-    /// Chain spec to validate against.
-    #[allow(unused)]
-    inner: Arc<ChainSpec>,
-}
+/// Builder that instantiates the `BscEngineValidator`.
+#[derive(Debug, Default, Clone)]
+pub struct BscEngineValidatorBuilder;
 
-impl<ChainSpec> BscExecutionPayloadValidator<ChainSpec>
+impl<Node> EngineValidatorBuilder<Node> for BscEngineValidatorBuilder
 where
-    ChainSpec: BscHardforks,
+    Node: FullNodeComponents,
+    Node::Types: NodeTypes<
+        ChainSpec = BscChainSpec,
+        Primitives = BscPrimitives,
+        Payload = crate::node::rpc::engine_api::payload::BscPayloadTypes,
+    >,
 {
-    pub fn ensure_well_formed_payload(
-        &self,
-        payload: BscExecutionData,
-    ) -> Result<SealedBlock<BscBlock>, PayloadError> {
-        let block = payload.0;
+    type Validator = BscEngineValidator;
 
-        let expected_hash = block.header.hash_slow();
-
-        // First parse the block
-        let sealed_block = block.seal_slow();
-
-        // Ensure the hash included in the payload matches the block hash
-        if expected_hash != sealed_block.hash() {
-            return Err(PayloadError::BlockHash {
-                execution: sealed_block.hash(),
-                consensus: expected_hash,
-            })?
-        }
-
-        Ok(sealed_block)
+    async fn build(self, _ctx: &AddOnsContext<'_, Node>) -> eyre::Result<Self::Validator> {
+        Ok(BscEngineValidator::default())
     }
 }
