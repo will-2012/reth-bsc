@@ -69,7 +69,7 @@ impl BscBuiltPayload {
     ) -> Self {
         // Create a simple empty block
         let header = Header {
-            parent_hash: keccak256(alloy_rlp::encode(parent_header)),
+            parent_hash: parent_header.hash_slow(),
             ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: attributes.suggested_fee_recipient(),
             state_root: parent_header.state_root, // Use parent's state root for empty block
@@ -290,5 +290,76 @@ where
         ctx.task_executor().spawn_critical("bsc payload builder service", Box::pin(payload_service));
 
         Ok(payload_builder_handle)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::{Address, B256};
+    use reth_primitives::Header;
+    use crate::node::rpc::engine_api::payload::BscPayloadBuilderAttributes;
+    use reth_payload_builder::EthPayloadBuilderAttributes;
+    use alloy_rpc_types_engine::PayloadAttributes;
+    use alloy_consensus::BlockHeader;
+    use reth_primitives_traits::{SealedHeader, Block as _};
+    
+    #[test]
+    fn test_simple_bsc_payload_builder() {
+        // Create a test parent header
+        let parent_header = Header::default();
+        
+        // Create test attributes
+        let eth_attrs = PayloadAttributes {
+            timestamp: 1000,
+            prev_randao: B256::random(),
+            suggested_fee_recipient: Address::random(),
+            withdrawals: None,
+            parent_beacon_block_root: None,
+        };
+        let bsc_attrs = BscPayloadBuilderAttributes::from(
+            EthPayloadBuilderAttributes::new(B256::ZERO, eth_attrs)
+        );
+        
+        // Test empty_for_test
+        let payload = BscBuiltPayload::empty_for_test(&parent_header, &bsc_attrs);
+        
+        // Verify the payload was created correctly
+        assert_eq!(payload.block().number, parent_header.number + 1);
+        assert_eq!(payload.block().timestamp, bsc_attrs.timestamp());
+        assert_eq!(payload.block().body().transactions().count(), 0);
+        assert_eq!(payload.fees(), U256::ZERO);
+        
+        println!("✓ BscBuiltPayload::empty_for_test works correctly");
+        
+        // Test the payload builder
+        let builder = SimpleBscPayloadBuilder;
+        let config = PayloadConfig::new(
+            Arc::new(SealedHeader::new(parent_header.clone(), parent_header.hash_slow())), 
+            bsc_attrs.clone()
+        );
+        
+        // Test build_empty_payload
+        let empty_payload = builder.build_empty_payload(config.clone()).unwrap();
+        assert_eq!(empty_payload.block().number, parent_header.number + 1);
+        
+        println!("✓ SimpleBscPayloadBuilder::build_empty_payload works correctly");
+        
+        // Test try_build with BuildArguments
+        let args = BuildArguments::new(
+            Default::default(), // cached_reads
+            config,
+            Default::default(), // cancel
+            None, // best_payload
+        );
+        
+        let result = builder.try_build(args).unwrap();
+        match result {
+            BuildOutcome::Better { payload, .. } => {
+                assert_eq!(payload.block().number, parent_header.number + 1);
+                println!("✓ SimpleBscPayloadBuilder::try_build works correctly");
+            }
+            _ => panic!("Expected Better outcome"),
+        }
     }
 }
