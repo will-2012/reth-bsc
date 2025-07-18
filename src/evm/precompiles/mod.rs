@@ -200,9 +200,14 @@ where
         is_static: bool,
         gas_limit: u64,
     ) -> Result<Option<Self::Output>, String> {
+        println!("BscPrecompiles::run called with address: {:?}", address);
+        
         let Some(precompile) = self.inner.precompiles.get(address) else {
+            println!("Address {:?} is not a precompile, returning None", address);
             return Ok(None);
         };
+        
+        println!("Found precompile for address: {:?}", address);
         
         let mut result = InterpreterResult {
             result: InstructionResult::Return,
