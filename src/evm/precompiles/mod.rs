@@ -32,17 +32,24 @@ impl BscPrecompiles {
     /// Create a new precompile provider with the given bsc spec.
     #[inline]
     pub fn new(spec: BscHardfork) -> Self {
+        println!("try debug new precompiles: {:?}", spec);
         let precompiles = if spec >= BscHardfork::Haber {
+            println!("try debug new precompiles haber");
             haber()
         } else if spec >= BscHardfork::Feynman {
+            println!("try debug new precompiles feynman");
             feynman()
         } else if spec >= BscHardfork::Hertz {
+            println!("try debug new precompiles hertz");
             hertz()
         } else if spec >= BscHardfork::Plato {
+            println!("try debug new precompiles plato");
             plato()
         } else if spec >= BscHardfork::Luban {
+            println!("try debug new precompiles luban");
             luban()
         } else if spec >= BscHardfork::Planck {
+            println!("try debug new precompiles planck");
             planck()
         } else if spec >= BscHardfork::Moran {
             moran()
@@ -208,3 +215,4 @@ impl Default for BscPrecompiles {
         Self::new(BscHardfork::default())
     }
 }
+
