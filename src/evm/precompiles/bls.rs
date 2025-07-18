@@ -34,7 +34,8 @@ fn bls_signature_validation_run(input: &[u8], gas_limit: u64) -> PrecompileResul
     if (input_length <= msg_and_sig_length) ||
         !((input_length - msg_and_sig_length).is_multiple_of(BLS_SINGLE_PUBKEY_LENGTH))
     {
-        println!("try debug bls signature validation input length error");
+        println!("try debug bls signature validation input length error: input_length={}, expected_min_length={}, BLS_SINGLE_PUBKEY_LENGTH={}", 
+                 input_length, msg_and_sig_length, BLS_SINGLE_PUBKEY_LENGTH);
         return Err(BscPrecompileError::Reverted(cost).into());
     }
 
