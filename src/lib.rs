@@ -1,4 +1,5 @@
 pub mod chainspec;
+pub mod cli;
 pub mod consensus;
 mod evm;
 mod hardforks;
