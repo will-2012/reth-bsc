@@ -12,46 +12,46 @@ name = "reth-bsc"
 path = "src/main.rs"
 
 [dependencies]
-reth = "1.5.1"
-reth-cli = "1.5.1"
-reth-cli-commands = "1.5.1"
-reth-basic-payload-builder = "1.5.1"
-reth-db = "1.5.1"
-reth-engine-local = "1.5.1"
-reth-chainspec = "1.5.1"
-reth-cli-util = "1.5.1"
-reth-discv4 = { version = "1.5.1", features = ["test-utils"] }
-reth-engine-primitives = "1.5.1"
-reth-ethereum-forks = { version = "1.5.1", features = ["serde"] }
-reth-ethereum-payload-builder = "1.5.1"
-reth-ethereum-primitives = "1.5.1"
-reth-eth-wire = "1.5.1"
-reth-eth-wire-types = "1.5.1"
-reth-evm = "1.5.1"
-reth-evm-ethereum = "1.5.1"
-# reth-execution-types = "1.5.1"
-reth-transaction-pool = "1.5.1"
-reth-node-core = "1.5.1"
-reth-node-api = "1.5.1"
-reth-node-builder = "1.5.1"
-reth-payload-builder = "1.5.1"
-reth-revm = "1.5.1"
-reth-network = { version = "1.5.1", features = ["test-utils"] }
-reth-network-p2p = "1.5.1"
-reth-network-api = "1.5.1"
-reth-node-ethereum = { version = "1.5.1", features = ["test-utils"] }
-reth-network-peers = "1.5.1"
-reth-payload-primitives = "1.5.1"
-reth-primitives = "1.5.1"
-reth-primitives-traits = "1.5.1"
-reth-provider = { version = "1.5.1", features = ["test-utils"] }
-reth-rpc-eth-api = "1.5.1"
-reth-rpc-engine-api = "1.5.1"
-reth-rpc-api = "1.5.1"
-reth-tracing = "1.5.1"
-reth-trie-common = "1.5.1"
-reth-trie-db = "1.5.1"
-reth-rpc = "1.5.1"
+reth = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-cli = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-cli-commands = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-basic-payload-builder = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-db = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-engine-local = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-chainspec = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-cli-util = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-discv4 = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus", features = ["test-utils"] }
+reth-engine-primitives = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-ethereum-forks = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus", features = ["serde"] }
+reth-ethereum-payload-builder = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-ethereum-primitives = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-eth-wire = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-eth-wire-types = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-evm = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-evm-ethereum = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+# reth-execution-types = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-transaction-pool = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-node-core = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-node-api = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-node-builder = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-payload-builder = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-revm = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-network = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus", features = ["test-utils"] }
+reth-network-p2p = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-network-api = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-node-ethereum = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus", features = ["test-utils"] }
+reth-network-peers = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-payload-primitives = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-primitives = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-primitives-traits = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-provider = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus", features = ["test-utils"] }
+reth-rpc-eth-api = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-rpc-engine-api = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-rpc-api = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-tracing = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-trie-common = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-trie-db = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
+reth-rpc = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
 revm = "27.0.2"
 
 # Alloy stack (aligned with upstream reth @ 8e0ff9)
@@ -157,115 +157,6 @@ client = [
 ]
 
 [dev-dependencies]
-reth-e2e-test-utils = { path = "../reth/crates/e2e-test-utils" }
+reth-e2e-test-utils = { git = "https://github.com/clydemeng/reth.git", branch = "feature/bsc-parlia-consensus" }
 
-[patch."https://github.com/paradigmxyz/reth"]
-# (CLI crates live outside crates/ now; not needed for tests.)
-reth-node-types = { path = "../reth/crates/node/types" }
-reth-node-api = { path = "../reth/crates/node/api" }
-reth-node-builder = { path = "../reth/crates/node/builder" }
-reth-node-ethereum = { path = "../reth/crates/ethereum/node" }
-reth-engine-primitives = { path = "../reth/crates/engine/primitives" }
-reth-payload-primitives = { path = "../reth/crates/payload/primitives" }
-reth-payload-builder-primitives = { path = "../reth/crates/payload/builder-primitives" }
-reth-payload-builder = { path = "../reth/crates/payload/builder" }
-reth-ethereum-primitives = { path = "../reth/crates/ethereum/primitives" }
-reth-ethereum-engine-primitives = { path = "../reth/crates/ethereum/engine-primitives" }
-reth-engine-local = { path = "../reth/crates/engine/local" }
-reth-e2e-test-utils = { path = "../reth/crates/e2e-test-utils" }
- reth-primitives-traits = { path = "../reth/crates/primitives-traits" }
- reth-primitives = { path = "../reth/crates/primitives" }
- reth-codecs = { path = "../reth/crates/storage/codecs" }
- reth-db-api = { path = "../reth/crates/storage/db-api" }
- reth-db = { path = "../reth/crates/storage/db" }
- reth-execution-types = { path = "../reth/crates/evm/execution-types" }
- reth-eth-wire-types = { path = "../reth/crates/net/eth-wire-types" }
- reth-eth-wire = { path = "../reth/crates/net/eth-wire" }
- reth-trie-common = { path = "../reth/crates/trie/common" }
- reth-trie-db = { path = "../reth/crates/trie/db" }
- reth-trie = { path = "../reth/crates/trie/trie" }
- reth-storage-api = { path = "../reth/crates/storage/storage-api" }
- reth-storage-errors = { path = "../reth/crates/storage/errors" }
- reth-db-models = { path = "../reth/crates/storage/db-models" }
- reth-prune = { path = "../reth/crates/prune/prune" }
- reth-prune-types = { path = "../reth/crates/prune/types" }
- reth-stages-types = { path = "../reth/crates/stages/types" }
- reth-stages = { path = "../reth/crates/stages/stages" }
- reth-stages-api = { path = "../reth/crates/stages/api" }
- reth-revm = { path = "../reth/crates/revm" }
-  reth-static-file-types = { path = "../reth/crates/static-file/types" }
-  reth-static-file = { path = "../reth/crates/static-file/static-file" }
-  reth-execution-errors = { path = "../reth/crates/evm/execution-errors" }
-  reth-downloaders = { path = "../reth/crates/net/downloaders" }
-  reth-discv5 = { path = "../reth/crates/net/discv5" }
-  reth-network-p2p = { path = "../reth/crates/net/p2p" }
-reth-cli = { path = "../reth/crates/cli/cli" }
-reth-cli-commands = { path = "../reth/crates/cli/commands" }
-reth-cli-util = { path = "../reth/crates/cli/util" }
-reth-cli-runner = { path = "../reth/crates/cli/runner" }
-reth-basic-payload-builder = { path = "../reth/crates/payload/basic" }
-reth-discv4 = { path = "../reth/crates/net/discv4" }
-reth-network = { path = "../reth/crates/net/network" }
-reth-network-api = { path = "../reth/crates/net/network-api" }
-reth-network-peers = { path = "../reth/crates/net/peers" }
-reth-provider = { path = "../reth/crates/storage/provider" }
-reth-node-core = { path = "../reth/crates/node/core" }
-reth-chainspec = { path = "../reth/crates/chainspec" }
-reth-ethereum-forks = { path = "../reth/crates/ethereum/hardforks" }
-reth-ethereum-payload-builder = { path = "../reth/crates/ethereum/payload" }
-reth-evm = { path = "../reth/crates/evm/evm" }
-reth-evm-ethereum = { path = "../reth/crates/ethereum/evm" }
-reth-rpc-eth-api = { path = "../reth/crates/rpc/rpc-eth-api" }
-reth-rpc-engine-api = { path = "../reth/crates/rpc/rpc-engine-api" }
-reth-rpc = { path = "../reth/crates/rpc/rpc" }
-reth-tracing = { path = "../reth/crates/tracing" }
-reth = { path = "../reth/bin/reth" }
-reth-transaction-pool = { path = "../reth/crates/transaction-pool" }
 
-[patch.crates-io]
-reth = { path = "../reth/bin/reth" }
-reth-cli = { path = "../reth/crates/cli/cli" }
-reth-cli-commands = { path = "../reth/crates/cli/commands" }
-reth-cli-util = { path = "../reth/crates/cli/util" }
-reth-cli-runner = { path = "../reth/crates/cli/runner" }
-reth-basic-payload-builder = { path = "../reth/crates/payload/basic" }
-reth-discv4 = { path = "../reth/crates/net/discv4" }
-reth-discv5 = { path = "../reth/crates/net/discv5" }
-reth-node-types = { path = "../reth/crates/node/types" }
-reth-node-api = { path = "../reth/crates/node/api" }
-reth-node-builder = { path = "../reth/crates/node/builder" }
-reth-node-ethereum = { path = "../reth/crates/ethereum/node" }
-reth-node-core = { path = "../reth/crates/node/core" }
-reth-engine-primitives = { path = "../reth/crates/engine/primitives" }
-reth-engine-local = { path = "../reth/crates/engine/local" }
-reth-payload-primitives = { path = "../reth/crates/payload/primitives" }
-reth-payload-builder-primitives = { path = "../reth/crates/payload/builder-primitives" }
-reth-payload-builder = { path = "../reth/crates/payload/builder" }
-reth-ethereum-primitives = { path = "../reth/crates/ethereum/primitives" }
-reth-ethereum-engine-primitives = { path = "../reth/crates/ethereum/engine-primitives" }
-reth-ethereum-forks = { path = "../reth/crates/ethereum/hardforks" }
-reth-ethereum-payload-builder = { path = "../reth/crates/ethereum/payload" }
-reth-eth-wire = { path = "../reth/crates/net/eth-wire" }
-reth-eth-wire-types = { path = "../reth/crates/net/eth-wire-types" }
-reth-evm = { path = "../reth/crates/evm/evm" }
-reth-evm-ethereum = { path = "../reth/crates/ethereum/evm" }
-reth-network = { path = "../reth/crates/net/network" }
-reth-network-api = { path = "../reth/crates/net/network-api" }
-reth-network-p2p = { path = "../reth/crates/net/p2p" }
-reth-network-peers = { path = "../reth/crates/net/peers" }
-reth-provider = { path = "../reth/crates/storage/provider" }
-reth-db = { path = "../reth/crates/storage/db" }
-reth-db-api = { path = "../reth/crates/storage/db-api" }
-reth-codecs = { path = "../reth/crates/storage/codecs" }
-reth-primitives = { path = "../reth/crates/primitives" }
-reth-primitives-traits = { path = "../reth/crates/primitives-traits" }
-reth-tracing = { path = "../reth/crates/tracing" }
-reth-trie-common = { path = "../reth/crates/trie/common" }
-reth-trie-db = { path = "../reth/crates/trie/db" }
-reth-revm = { path = "../reth/crates/revm" }
-reth-rpc-eth-api = { path = "../reth/crates/rpc/rpc-eth-api" }
-reth-rpc-engine-api = { path = "../reth/crates/rpc/rpc-engine-api" }
-reth-rpc = { path = "../reth/crates/rpc/rpc" }
-reth-rpc-api = { path = "../reth/crates/rpc/rpc-api" }
-reth-chainspec = { path = "../reth/crates/chainspec" }
-reth-transaction-pool = { path = "../reth/crates/transaction-pool" }
