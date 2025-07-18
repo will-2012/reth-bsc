@@ -52,10 +52,13 @@ impl BscPrecompiles {
             println!("try debug new precompiles planck");
             planck()
         } else if spec >= BscHardfork::Moran {
+            println!("try debug new precompiles moran");
             moran()
         } else if spec >= BscHardfork::Nano {
+            println!("try debug new precompiles nano");
             nano()
         } else {
+            println!("try debug new precompiles istanbul");
             istanbul()
         };
 
