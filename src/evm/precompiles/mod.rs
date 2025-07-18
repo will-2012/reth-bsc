@@ -192,7 +192,6 @@ where
         true
     }
 
-    #[inline]
     fn run(
         &mut self,
         context: &mut CTX,
