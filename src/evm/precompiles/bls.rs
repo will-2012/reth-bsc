@@ -25,6 +25,7 @@ const BLS_DST: &[u8] = bls::DST_ETHEREUM.as_bytes();
 fn bls_signature_validation_run(input: &[u8], gas_limit: u64) -> PrecompileResult {
     let cost = calc_gas_cost(input);
     if cost > gas_limit {
+        println!("try debug bls signature validation out of gas");
         return Err(PrecompileError::OutOfGas);
     }
 
@@ -33,6 +34,8 @@ fn bls_signature_validation_run(input: &[u8], gas_limit: u64) -> PrecompileResul
     if (input_length <= msg_and_sig_length) ||
         !((input_length - msg_and_sig_length).is_multiple_of(BLS_SINGLE_PUBKEY_LENGTH))
     {
+        println!("try debug bls signature validation input length error: input_length={}, expected_min_length={}, BLS_SINGLE_PUBKEY_LENGTH={}", 
+                 input_length, msg_and_sig_length, BLS_SINGLE_PUBKEY_LENGTH);
         return Err(BscPrecompileError::Reverted(cost).into());
     }
 
@@ -42,6 +45,7 @@ fn bls_signature_validation_run(input: &[u8], gas_limit: u64) -> PrecompileResul
 
     // check signature format
     if bls::signature_to_point(&signature.to_vec()).is_err() {
+        println!("try debug bls signature validation signature to point error");
         return Err(BscPrecompileError::Reverted(cost).into());
     }
 
@@ -54,12 +58,14 @@ fn bls_signature_validation_run(input: &[u8], gas_limit: u64) -> PrecompileResul
         let pub_key = &pub_keys_data[i as usize * BLS_SINGLE_PUBKEY_LENGTH as usize..
             (i + 1) as usize * BLS_SINGLE_PUBKEY_LENGTH as usize];
         if !bls::key_validate(&pub_key.to_vec()) {
+            println!("try debug bls signature validation pubkey validate error");
             return Err(BscPrecompileError::Reverted(cost).into());
         }
         pub_keys.push(pub_key.to_vec());
         msg_hashes.push(msg_hash.clone().to_vec());
     }
     if pub_keys.is_empty() {
+        println!("try debug bls signature validation pubkeys empty");
         return Err(BscPrecompileError::Reverted(cost).into());
     }
 
@@ -71,6 +77,7 @@ fn bls_signature_validation_run(input: &[u8], gas_limit: u64) -> PrecompileResul
         output = Bytes::from(vec![]);
     }
 
+    println!("try debug bls signature validation success");
     Ok(PrecompileOutput::new(cost, output))
 }
 
