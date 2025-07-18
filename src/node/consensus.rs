@@ -7,12 +7,13 @@ use reth::{
 };
 use reth_chainspec::EthChainSpec;
 use reth_primitives::{Receipt, RecoveredBlock, SealedBlock, SealedHeader};
-use reth_primitives_traits::Block as BlockT;
+use reth_primitives_traits::{Block as BlockT, GotExpected};
 use reth_provider::BlockExecutionResult;
 use std::sync::Arc;
 // Parlia header validation integration ------------------------------------
 use crate::consensus::parlia::{
     snapshot::Snapshot, InMemorySnapshotProvider, ParliaHeaderValidator, SnapshotProvider,
+    BscConsensusValidator,
 };
 use std::fmt::Debug;
 use reth_engine_primitives::{EngineValidator, PayloadValidator};
@@ -40,6 +41,8 @@ where
 pub struct BscConsensus<ChainSpec, P = InMemorySnapshotProvider> {
     /// Parlia‐specific header validator.
     parlia: ParliaHeaderValidator<P>,
+    /// BSC consensus validator for pre/post execution logic
+    bsc_validator: BscConsensusValidator<ChainSpec>,
     _phantom: std::marker::PhantomData<ChainSpec>,
 }
 
@@ -56,7 +59,8 @@ impl<ChainSpec: EthChainSpec + BscHardforks> BscConsensus<ChainSpec> {
         );
         provider.insert(snapshot);
         let parlia = ParliaHeaderValidator::new(Arc::new(provider));
-        Self { parlia, _phantom: std::marker::PhantomData }
+        let bsc_validator = BscConsensusValidator::new(chain_spec);
+        Self { parlia, bsc_validator, _phantom: std::marker::PhantomData }
     }
 }
 
@@ -154,8 +158,23 @@ where
 
     fn validate_block_pre_execution(
         &self,
-        _block: &SealedBlock<Block>,
+        block: &SealedBlock<Block>,
     ) -> Result<(), ConsensusError> {
+        // Check ommers hash (BSC doesn't use ommers, should be empty)
+        let ommers_hash = alloy_primitives::keccak256(&[]);
+        if block.ommers_hash() != ommers_hash {
+            return Err(ConsensusError::BodyOmmersHashDiff(
+                GotExpected { got: ommers_hash, expected: block.ommers_hash() }.into(),
+            ));
+        }
+
+        // Check transaction root
+        if let Err(error) = block.ensure_transaction_root_valid() {
+            return Err(ConsensusError::BodyTransactionRootDiff(error.into()));
+        }
+
+        // BSC-specific pre-execution validation will be added here
+        // when we have access to parent header and snapshot context
         Ok(())
     }
 }

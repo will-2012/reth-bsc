@@ -9,6 +9,8 @@ pub mod vote;
 pub mod snapshot;
 pub mod provider;
 pub mod validator;
+pub mod validation;
+pub mod hertz_patch;
 pub mod constants;
 pub mod attestation;
 pub mod gas;
@@ -21,6 +23,8 @@ pub use provider::InMemorySnapshotProvider;
 pub use constants::*;
 pub use attestation::parse_vote_attestation_from_header;
 pub use validator::{ParliaHeaderValidator, SnapshotProvider};
+pub use validation::BscConsensusValidator;
+pub use hertz_patch::{HertzPatchManager, StoragePatch};
 
 /// Epoch length (200 blocks on BSC main-net).
 pub const EPOCH: u64 = 200;

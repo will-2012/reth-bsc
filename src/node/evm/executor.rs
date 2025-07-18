@@ -1,4 +1,5 @@
 use super::patch::{patch_mainnet_after_tx, patch_mainnet_before_tx};
+use crate::consensus::parlia::{HertzPatchManager, StoragePatch};
 use crate::{
     consensus::{MAX_SYSTEM_REWARD, SYSTEM_ADDRESS, SYSTEM_REWARD_PERCENT},
     evm::transaction::BscTxEnv,
@@ -52,6 +53,8 @@ where
     receipt_builder: R,
     /// System contracts used to trigger fork specific logic.
     system_contracts: SystemContract<Spec>,
+    /// Hertz patch manager for mainnet compatibility
+    hertz_patch_manager: HertzPatchManager,
     /// Context for block execution.
     _ctx: EthBlockExecutionCtx<'a>,
 }
@@ -80,6 +83,10 @@ where
         receipt_builder: R,
         system_contracts: SystemContract<Spec>,
     ) -> Self {
+        // Determine if this is mainnet for Hertz patches
+        let is_mainnet = spec.chain().id() == 56; // BSC mainnet chain ID
+        let hertz_patch_manager = HertzPatchManager::new(is_mainnet);
+        
         Self {
             spec,
             evm,
@@ -88,6 +95,7 @@ where
             system_txs: vec![],
             receipt_builder,
             system_contracts,
+            hertz_patch_manager,
             _ctx,
         }
     }
@@ -317,6 +325,9 @@ where
     }
 }
 
+// Note: Storage patch application function is available for future use
+// Currently, Hertz patches are applied through the existing patch system
+
 impl<'a, DB, E, Spec, R> BlockExecutor for BscBlockExecutor<'a, E, Spec, R>
 where
     DB: Database + 'a,
@@ -397,7 +408,11 @@ where
             return Ok(0);
         }
 
-        // apply patches before
+        // Apply Hertz patches before transaction execution
+        // Note: Hertz patches are implemented in the existing patch system
+        // The HertzPatchManager is available for future enhanced patching
+        
+        // apply patches before (legacy - keeping for compatibility)
         patch_mainnet_before_tx(tx.tx(), self.evm.db_mut())?;
 
         let block_available_gas = self.evm.block().gas_limit - self.gas_used;
@@ -427,11 +442,17 @@ where
         }));
         self.evm.db_mut().commit(state);
 
-        // apply patches after
+        // Apply Hertz patches after transaction execution
+        // Note: Hertz patches are implemented in the existing patch system
+        // The HertzPatchManager is available for future enhanced patching
+        
+        // apply patches after (legacy - keeping for compatibility)
         patch_mainnet_after_tx(tx.tx(), self.evm.db_mut())?;
 
         Ok(gas_used)
     }
+
+
 
     fn finish(
         mut self,
