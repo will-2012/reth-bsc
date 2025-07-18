@@ -66,6 +66,7 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
+    /// Creates a new empty snapshot with given validators.
     /// Create a brand-new snapshot at an epoch boundary.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -75,6 +76,9 @@ impl Snapshot {
         epoch_num: u64,
         vote_addrs: Option<Vec<VoteAddress>>, // one-to-one with `validators`
     ) -> Self {
+        // Ensure epoch_num is never zero to prevent division by zero errors
+        let epoch_num = if epoch_num == 0 { DEFAULT_EPOCH_LENGTH } else { epoch_num };
+        
         // Keep validators sorted.
         validators.sort();
 
@@ -287,7 +291,7 @@ impl Decompress for Snapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::B256;
+    use alloy_primitives::{address, b256};
 
     fn addr(n: u64) -> Address {
         // simple helper to create distinct addresses with different last byte.
@@ -316,5 +320,133 @@ mod tests {
         let snap = Snapshot::new(validators, 0, B256::ZERO, DEFAULT_EPOCH_LENGTH, None);
         // no recent entries, validator should be allowed
         assert!(!snap.sign_recently(addr(1)));
+    }
+
+    #[test]
+    fn test_snapshot_new_with_zero_epoch_num() {
+        // Test that creating a snapshot with epoch_num = 0 defaults to DEFAULT_EPOCH_LENGTH
+        let validators = vec![address!("0x1234567890123456789012345678901234567890")];
+        let block_hash = b256!("0x1234567890123456789012345678901234567890123456789012345678901234");
+        
+        let snapshot = Snapshot::new(validators.clone(), 0, block_hash, 0, None);
+        
+        // Should default to DEFAULT_EPOCH_LENGTH, not 0
+        assert_eq!(snapshot.epoch_num, DEFAULT_EPOCH_LENGTH);
+        assert_ne!(snapshot.epoch_num, 0, "epoch_num should never be zero to prevent division by zero");
+    }
+
+    #[test]
+    fn test_snapshot_new_with_valid_epoch_num() {
+        // Test that creating a snapshot with valid epoch_num preserves the value
+        let validators = vec![address!("0x1234567890123456789012345678901234567890")];
+        let block_hash = b256!("0x1234567890123456789012345678901234567890123456789012345678901234");
+        let custom_epoch = 500u64;
+        
+        let snapshot = Snapshot::new(validators.clone(), 0, block_hash, custom_epoch, None);
+        
+        // Should preserve the custom epoch value
+        assert_eq!(snapshot.epoch_num, custom_epoch);
+    }
+
+    #[test]
+    fn test_snapshot_apply_no_division_by_zero() {
+        // Test that applying a snapshot with epoch operations doesn't cause division by zero
+        let validators = vec![address!("0x1234567890123456789012345678901234567890")];
+        let block_hash = b256!("0x1234567890123456789012345678901234567890123456789012345678901234");
+        
+        // Create snapshot with epoch_num = 0 (should be fixed to DEFAULT_EPOCH_LENGTH)
+        let snapshot = Snapshot::new(validators.clone(), 0, block_hash, 0, None);
+        
+        // Create a mock header for apply operation
+        struct MockHeader {
+            number: u64,
+            beneficiary: Address,
+            extra_data: alloy_primitives::Bytes,
+        }
+        
+        impl alloy_consensus::BlockHeader for MockHeader {
+            fn number(&self) -> u64 { self.number }
+            fn beneficiary(&self) -> Address { self.beneficiary }
+            fn gas_limit(&self) -> u64 { 8000000 }
+            fn gas_used(&self) -> u64 { 0 }
+            fn timestamp(&self) -> u64 { 1000000 }
+            fn extra_data(&self) -> &alloy_primitives::Bytes { &self.extra_data }
+            fn base_fee_per_gas(&self) -> Option<u64> { None }
+            fn difficulty(&self) -> alloy_primitives::U256 { alloy_primitives::U256::from(1) }
+            fn transactions_root(&self) -> alloy_primitives::B256 { alloy_primitives::B256::ZERO }
+            fn state_root(&self) -> alloy_primitives::B256 { alloy_primitives::B256::ZERO }
+            fn receipts_root(&self) -> alloy_primitives::B256 { alloy_primitives::B256::ZERO }
+            fn logs_bloom(&self) -> alloy_primitives::Bloom { alloy_primitives::Bloom::ZERO }
+            fn parent_hash(&self) -> alloy_primitives::B256 { alloy_primitives::B256::ZERO }
+            fn ommers_hash(&self) -> alloy_primitives::B256 { alloy_primitives::B256::ZERO }
+            fn withdrawals_root(&self) -> Option<alloy_primitives::B256> { None }
+            fn mix_hash(&self) -> Option<alloy_primitives::B256> { None }
+            fn nonce(&self) -> Option<alloy_primitives::FixedBytes<8>> { None }
+            fn blob_gas_used(&self) -> Option<u64> { None }
+            fn excess_blob_gas(&self) -> Option<u64> { None }
+            fn parent_beacon_block_root(&self) -> Option<alloy_primitives::B256> { None }
+            fn requests_hash(&self) -> Option<alloy_primitives::B256> { None }
+        }
+        
+        impl alloy_primitives::Sealable for MockHeader {
+            fn hash_slow(&self) -> alloy_primitives::B256 {
+                alloy_primitives::keccak256(format!("mock_header_{}", self.number))
+            }
+        }
+        
+        let header = MockHeader {
+            number: 1,
+            beneficiary: validators[0],
+            extra_data: alloy_primitives::Bytes::new(),
+        };
+        
+        // This should not panic due to division by zero
+        let result = snapshot.apply(
+            validators[0],
+            &header,
+            vec![], // new_validators
+            None,   // vote_addrs
+            None,   // attestation
+            None,   // turn_length
+            false,  // is_bohr
+        );
+        
+        assert!(result.is_some(), "Apply should succeed without division by zero");
+        let new_snapshot = result.unwrap();
+        assert_eq!(new_snapshot.block_number, 1);
+        assert_ne!(new_snapshot.epoch_num, 0, "Applied snapshot should maintain non-zero epoch_num");
+    }
+
+    #[test]
+    fn test_inturn_validator_no_division_by_zero() {
+        // Test that inturn_validator calculation doesn't cause division by zero
+        let validators = vec![
+            address!("0x1234567890123456789012345678901234567890"),
+            address!("0x2345678901234567890123456789012345678901"),
+        ];
+        let block_hash = b256!("0x1234567890123456789012345678901234567890123456789012345678901234");
+        
+        // Create snapshot with epoch_num = 0 (should be fixed)
+        let snapshot = Snapshot::new(validators.clone(), 0, block_hash, 0, None);
+        
+        // This should not panic
+        let inturn = snapshot.inturn_validator();
+        assert!(validators.contains(&inturn), "Should return a valid validator");
+    }
+
+    #[test]
+    fn test_miner_history_check_len_no_division_by_zero() {
+        // Test that miner_history_check_len calculation works correctly
+        let validators = vec![
+            address!("0x1234567890123456789012345678901234567890"),
+            address!("0x2345678901234567890123456789012345678901"),
+        ];
+        let block_hash = b256!("0x1234567890123456789012345678901234567890123456789012345678901234");
+        
+        let snapshot = Snapshot::new(validators.clone(), 0, block_hash, 0, None);
+        
+        // This should not panic and should return a reasonable value
+        let check_len = snapshot.miner_history_check_len();
+        assert!(check_len > 0, "Check length should be positive");
     }
 } 
