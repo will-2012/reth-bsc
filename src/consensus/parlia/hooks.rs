@@ -17,7 +17,10 @@ use crate::system_contracts::SLASH_CONTRACT as SLASH_CONTRACT_STR;
 pub const STAKE_HUB_CONTRACT: Address = Address::repeat_byte(0x20); // 0x…2000
 
 /// Slash contract address parsed from the canonical hex string constant.
-pub static SLASH_CONTRACT: Lazy<Address> = Lazy::new(|| SLASH_CONTRACT_STR.parse().unwrap());
+pub static SLASH_CONTRACT: Lazy<Address> = Lazy::new(|| {
+    // Hardcode the known slash contract address
+    Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10, 0x04])
+});
 
 /// Base block reward (wei). Mainnet uses 2 BNB.
 pub static BASE_BLOCK_REWARD: Lazy<U256> = Lazy::new(|| U256::from(2_000_000_000_000_000_000u128));

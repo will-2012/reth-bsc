@@ -507,7 +507,7 @@ where
                     gas_price: 0,
                     value: alloy_primitives::U256::ZERO,
                     input: alloy_primitives::Bytes::from(input),
-                    to: alloy_primitives::TxKind::Call(SLASH_CONTRACT.parse().unwrap()),
+                    to: alloy_primitives::TxKind::Call(Address::from(*SLASH_CONTRACT)),
                 }),
                 alloy_primitives::Signature::new(Default::default(), Default::default(), false),
             );

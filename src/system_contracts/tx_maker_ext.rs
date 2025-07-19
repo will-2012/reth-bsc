@@ -27,7 +27,7 @@ impl<Spec: EthChainSpec> SystemContract<Spec> {
                 gas_price: 0,
                 value: U256::ZERO,
                 input,
-                to: TxKind::Call(SLASH_CONTRACT.parse().unwrap()),
+                to: TxKind::Call(Address::from(*SLASH_CONTRACT)),
             }),
             signature,
         )

@@ -73,5 +73,5 @@ fn slash_tx_sent_when_over_proposed() {
     let out = (ParliaHooks, &maker).on_pre_execution(&snap, beneficiary, true);
     assert_eq!(out.system_txs.len(), 1);
     let tx = &out.system_txs[0];
-    assert_eq!(tx.to().unwrap(), SLASH_CONTRACT.parse::<Address>().unwrap());
+    assert_eq!(tx.to().unwrap(), Address::from(*SLASH_CONTRACT));
 } 
