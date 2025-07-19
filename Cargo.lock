@@ -238,8 +238,7 @@ dependencies = [
 [[package]]
 name = "alloy-evm"
 version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef2d6e0448bfd057a4438226b3d2fd547a0530fa4226217dfb1682d09f108bd4"
+source = "git+https://github.com/will-2012/wrapper-evm?branch=fix-badblock-v1#6cfec5a53e42ba6ebbf3e3fc6c32d18493fe59af"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
