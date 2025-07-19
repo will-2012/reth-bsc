@@ -52,7 +52,9 @@ hardfork!(
         HaberFix,
         /// BSC `Bohr` hardfork
         Bohr,
-        /// BSC `Pascal` hardfork
+        /// BSC `Tycho` hardfork - June 2024, added blob transaction support
+        Tycho,
+        /// BSC `Pascal` hardfork - March 2025, added smart contract wallets
         Pascal,
         /// BSC `Lorentz` hardfork
         Lorentz,
@@ -224,24 +226,19 @@ impl BscHardfork {
             (Self::Hertz.boxed(), ForkCondition::Block(31302048)),
             (Self::HertzFix.boxed(), ForkCondition::Block(34140700)),
             (EthereumHardfork::Shanghai.boxed(), ForkCondition::Timestamp(1705996800)), /* 2024-01-23 08:00:00 AM UTC */
-            (Self::Kepler.boxed(), ForkCondition::Timestamp(1705996800)), /* 2024-01-23 08:00:00
-                                                                           * AM UTC */
-            (Self::Feynman.boxed(), ForkCondition::Timestamp(1713419340)), /* 2024-04-18
-                                                                            * 05:49:00 AM UTC */
+            (Self::Kepler.boxed(), ForkCondition::Timestamp(1705996800)), /* 2024-01-23 08:00:00 AM UTC */
+            (Self::Feynman.boxed(), ForkCondition::Timestamp(1713419340)), /* 2024-04-18 05:49:00 AM UTC */
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1713419340)), /* 2024-04-18 05:49:00 AM UTC */
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC */
-            (Self::Haber.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00
-                                                                          * AM UTC */
+            (Self::Haber.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC - deployed with Cancun */
+            (Self::Tycho.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC - Tycho hardfork with blob transactions (deployed with Haber) */
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1727316120)), /* 2024-09-26 02:02:00 AM UTC */
-            (Self::Bohr.boxed(), ForkCondition::Timestamp(1727317200)), /* 2024-09-26 02:20:00
-                                                                         * AM UTC */
+            (Self::Bohr.boxed(), ForkCondition::Timestamp(1727317200)), /* 2024-09-26 02:20:00 AM UTC */
             (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1742436600)), /* 2025-03-20 02:10:00 AM UTC */
-            (Self::Pascal.boxed(), ForkCondition::Timestamp(1742436600)), /* 2025-03-20 02:10:00
-                                                                           * AM UTC */
-            (Self::Lorentz.boxed(), ForkCondition::Timestamp(1745903100)), /* 2025-04-29
-                                                                            * 05:05:00 AM UTC */
-            (Self::Maxwell.boxed(), ForkCondition::Timestamp(1751250600)), /* 2025-06-30
-                                                                            * 02:30:00 AM UTC */
+            (Self::Pascal.boxed(), ForkCondition::Timestamp(1742436600)), /* 2025-03-20 02:10:00 AM UTC - deployed with Prague */
+            (Self::Lorentz.boxed(), ForkCondition::Timestamp(1745903100)), /* 2025-04-29 05:05:00 AM UTC */
+            (Self::Maxwell.boxed(), ForkCondition::Timestamp(1751250600)), /* 2025-06-30 02:30:00 AM UTC */
+            // Note: FermiTime is nil in official BSC config, so we don't include it yet
         ])
     }
 
@@ -280,6 +277,7 @@ impl BscHardfork {
             (Self::Haber.boxed(), ForkCondition::Timestamp(1716962820)),
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1719986788)),
             (Self::Bohr.boxed(), ForkCondition::Timestamp(1724116996)),
+            (Self::Tycho.boxed(), ForkCondition::Timestamp(1713330442)), /* 2024-04-17 05:07:22 AM UTC - Tycho testnet */
         ])
     }
 
@@ -358,6 +356,7 @@ impl From<BscHardfork> for SpecId {
             BscHardfork::Haber |
             BscHardfork::HaberFix |
             BscHardfork::Bohr |
+            BscHardfork::Tycho |
             BscHardfork::Pascal |
             BscHardfork::Lorentz |
             BscHardfork::Maxwell => SpecId::CANCUN,

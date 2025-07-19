@@ -46,15 +46,34 @@ where
 
     // Luban & later: 1-byte validator count
     let num_validators = extra[cursor] as usize;
-    let _ = VALIDATOR_BYTES_LEN_AFTER_LUBAN;
     cursor += VALIDATOR_NUMBER_SIZE;
+    
+    // Sanity check: ensure we have enough space for all validators + optional turn length
+    let required_space = EXTRA_VANITY + VALIDATOR_NUMBER_SIZE + 
+                        (num_validators * VALIDATOR_BYTES_LEN_AFTER_LUBAN) + 
+                        (if is_bohr { 1 } else { 0 }) + EXTRA_SEAL;
+    if extra.len() < required_space {
+        // Not enough space for the claimed number of validators
+        return (Vec::new(), None, None);
+    }
 
     let mut vals = Vec::with_capacity(num_validators);
     let mut vote_vals = Vec::with_capacity(num_validators);
     for _ in 0..num_validators {
+        // Check bounds before accessing consensus address (20 bytes)
+        if cursor + 20 > extra.len() - EXTRA_SEAL {
+            // Not enough space for validator data
+            return (vals, Some(vote_vals), None);
+        }
         // 20-byte consensus addr
         vals.push(Address::from_slice(&extra[cursor..cursor + 20]));
         cursor += 20;
+        
+        // Check bounds before accessing BLS vote address (48 bytes)
+        if cursor + 48 > extra.len() - EXTRA_SEAL {
+            // Not enough space for vote address data
+            return (vals, Some(vote_vals), None);
+        }
         // 48-byte BLS vote addr
         vote_vals.push(VoteAddress::from_slice(&extra[cursor..cursor + 48]));
         cursor += 48;
@@ -62,8 +81,14 @@ where
 
     // Optional turnLength byte in Bohr headers
     let turn_len = if is_bohr {
-        let tl = extra[cursor];
-        Some(tl)
+        // Check if there's space for turn length byte before EXTRA_SEAL
+        if cursor + 1 <= extra.len() - EXTRA_SEAL {
+            let tl = extra[cursor];
+            Some(tl)
+        } else {
+            // Not enough space for turn length, header might be malformed
+            None
+        }
     } else {
         None
     };
