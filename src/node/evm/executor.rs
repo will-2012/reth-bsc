@@ -5,7 +5,8 @@ use crate::{
     evm::transaction::BscTxEnv,
     hardforks::BscHardforks,
     system_contracts::{
-        get_upgrade_system_contracts, is_system_transaction, SystemContract, SYSTEM_REWARD_CONTRACT,
+        get_upgrade_system_contracts, is_system_transaction, SystemContract, STAKE_HUB_CONTRACT,
+        SYSTEM_REWARD_CONTRACT,
     },
 };
 use alloy_consensus::{Transaction, TxReceipt};
@@ -33,7 +34,6 @@ use revm::{
     state::Bytecode,
     Database as _, DatabaseCommit,
 };
-use std::str::FromStr;
 
 pub struct BscBlockExecutor<'a, EVM, Spec, R: ReceiptBuilder>
 where
@@ -101,11 +101,7 @@ where
     }
 
     /// Applies system contract upgrades if the Feynman fork is not yet active.
-    fn apply_upgrade_contracts_if_before_feynman(&mut self) -> Result<(), BlockExecutionError> {
-        if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
-            return Ok(());
-        }
-
+    fn upgrade_contracts(&mut self) -> Result<(), BlockExecutionError> {
         let contracts = get_upgrade_system_contracts(
             &self.spec,
             self.evm.block().number.to(),
@@ -125,10 +121,21 @@ where
     }
 
     /// Initializes the feynman contracts
-    fn deploy_feynman_contracts(
+    fn initialize_feynman_contracts(
         &mut self,
         beneficiary: Address,
     ) -> Result<(), BlockExecutionError> {
+        // Exit early if contracts are already initialized
+        if !self
+            .evm
+            .db_mut()
+            .storage(STAKE_HUB_CONTRACT, U256::ZERO)
+            .map_err(BlockExecutionError::other)?
+            .is_zero()
+        {
+            return Ok(());
+        }
+
         let txs = self.system_contracts.feynman_contracts_txs();
         for tx in txs {
             self.transact_system_tx(&tx, beneficiary)?;
@@ -300,7 +307,7 @@ where
         let system_reward_balance = self
             .evm
             .db_mut()
-            .basic(Address::from_str(SYSTEM_REWARD_CONTRACT).unwrap())
+            .basic(SYSTEM_REWARD_CONTRACT)
             .map_err(BlockExecutionError::other)?
             .unwrap_or_default()
             .balance;
@@ -357,7 +364,9 @@ where
         // TODO: (Consensus Verify cascading fields)[https://github.com/bnb-chain/reth/blob/main/crates/bsc/evm/src/pre_execution.rs#L43]
         // TODO: (Consensus System Call Before Execution)[https://github.com/bnb-chain/reth/blob/main/crates/bsc/evm/src/execute.rs#L678]
 
-        self.apply_upgrade_contracts_if_before_feynman()?;
+        if !self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
+            self.upgrade_contracts()?;
+        }
 
         // -----------------------------------------------------------------
         // Consensus hooks: pre-execution (rewards/slashing system-txs)
@@ -466,10 +475,16 @@ where
             self.deploy_genesis_contracts(self.evm.block().beneficiary)?;
         }
 
-        self.apply_upgrade_contracts_if_before_feynman()?;
-
         if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
-            self.deploy_feynman_contracts(self.evm.block().beneficiary)?;
+            self.upgrade_contracts()?;
+        }
+
+        if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) &&
+            !self
+                .spec
+                .is_feynman_active_at_timestamp(self.evm.block().timestamp.to::<u64>() - 100)
+        {
+            self.initialize_feynman_contracts(self.evm.block().beneficiary)?;
         }
 
         // Prepare system transactions list and append slash transactions collected from consensus.

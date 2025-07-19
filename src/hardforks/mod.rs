@@ -195,4 +195,9 @@ pub trait BscHardforks: EthereumHardforks {
     fn is_lorentz_active_at_timestamp(&self, timestamp: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::Lorentz).active_at_timestamp(timestamp)
     }
+
+    /// Convenience method to check if [`BscHardfork::Maxwell`] is active at a given timestamp.
+    fn is_maxwell_active_at_timestamp(&self, timestamp: u64) -> bool {
+        self.bsc_fork_activation(BscHardfork::Maxwell).active_at_timestamp(timestamp)
+    }
 }

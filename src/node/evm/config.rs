@@ -308,7 +308,9 @@ pub fn revm_spec_by_timestamp_and_block_number(
     timestamp: u64,
     block_number: u64,
 ) -> BscHardfork {
-    if chain_spec.is_lorentz_active_at_timestamp(timestamp) {
+    if chain_spec.is_maxwell_active_at_timestamp(timestamp) {
+        BscHardfork::Maxwell
+    } else if chain_spec.is_lorentz_active_at_timestamp(timestamp) {
         BscHardfork::Lorentz
     } else if chain_spec.is_pascal_active_at_timestamp(timestamp) {
         BscHardfork::Pascal
@@ -334,23 +336,41 @@ pub fn revm_spec_by_timestamp_and_block_number(
         BscHardfork::Luban
     } else if chain_spec.is_planck_active_at_block(block_number) {
         BscHardfork::Planck
-    } else if chain_spec.is_gibbs_active_at_block(block_number) {
-        BscHardfork::Gibbs
-    } else if chain_spec.is_moran_active_at_block(block_number) {
-        BscHardfork::Moran
-    } else if chain_spec.is_nano_active_at_block(block_number) {
-        BscHardfork::Nano
-    } else if chain_spec.is_euler_active_at_block(block_number) {
-        BscHardfork::Euler
-    } else if chain_spec.is_bruno_active_at_block(block_number) {
-        BscHardfork::Bruno
-    } else if chain_spec.is_mirror_sync_active_at_block(block_number) {
-        BscHardfork::MirrorSync
-    } else if chain_spec.is_niels_active_at_block(block_number) {
-        BscHardfork::Niels
-    } else if chain_spec.is_ramanujan_active_at_block(block_number) {
-        BscHardfork::Ramanujan
     } else {
-        BscHardfork::Frontier
+        // Dynamically determine the order for Moran, Nano, Gibbs for the current chain
+        fn get_activation_block(fc: &reth_chainspec::ForkCondition) -> Option<u64> {
+            match fc {
+                reth_chainspec::ForkCondition::Block(b) => Some(*b),
+                _ => None,
+            }
+        }
+        let gibbs_block = get_activation_block(&chain_spec.bsc_fork_activation(BscHardfork::Gibbs));
+        let moran_block = get_activation_block(&chain_spec.bsc_fork_activation(BscHardfork::Moran));
+        let nano_block = get_activation_block(&chain_spec.bsc_fork_activation(BscHardfork::Nano));
+        // Sort by activation block descending (newest first)
+        let mut forks = vec![
+            (gibbs_block, BscHardfork::Gibbs),
+            (moran_block, BscHardfork::Moran),
+            (nano_block, BscHardfork::Nano),
+        ];
+        forks.sort_by(|a, b| b.0.cmp(&a.0));
+        for &(_, fork) in &forks {
+            if chain_spec.bsc_fork_activation(fork).active_at_block(block_number) {
+                return fork;
+            }
+        }
+        if chain_spec.is_euler_active_at_block(block_number) {
+            BscHardfork::Euler
+        } else if chain_spec.is_bruno_active_at_block(block_number) {
+            BscHardfork::Bruno
+        } else if chain_spec.is_mirror_sync_active_at_block(block_number) {
+            BscHardfork::MirrorSync
+        } else if chain_spec.is_niels_active_at_block(block_number) {
+            BscHardfork::Niels
+        } else if chain_spec.is_ramanujan_active_at_block(block_number) {
+            BscHardfork::Ramanujan
+        } else {
+            BscHardfork::Frontier
+        }
     }
 }

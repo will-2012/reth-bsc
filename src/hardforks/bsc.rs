@@ -233,7 +233,9 @@ impl BscHardfork {
             (Self::Haber.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC - deployed with Cancun */
             (Self::Tycho.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC - Tycho hardfork with blob transactions (deployed with Haber) */
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1727316120)), /* 2024-09-26 02:02:00 AM UTC */
-            (Self::Bohr.boxed(), ForkCondition::Timestamp(1727317200)), /* 2024-09-26 02:20:00 AM UTC */
+            (Self::Bohr.boxed(), ForkCondition::Timestamp(1727317200)),     /* 2024-09-26
+                                                                             * 02:20:00
+                                                                             * AM UTC */
             (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1742436600)), /* 2025-03-20 02:10:00 AM UTC */
             (Self::Pascal.boxed(), ForkCondition::Timestamp(1742436600)), /* 2025-03-20 02:10:00 AM UTC - deployed with Prague */
             (Self::Lorentz.boxed(), ForkCondition::Timestamp(1745903100)), /* 2025-04-29 05:05:00 AM UTC */
@@ -278,6 +280,10 @@ impl BscHardfork {
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1719986788)),
             (Self::Bohr.boxed(), ForkCondition::Timestamp(1724116996)),
             (Self::Tycho.boxed(), ForkCondition::Timestamp(1713330442)), /* 2024-04-17 05:07:22 AM UTC - Tycho testnet */
+            (EthereumHardfork::Prague.boxed(), ForkCondition::Timestamp(1740452880)),
+            (Self::Pascal.boxed(), ForkCondition::Timestamp(1740452880)),
+            (Self::Lorentz.boxed(), ForkCondition::Timestamp(1744097580)),
+            (Self::Maxwell.boxed(), ForkCondition::Timestamp(1748243100)),
         ])
     }
 
@@ -367,6 +373,7 @@ impl From<BscHardfork> for SpecId {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chainspec::{bsc::bsc_mainnet, bsc_chapel::bsc_testnet};
 
     #[test]
     fn test_match_hardfork() {
@@ -376,5 +383,107 @@ mod tests {
             Some(1718863500)
         );
         assert_eq!(BscHardfork::bsc_mainnet_activation_timestamp(BscHardfork::HaberFix), None);
+    }
+
+    #[test]
+    fn test_hardfork_activation_order_differences() {
+        // Test the critical difference between mainnet and testnet activation orders
+        // This demonstrates why the order in revm_spec_by_timestamp_and_block_number matters
+
+        // Mainnet activation blocks (from the code):
+        // Euler: 18907621, Nano: 21962149, Moran: 22107423, Gibbs: 23846001
+        // Order: Gibbs -> Moran -> Nano -> Euler (newest to oldest)
+
+        // Testnet activation blocks (from the code):
+        // Euler: 19203503, Gibbs: 22800220, Nano: 23482428, Moran: 23603940
+        // Order: Moran -> Nano -> Gibbs -> Euler (newest to oldest)
+
+        // Test mainnet chain spec
+        let mainnet_spec = crate::chainspec::BscChainSpec::from(bsc_mainnet());
+        
+        // Test blocks around the critical transition points
+        // Block 23846000: Should be Moran (before Gibbs activation)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                mainnet_spec.clone(),
+                1700000000, // Some timestamp
+                23846000
+            ),
+            BscHardfork::Moran
+        );
+
+        // Block 23846001: Should be Gibbs (Gibbs activation block)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                mainnet_spec.clone(),
+                1700000000, // Some timestamp
+                23846001
+            ),
+            BscHardfork::Gibbs
+        );
+
+        // Block 22107422: Should be Nano (before Moran activation)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                mainnet_spec.clone(),
+                1700000000, // Some timestamp
+                22107422
+            ),
+            BscHardfork::Nano
+        );
+
+        // Block 22107423: Should be Moran (Moran activation block)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                mainnet_spec.clone(),
+                1700000000, // Some timestamp
+                22107423
+            ),
+            BscHardfork::Moran
+        );
+
+        // Test testnet chain spec
+        let testnet_spec = crate::chainspec::BscChainSpec::from(bsc_testnet());
+        
+        // Test blocks around the critical transition points for testnet
+        // Block 23603939: Should be Nano (before Moran activation)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                testnet_spec.clone(),
+                1700000000, // Some timestamp
+                23603939
+            ),
+            BscHardfork::Nano
+        );
+
+        // Block 23603940: Should be Moran (Moran activation block)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                testnet_spec.clone(),
+                1700000000, // Some timestamp
+                23603940
+            ),
+            BscHardfork::Moran
+        );
+
+        // Block 23482427: Should be Gibbs (before Nano activation)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                testnet_spec.clone(),
+                1700000000, // Some timestamp
+                23482427
+            ),
+            BscHardfork::Gibbs
+        );
+
+        // Block 23482428: Should be Nano (Nano activation block)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                testnet_spec.clone(),
+                1700000000, // Some timestamp
+                23482428
+            ),
+            BscHardfork::Nano
+        );
     }
 }
