@@ -16,6 +16,9 @@ static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 struct NoArgs;
 
 fn main() -> eyre::Result<()> {
+    eprintln!("=== RETH-BSC MAIN STARTED ===");
+    eprintln!("Testing logging functionality...");
+    
     reth_cli_util::sigsegv_handler::install();
 
     // Enable backtraces unless a RUST_BACKTRACE value has already been explicitly provided.
