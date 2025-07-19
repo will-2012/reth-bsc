@@ -153,16 +153,16 @@ client = [
 
 [patch.crates-io]
 # Patch all revm dependencies to use will-2012/revm fork
-revm = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-revm-bytecode = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-revm-database = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-revm-state = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-revm-primitives = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-revm-interpreter = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-revm-inspector = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-revm-context = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-revm-context-interface = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-revm-database-interface = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-op-revm = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-revm-handler = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
-revm-precompile = { git = "https://github.com/will-2012/revm", rev = "8d5348dbbd25bf6581b390f330a19ddb9cc4f66e" }
+revm = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+revm-bytecode = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+revm-database = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+revm-state = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+revm-primitives = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+revm-interpreter = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+revm-inspector = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+revm-context = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+revm-context-interface = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+revm-database-interface = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+op-revm = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+revm-handler = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
+revm-precompile = { git = "https://github.com/will-2012/revm", rev = "c8410ef" }
