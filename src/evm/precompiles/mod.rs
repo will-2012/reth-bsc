@@ -189,7 +189,19 @@ where
         is_static: bool,
         gas_limit: u64,
     ) -> Result<Option<Self::Output>, String> {
-        self.inner.run(context, address, inputs, is_static, gas_limit)
+        eprintln!("=== BSC PRECOMPILE RUN METHOD CALLED ===");
+        eprintln!("reth-bsc run precompile: {:?}", address);
+        eprintln!("reth-bsc precompile gas_limit: {:?}", gas_limit);
+        eprintln!("reth-bsc precompile is_static: {:?}", is_static);
+        eprintln!("reth-bsc precompile inputs target_address: {:?}", inputs.target_address);
+        eprintln!("reth-bsc precompile inputs caller_address: {:?}", inputs.caller_address);
+        
+        let result = self.inner.run(context, address, inputs, is_static, gas_limit);
+        
+        eprintln!("reth-bsc precompile result: {:?}", result);
+        eprintln!("=== BSC PRECOMPILE RUN METHOD END ===");
+        
+        result
     }
 
     #[inline]
