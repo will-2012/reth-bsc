@@ -272,6 +272,27 @@ where
         Ok(())
     }
 
+    fn handle_update_validator_set_v2_tx(&mut self, tx: &TransactionSigned) -> Result<(), BlockExecutionError> {
+        sol!(
+            function updateValidatorSetV2(
+                address[] _consensusAddrs,
+                uint64[] _votingPowers,
+                bytes[] _voteAddrs
+            );
+        );
+
+        let input = tx.input();
+        let is_update_validator_set_tx =
+            input.len() >= 4 && input[..4] == updateValidatorSetV2Call::SELECTOR;
+
+        if is_update_validator_set_tx {
+            let signer = tx.recover_signer().map_err(BlockExecutionError::other)?;
+            self.transact_system_tx(tx, signer)?;
+        }
+
+        Ok(())
+    }
+
     /// Distributes block rewards to the validator.
     fn distribute_block_rewards(&mut self, validator: Address) -> Result<(), BlockExecutionError> {
         let system_account = self
@@ -457,9 +478,14 @@ where
             }
         }
 
+        // TODO: refine later
+        let system_txs_v2 = self.system_txs.clone();
+        for tx in &system_txs_v2 {
+            self.handle_update_validator_set_v2_tx(tx)?;
+        }
+
         // TODO:
         // Consensus: Slash validator if not in turn
-        // Consensus: Update validator set
 
         Ok((
             self.evm,
