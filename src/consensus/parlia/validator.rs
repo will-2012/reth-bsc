@@ -200,6 +200,35 @@ where
             return Err(ConsensusError::Other("missing snapshot".into()));
         };
 
+        // --------------------------------------------------------------------
+        // 2.5 Ramanujan block time validation
+        // --------------------------------------------------------------------
+        // After Ramanujan fork, enforce stricter timing rules
+        if parent.number() >= 13082191 { // Ramanujan activation block on BSC mainnet
+            let block_interval = parent_snap.block_interval;
+            let validator = header.beneficiary();
+            let is_inturn = parent_snap.inturn_validator() == validator;
+            
+            // Calculate back-off time for out-of-turn validators
+            let back_off_time = if is_inturn {
+                0
+            } else {
+                // Out-of-turn validators must wait longer
+                let turn_length = parent_snap.turn_length.unwrap_or(1) as u64;
+                turn_length * block_interval / 2
+            };
+            
+            let min_timestamp = parent.timestamp() + block_interval + back_off_time;
+            if header.timestamp() < min_timestamp {
+                return Err(ConsensusError::Other(format!(
+                    "Ramanujan block time validation failed: block {} timestamp {} too early (expected >= {})",
+                    header.number(),
+                    header.timestamp(),
+                    min_timestamp
+                )));
+            }
+        }
+
         // Gas-limit rule verification (Lorentz divisor switch).
         let epoch_len = parent_snap.epoch_num;
         let parent_gas_limit = parent.gas_limit();
