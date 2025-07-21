@@ -406,7 +406,7 @@ where
             alloy_consensus::TxType::Eip4844 => "EIP-4844",
             alloy_consensus::TxType::Eip7702 => "EIP-7702",
         };
-        tracing::info!("Try Debug Executing transaction: hash={:?}, type={} ({:?})", tx_hash, tx_type_str, tx_type);
+        tracing::info!("Try Debug Executing transaction: hash={:?}, type={} ({:?}), spec={:?}", tx_hash, tx_type_str, tx_type, self.spec);
 
         // Check if it's a system transaction
         let signer = tx.signer();
