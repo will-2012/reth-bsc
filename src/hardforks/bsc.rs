@@ -400,7 +400,7 @@ mod tests {
 
         // Test mainnet chain spec
         let mainnet_spec = crate::chainspec::BscChainSpec::from(bsc_mainnet());
-        
+
         // Test blocks around the critical transition points
         // Block 23846000: Should be Moran (before Gibbs activation)
         assert_eq!(
@@ -444,7 +444,7 @@ mod tests {
 
         // Test testnet chain spec
         let testnet_spec = crate::chainspec::BscChainSpec::from(bsc_testnet());
-        
+
         // Test blocks around the critical transition points for testnet
         // Block 23603939: Should be Nano (before Moran activation)
         assert_eq!(
