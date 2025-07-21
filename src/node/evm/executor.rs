@@ -1,4 +1,4 @@
-use super::patch::{patch_mainnet_after_tx, patch_mainnet_before_tx};
+use super::patch::{patch_mainnet_after_tx, patch_mainnet_before_tx, patch_chapel_after_tx, patch_chapel_before_tx};
 use crate::{
     consensus::{MAX_SYSTEM_REWARD, SYSTEM_ADDRESS, SYSTEM_REWARD_PERCENT},
     evm::transaction::BscTxEnv,
@@ -407,6 +407,7 @@ where
 
         // apply patches before
         patch_mainnet_before_tx(tx.tx(), self.evm.db_mut())?;
+        patch_chapel_before_tx(tx.tx(), self.evm.db_mut())?;
 
         let block_available_gas = self.evm.block().gas_limit - self.gas_used;
         if tx.tx().gas_limit() > block_available_gas {
@@ -437,6 +438,7 @@ where
 
         // apply patches after
         patch_mainnet_after_tx(tx.tx(), self.evm.db_mut())?;
+        patch_chapel_after_tx(tx.tx(), self.evm.db_mut())?;
 
         Ok(gas_used)
     }
