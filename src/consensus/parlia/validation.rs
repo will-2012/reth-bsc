@@ -96,7 +96,7 @@ where
     /// Verify ECDSA signature seal
     /// This checks that the header was signed by the expected validator
     fn verify_seal(&self, snapshot: &Snapshot, header: &SealedHeader) -> Result<(), ConsensusError> {
-        let proposer = self.recover_proposer(header)?;
+        let proposer = self.recover_proposer_from_seal(header)?;
         
         if proposer != header.beneficiary() {
             return Err(ConsensusError::Other(format!(
@@ -144,6 +144,47 @@ where
         // Return the beneficiary for now - this will be properly implemented
         // once we have the correct seal verification logic
         Ok(header.beneficiary())
+    }
+    
+    /// Recover proposer address from header seal (ECDSA signature recovery)
+    fn recover_proposer_from_seal(&self, header: &SealedHeader) -> Result<Address, ConsensusError> {
+        use secp256k1::{ecdsa::{RecoverableSignature, RecoveryId}, Message, SECP256K1};
+        
+        // Extract seal from extra data (last 65 bytes)
+        let extra_data = &header.extra_data();
+        if extra_data.len() < 65 {
+            return Err(ConsensusError::Other("Invalid seal: extra data too short".into()));
+        }
+        
+        let seal_start = extra_data.len() - 65;
+        let seal_bytes = &extra_data[seal_start..];
+        
+        // Split seal into signature (64 bytes) and recovery id (1 byte)
+        let sig_bytes = &seal_bytes[..64];
+        let recovery_id = seal_bytes[64];
+        
+        // Create the message hash for signature verification
+        let msg_hash = self.hash_with_chain_id(header);
+        let message = Message::from_digest(msg_hash.0);
+        
+        // Parse signature components
+        let recovery_id = RecoveryId::from_i32(recovery_id as i32)
+            .map_err(|_| ConsensusError::Other("Invalid recovery ID".into()))?;
+            
+        let signature = RecoverableSignature::from_compact(sig_bytes, recovery_id)
+            .map_err(|_| ConsensusError::Other("Invalid signature format".into()))?;
+        
+        // Recover public key and derive address
+        let public_key = SECP256K1.recover_ecdsa(&message, &signature)
+            .map_err(|_| ConsensusError::Other("Failed to recover public key".into()))?;
+            
+        // Convert public key to address (last 20 bytes of keccak256 hash)
+        use alloy_primitives::keccak256;
+        let public_key_bytes = public_key.serialize_uncompressed();
+        let hash = keccak256(&public_key_bytes[1..]); // Skip the 0x04 prefix
+        let address = Address::from_slice(&hash[12..]);
+        
+        Ok(address)
     }
 
     /// Create hash with chain ID for signature verification
