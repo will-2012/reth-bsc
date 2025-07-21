@@ -406,7 +406,6 @@ where
             alloy_consensus::TxType::Eip4844 => "EIP-4844",
             alloy_consensus::TxType::Eip7702 => "EIP-7702",
         };
-        tracing::info!("Try Debug Executing transaction: hash={:?}, type={} ({:?}), spec={:?}", tx_hash, tx_type_str, tx_type, self.spec);
 
         // Check if it's a system transaction
         let signer = tx.signer();
@@ -437,13 +436,24 @@ where
 
         let gas_used = result.gas_used();
         self.gas_used += gas_used;
-        self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
+        let r = self.receipt_builder.build_receipt(ReceiptBuilderCtx {
             tx: tx.tx(),
             evm: &self.evm,
             result,
             state: &state,
             cumulative_gas_used: self.gas_used,
-        }));
+        });
+        let tx_hash = tx.tx().hash();
+        let tx_type = tx.tx().tx_type();
+        let tx_type_str = match tx_type {
+            alloy_consensus::TxType::Legacy => "Legacy",
+            alloy_consensus::TxType::Eip2930 => "EIP-2930",
+            alloy_consensus::TxType::Eip1559 => "EIP-1559",
+            alloy_consensus::TxType::Eip4844 => "EIP-4844",
+            alloy_consensus::TxType::Eip7702 => "EIP-7702",
+        };
+        tracing::info!("Try Debug Executing transaction: hash={:?}, type={} ({:?}), receipt={:?}", tx_hash, tx_type_str, tx_type, r);
+        self.receipts.push(r);
         self.evm.db_mut().commit(state);
 
         // apply patches after
