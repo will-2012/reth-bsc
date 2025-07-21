@@ -396,8 +396,10 @@ where
             + RecoveredTx<TransactionSigned>,
         f: impl for<'b> FnOnce(&'b ExecutionResult<<E as alloy_evm::Evm>::HaltReason>),
     ) -> Result<u64, BlockExecutionError> {
-        // Log transaction hash and type
+        // Log transaction hash at the beginning
         let tx_hash = tx.tx().hash();
+        tracing::info!("Starting transaction execution: hash={:?}", tx_hash);
+        
         let tx_type = tx.tx().tx_type();
         let tx_type_str = match tx_type {
             alloy_consensus::TxType::Legacy => "Legacy",
@@ -443,16 +445,8 @@ where
             state: &state,
             cumulative_gas_used: self.gas_used,
         });
-        let tx_hash = tx.tx().hash();
-        let tx_type = tx.tx().tx_type();
-        let tx_type_str = match tx_type {
-            alloy_consensus::TxType::Legacy => "Legacy",
-            alloy_consensus::TxType::Eip2930 => "EIP-2930",
-            alloy_consensus::TxType::Eip1559 => "EIP-1559",
-            alloy_consensus::TxType::Eip4844 => "EIP-4844",
-            alloy_consensus::TxType::Eip7702 => "EIP-7702",
-        };
-        tracing::info!("Try Debug Executing transaction: hash={:?}, type={} ({:?}), receipt={:?}", tx_hash, tx_type_str, tx_type, r);
+        
+        tracing::info!("Transaction execution completed: hash={:?}, type={} ({:?}), receipt={:?}", tx_hash, tx_type_str, tx_type, r);
         self.receipts.push(r);
         self.evm.db_mut().commit(state);
 
