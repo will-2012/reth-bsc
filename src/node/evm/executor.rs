@@ -272,6 +272,8 @@ where
         Ok(())
     }
 
+     /// Handle update validatorsetv2 system tx.
+     /// Activated by <https://github.com/bnb-chain/BEPs/pull/294>
     fn handle_update_validator_set_v2_tx(&mut self, tx: &TransactionSigned) -> Result<(), BlockExecutionError> {
         sol!(
             function updateValidatorSetV2(
@@ -282,10 +284,10 @@ where
         );
 
         let input = tx.input();
-        let is_update_validator_set_tx =
+        let is_update_validator_set_v2_tx =
             input.len() >= 4 && input[..4] == updateValidatorSetV2Call::SELECTOR;
 
-        if is_update_validator_set_tx {
+        if is_update_validator_set_v2_tx {
             let signer = tx.recover_signer().map_err(BlockExecutionError::other)?;
             self.transact_system_tx(tx, signer)?;
         }
@@ -476,7 +478,7 @@ where
             }
         }
 
-        // TODO: refine later
+        // TODO: add breathe check and polish it later.
         let system_txs_v2 = self.system_txs.clone();
         for tx in &system_txs_v2 {
             self.handle_update_validator_set_v2_tx(tx)?;
