@@ -66,10 +66,10 @@ impl BscHardfork {
     /// Retrieves the activation block for the specified hardfork on the given chain.
     pub fn activation_block<H: Hardfork>(self, fork: H, chain: Chain) -> Option<u64> {
         if chain == Chain::bsc_mainnet() {
-            return Self::bsc_mainnet_activation_block(fork)
+            return Self::bsc_mainnet_activation_block(fork);
         }
         if chain == Chain::bsc_testnet() {
-            return Self::bsc_testnet_activation_block(fork)
+            return Self::bsc_testnet_activation_block(fork);
         }
 
         None
@@ -78,10 +78,10 @@ impl BscHardfork {
     /// Retrieves the activation timestamp for the specified hardfork on the given chain.
     pub fn activation_timestamp<H: Hardfork>(self, fork: H, chain: Chain) -> Option<u64> {
         if chain == Chain::bsc_mainnet() {
-            return Self::bsc_mainnet_activation_timestamp(fork)
+            return Self::bsc_mainnet_activation_timestamp(fork);
         }
         if chain == Chain::bsc_testnet() {
-            return Self::bsc_testnet_activation_timestamp(fork)
+            return Self::bsc_testnet_activation_timestamp(fork);
         }
 
         None
@@ -92,15 +92,15 @@ impl BscHardfork {
         match_hardfork(
             fork,
             |fork| match fork {
-                EthereumHardfork::Frontier |
-                EthereumHardfork::Homestead |
-                EthereumHardfork::Tangerine |
-                EthereumHardfork::SpuriousDragon |
-                EthereumHardfork::Byzantium |
-                EthereumHardfork::Constantinople |
-                EthereumHardfork::Petersburg |
-                EthereumHardfork::Istanbul |
-                EthereumHardfork::MuirGlacier => Some(0),
+                EthereumHardfork::Frontier
+                | EthereumHardfork::Homestead
+                | EthereumHardfork::Tangerine
+                | EthereumHardfork::SpuriousDragon
+                | EthereumHardfork::Byzantium
+                | EthereumHardfork::Constantinople
+                | EthereumHardfork::Petersburg
+                | EthereumHardfork::Istanbul
+                | EthereumHardfork::MuirGlacier => Some(0),
                 EthereumHardfork::Berlin | EthereumHardfork::London => Some(31302048),
                 _ => None,
             },
@@ -127,15 +127,15 @@ impl BscHardfork {
         match_hardfork(
             fork,
             |fork| match fork {
-                EthereumHardfork::Frontier |
-                EthereumHardfork::Homestead |
-                EthereumHardfork::Tangerine |
-                EthereumHardfork::SpuriousDragon |
-                EthereumHardfork::Byzantium |
-                EthereumHardfork::Constantinople |
-                EthereumHardfork::Petersburg |
-                EthereumHardfork::Istanbul |
-                EthereumHardfork::MuirGlacier => Some(0),
+                EthereumHardfork::Frontier
+                | EthereumHardfork::Homestead
+                | EthereumHardfork::Tangerine
+                | EthereumHardfork::SpuriousDragon
+                | EthereumHardfork::Byzantium
+                | EthereumHardfork::Constantinople
+                | EthereumHardfork::Petersburg
+                | EthereumHardfork::Istanbul
+                | EthereumHardfork::MuirGlacier => Some(0),
                 EthereumHardfork::Berlin | EthereumHardfork::London => Some(31103030),
                 _ => None,
             },
@@ -165,12 +165,14 @@ impl BscHardfork {
             |fork| match fork {
                 EthereumHardfork::Shanghai => Some(1705996800),
                 EthereumHardfork::Cancun => Some(1718863500),
+                EthereumHardfork::Prague => Some(1742436600),
                 _ => None,
             },
             |fork| match fork {
                 Self::Kepler => Some(1705996800),
                 Self::Feynman | Self::FeynmanFix => Some(1713419340),
                 Self::Haber => Some(1718863500),
+                Self::HaberFix => Some(1727316120),
                 _ => None,
             },
         )
@@ -183,6 +185,7 @@ impl BscHardfork {
             |fork| match fork {
                 EthereumHardfork::Shanghai => Some(1702972800),
                 EthereumHardfork::Cancun => Some(1713330442),
+                EthereumHardfork::Prague => Some(1740452880),
                 _ => None,
             },
             |fork| match fork {
@@ -336,7 +339,7 @@ where
 {
     let fork: &dyn Any = &fork;
     if let Some(fork) = fork.downcast_ref::<EthereumHardfork>() {
-        return hardfork_fn(fork)
+        return hardfork_fn(fork);
     }
     fork.downcast_ref::<BscHardfork>().and_then(bsc_hardfork_fn)
 }
@@ -344,28 +347,24 @@ where
 impl From<BscHardfork> for SpecId {
     fn from(spec: BscHardfork) -> Self {
         match spec {
-            BscHardfork::Frontier |
-            BscHardfork::Ramanujan |
-            BscHardfork::Niels |
-            BscHardfork::MirrorSync |
-            BscHardfork::Bruno |
-            BscHardfork::Euler |
-            BscHardfork::Gibbs |
-            BscHardfork::Nano |
-            BscHardfork::Moran |
-            BscHardfork::Planck |
-            BscHardfork::Luban |
-            BscHardfork::Plato => SpecId::MUIR_GLACIER,
+            BscHardfork::Frontier
+            | BscHardfork::Ramanujan
+            | BscHardfork::Niels
+            | BscHardfork::MirrorSync
+            | BscHardfork::Bruno
+            | BscHardfork::Euler
+            | BscHardfork::Gibbs
+            | BscHardfork::Nano
+            | BscHardfork::Moran
+            | BscHardfork::Planck
+            | BscHardfork::Luban
+            | BscHardfork::Plato => SpecId::MUIR_GLACIER,
             BscHardfork::Hertz | BscHardfork::HertzFix => SpecId::LONDON,
             BscHardfork::Kepler | BscHardfork::Feynman | BscHardfork::FeynmanFix => {
                 SpecId::SHANGHAI
             }
-            BscHardfork::Haber |
-            BscHardfork::HaberFix |
-            BscHardfork::Bohr |
-            BscHardfork::Pascal |
-            BscHardfork::Lorentz |
-            BscHardfork::Maxwell => SpecId::CANCUN,
+            BscHardfork::Haber | BscHardfork::HaberFix | BscHardfork::Bohr => SpecId::CANCUN,
+            BscHardfork::Pascal | BscHardfork::Lorentz | BscHardfork::Maxwell => SpecId::PRAGUE,
         }
     }
 }
@@ -400,7 +399,7 @@ mod tests {
 
         // Test mainnet chain spec
         let mainnet_spec = crate::chainspec::BscChainSpec::from(bsc_mainnet());
-        
+
         // Test blocks around the critical transition points
         // Block 23846000: Should be Moran (before Gibbs activation)
         assert_eq!(
@@ -444,7 +443,7 @@ mod tests {
 
         // Test testnet chain spec
         let testnet_spec = crate::chainspec::BscChainSpec::from(bsc_testnet());
-        
+
         // Test blocks around the critical transition points for testnet
         // Block 23603939: Should be Nano (before Moran activation)
         assert_eq!(
