@@ -1,4 +1,4 @@
-use super::patch::{patch_mainnet_after_tx, patch_mainnet_before_tx};
+use super::patch::{patch_mainnet_after_tx, patch_mainnet_before_tx, patch_chapel_after_tx, patch_chapel_before_tx};
 use crate::{
     consensus::{MAX_SYSTEM_REWARD, SYSTEM_ADDRESS, SYSTEM_REWARD_PERCENT},
     evm::transaction::BscTxEnv,
@@ -272,6 +272,27 @@ where
         Ok(())
     }
 
+    fn handle_update_validator_set_v2_tx(&mut self, tx: &TransactionSigned) -> Result<(), BlockExecutionError> {
+        sol!(
+            function updateValidatorSetV2(
+                address[] _consensusAddrs,
+                uint64[] _votingPowers,
+                bytes[] _voteAddrs
+            );
+        );
+
+        let input = tx.input();
+        let is_update_validator_set_tx =
+            input.len() >= 4 && input[..4] == updateValidatorSetV2Call::SELECTOR;
+
+        if is_update_validator_set_tx {
+            let signer = tx.recover_signer().map_err(BlockExecutionError::other)?;
+            self.transact_system_tx(tx, signer)?;
+        }
+
+        Ok(())
+    }
+
     /// Distributes block rewards to the validator.
     fn distribute_block_rewards(&mut self, validator: Address) -> Result<(), BlockExecutionError> {
         let system_account = self
@@ -375,6 +396,19 @@ where
             + RecoveredTx<TransactionSigned>,
         f: impl for<'b> FnOnce(&'b ExecutionResult<<E as alloy_evm::Evm>::HaltReason>),
     ) -> Result<u64, BlockExecutionError> {
+        // Log transaction hash at the beginning
+        let tx_hash = tx.tx().hash();
+        tracing::info!("Starting transaction execution: hash={:?}", tx_hash);
+        
+        let tx_type = tx.tx().tx_type();
+        let tx_type_str = match tx_type {
+            alloy_consensus::TxType::Legacy => "Legacy",
+            alloy_consensus::TxType::Eip2930 => "EIP-2930",
+            alloy_consensus::TxType::Eip1559 => "EIP-1559",
+            alloy_consensus::TxType::Eip4844 => "EIP-4844",
+            alloy_consensus::TxType::Eip7702 => "EIP-7702",
+        };
+
         // Check if it's a system transaction
         let signer = tx.signer();
         if is_system_transaction(tx.tx(), *signer, self.evm.block().beneficiary) {
@@ -384,6 +418,7 @@ where
 
         // apply patches before
         patch_mainnet_before_tx(tx.tx(), self.evm.db_mut())?;
+        patch_chapel_before_tx(tx.tx(), self.evm.db_mut())?;
 
         let block_available_gas = self.evm.block().gas_limit - self.gas_used;
         if tx.tx().gas_limit() > block_available_gas {
@@ -403,17 +438,21 @@ where
 
         let gas_used = result.gas_used();
         self.gas_used += gas_used;
-        self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
+        let r = self.receipt_builder.build_receipt(ReceiptBuilderCtx {
             tx: tx.tx(),
             evm: &self.evm,
             result,
             state: &state,
             cumulative_gas_used: self.gas_used,
-        }));
+        });
+        
+        tracing::info!("Transaction execution completed: hash={:?}, type={} ({:?}), receipt={:?}", tx_hash, tx_type_str, tx_type, r);
+        self.receipts.push(r);
         self.evm.db_mut().commit(state);
 
         // apply patches after
         patch_mainnet_after_tx(tx.tx(), self.evm.db_mut())?;
+        patch_chapel_after_tx(tx.tx(), self.evm.db_mut())?;
 
         Ok(gas_used)
     }
@@ -455,9 +494,14 @@ where
             }
         }
 
+        // TODO: refine later
+        let system_txs_v2 = self.system_txs.clone();
+        for tx in &system_txs_v2 {
+            self.handle_update_validator_set_v2_tx(tx)?;
+        }
+
         // TODO:
         // Consensus: Slash validator if not in turn
-        // Consensus: Update validator set
 
         Ok((
             self.evm,
