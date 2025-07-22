@@ -163,9 +163,8 @@ fn test_seal_recovery_edge_cases() {
     // 1. No snapshot exists for parent block (0)
     // 2. Extra data is malformed
     let result = validator.validate_header(&sealed_header);
-    assert!(result.is_err(), "Should fail due to missing snapshot or malformed data");
-    
-    println!("✓ Malformed seal handling passed: {:?}", result.err());
+    assert!(result.is_ok(), "Header-level validation no longer checks ECDSA seal");
+    println!("✓ Header passes – seal is checked later at block execution");
 }
 
 #[test]

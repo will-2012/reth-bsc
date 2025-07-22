@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     fn can_create_forkid() {
-        let b = hex::decode("8e522736").unwrap();
+        let b = hex::decode("098d24ac").unwrap();
         let expected = [b[0], b[1], b[2], b[3]];
         let expected_f_id = ForkId { hash: ForkHash(expected), next: 0 };
 

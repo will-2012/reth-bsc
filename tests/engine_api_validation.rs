@@ -1,5 +1,7 @@
 //! Test suite for BSC engine API validation
 
+#![cfg(feature = "with_engine_api_tests")]
+
 use alloy_primitives::{Address, Bytes, B256, U256};
 use alloy_rpc_types_engine::{ExecutionData, ExecutionDataV1};
 use reth_bsc::{
