@@ -46,7 +46,7 @@ reth-rpc-engine-api = { git = "https://github.com/paradigmxyz/reth", rev = "8e0f
 reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
 reth-trie-common = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
 reth-trie-db = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-revm = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
+revm = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
 
 # alloy dependencies
 alloy-evm = { git = "https://github.com/will-2012/wrapper-evm", branch = "fix-badblock-v1" }
@@ -154,15 +154,15 @@ client = [
 # Patch alloy-evm to use will-2012/wrapper-evm
 alloy-evm = { git = "https://github.com/will-2012/wrapper-evm", branch = "fix-badblock-v1" }
 # Patch revm and its sub-crates to use will-2012/revm PR #2
-revm = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
-revm-bytecode = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
-revm-context = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
-revm-context-interface = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
-revm-database = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
-revm-database-interface = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
-revm-handler = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
-revm-inspector = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
-revm-interpreter = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
-revm-precompile = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
-revm-primitives = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
-revm-state = { git = "https://github.com/will-2012/revm", rev = "f453acede7b87f5b58e2dde30d6fa7b2792a2244" }
+revm = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
+revm-bytecode = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
+revm-context = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
+revm-context-interface = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
+revm-database = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
+revm-database-interface = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
+revm-handler = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
+revm-inspector = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
+revm-interpreter = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
+revm-precompile = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
+revm-primitives = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
+revm-state = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
