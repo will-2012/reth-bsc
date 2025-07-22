@@ -5,13 +5,14 @@ use crate::{
         network::block_import::{handle::ImportHandle, service::ImportService, BscBlockImport},
         primitives::{BscBlobTransactionSidecar, BscPrimitives},
         rpc::engine_api::payload::BscPayloadTypes,
+        BscNode,
     },
+    BscBlock,
 };
-use reth_primitives::Block;
 use alloy_rlp::{Decodable, Encodable};
 use handshake::BscHandshake;
 use reth::{
-    api::{FullNodeTypes, NodeTypes, TxTy},
+    api::{FullNodeTypes, TxTy},
     builder::{components::NetworkBuilder, BuilderContext},
     transaction_pool::{PoolTransaction, TransactionPool},
 };
@@ -32,12 +33,12 @@ pub mod handshake;
 pub(crate) mod upgrade_status;
 /// BSC `NewBlock` message value.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BscNewBlock(pub NewBlock<reth_primitives::Block>);
+pub struct BscNewBlock(pub NewBlock<BscBlock>);
 
 mod rlp {
     use super::*;
-    use reth_primitives::BlockBody;
-    use alloy_consensus::Header;
+    use crate::BscBlockBody;
+    use alloy_consensus::{BlockBody, Header};
     use alloy_primitives::U128;
     use alloy_rlp::{RlpDecodable, RlpEncodable};
     use alloy_rpc_types::Withdrawals;
@@ -58,15 +59,20 @@ mod rlp {
     struct BscNewBlockHelper<'a> {
         block: BlockHelper<'a>,
         td: U128,
+        sidecars: Option<Cow<'a, Vec<BscBlobTransactionSidecar>>>,
     }
 
     impl<'a> From<&'a BscNewBlock> for BscNewBlockHelper<'a> {
         fn from(value: &'a BscNewBlock) -> Self {
             let BscNewBlock(NewBlock {
                 block:
-                    Block {
+                    BscBlock {
                         header,
-                        body: BlockBody { transactions, ommers, withdrawals },
+                        body:
+                            BscBlockBody {
+                                inner: BlockBody { transactions, ommers, withdrawals },
+                                sidecars,
+                            },
                     },
                 td,
             }) = value;
@@ -79,6 +85,7 @@ mod rlp {
                     withdrawals: withdrawals.as_ref().map(Cow::Borrowed),
                 },
                 td: *td,
+                sidecars: sidecars.as_ref().map(Cow::Borrowed),
             }
         }
     }
@@ -98,15 +105,19 @@ mod rlp {
             let BscNewBlockHelper {
                 block: BlockHelper { header, transactions, ommers, withdrawals },
                 td,
+                sidecars,
             } = BscNewBlockHelper::decode(buf)?;
 
             Ok(BscNewBlock(NewBlock {
-                block: Block {
+                block: BscBlock {
                     header: header.into_owned(),
-                    body: BlockBody {
-                        transactions: transactions.into_owned(),
-                        ommers: ommers.into_owned(),
-                        withdrawals: withdrawals.map(|w| w.into_owned()),
+                    body: BscBlockBody {
+                        inner: BlockBody {
+                            transactions: transactions.into_owned(),
+                            ommers: ommers.into_owned(),
+                            withdrawals: withdrawals.map(|w| w.into_owned()),
+                        },
+                        sidecars: sidecars.map(|s| s.into_owned()),
                     },
                 },
                 td,
@@ -116,7 +127,7 @@ mod rlp {
 }
 
 impl NewBlockPayload for BscNewBlock {
-    type Block = reth_primitives::Block;
+    type Block = BscBlock;
 
     fn block(&self) -> &Self::Block {
         &self.0.block
@@ -128,7 +139,7 @@ pub type BscNetworkPrimitives =
     BasicNetworkPrimitives<BscPrimitives, PooledTransactionVariant, BscNewBlock>;
 
 /// A basic bsc network builder.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BscNetworkBuilder {
     pub(crate) engine_handle_rx:
         Arc<Mutex<Option<oneshot::Receiver<BeaconConsensusEngineHandle<BscPayloadTypes>>>>>,
@@ -143,8 +154,7 @@ impl BscNetworkBuilder {
         ctx: &BuilderContext<Node>,
     ) -> eyre::Result<NetworkConfig<Node::Provider, BscNetworkPrimitives>>
     where
-        Node: FullNodeTypes,
-        Node::Types: NodeTypes<Primitives = crate::node::primitives::BscPrimitives, ChainSpec = crate::chainspec::BscChainSpec, Payload = crate::node::rpc::engine_api::payload::BscPayloadTypes, StateCommitment = reth_trie_db::MerklePatriciaTrie, Storage = crate::node::storage::BscStorage>,
+        Node: FullNodeTypes<Types = BscNode>,
     {
         let Self { engine_handle_rx } = self;
 
@@ -162,23 +172,16 @@ impl BscNetworkBuilder {
         let handle = ImportHandle::new(to_import, import_outcome);
         let consensus = Arc::new(ParliaConsensus { provider: ctx.provider().clone() });
 
-        // Spawn the block-import task. If the consensus engine handle channel is unavailable or
-        // the sender dropped before sending, we gracefully abort instead of panicking, allowing
-        // tests that don’t wire up a real consensus engine to proceed.
         ctx.task_executor().spawn_critical("block import", async move {
-            let Some(receiver) = engine_handle_rx.lock().await.take() else {
-                // Nothing to drive – likely in a test context.
-                return;
-            };
+            let handle = engine_handle_rx
+                .lock()
+                .await
+                .take()
+                .expect("node should only be launched once")
+                .await
+                .unwrap();
 
-            let Ok(handle) = receiver.await else {
-                // Sender dropped without delivering the handle; treat as a no-op.
-                return;
-            };
-
-            if let Err(err) = ImportService::new(consensus, handle, from_network, to_network).await {
-                tracing::error!(target: "reth_tasks", ?err, "failed to start ImportService");
-            }
+            ImportService::new(consensus, handle, from_network, to_network).await.unwrap();
         });
 
         let network_builder = network_builder
@@ -197,8 +200,7 @@ impl BscNetworkBuilder {
 
 impl<Node, Pool> NetworkBuilder<Node, Pool> for BscNetworkBuilder
 where
-    Node: FullNodeTypes,
-    Node::Types: NodeTypes<Primitives = crate::node::primitives::BscPrimitives, ChainSpec = crate::chainspec::BscChainSpec, Payload = crate::node::rpc::engine_api::payload::BscPayloadTypes, StateCommitment = reth_trie_db::MerklePatriciaTrie, Storage = crate::node::storage::BscStorage>,
+    Node: FullNodeTypes<Types = BscNode>,
     Pool: TransactionPool<
             Transaction: PoolTransaction<
                 Consensus = TxTy<Node::Types>,
