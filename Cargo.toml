@@ -52,6 +52,7 @@ reth-tracing = { git = "https://github.com/clydemeng/reth.git", branch = "parlia
 reth-trie-common = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
 reth-trie-db = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
 reth-rpc = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-optimism-rpc = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
 revm = "27.0.2"
 
 # Alloy stack (aligned with upstream reth @ 8e0ff9)
