@@ -50,6 +50,8 @@ hardfork!(
         Haber,
         /// BSC `HaberFix` hardfork
         HaberFix,
+        /// BSC `Cancun` hardfork
+        Cancun,
         /// BSC `Bohr` hardfork
         Bohr,
         /// BSC `Pascal` hardfork
@@ -277,7 +279,7 @@ impl BscHardfork {
             (Self::Kepler.boxed(), ForkCondition::Timestamp(1702972800)),
             (Self::Feynman.boxed(), ForkCondition::Timestamp(1710136800)),
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1711342800)),
-            (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1713330442)),
+            (Self::Cancun.boxed(), ForkCondition::Timestamp(1713330442)),
             (Self::Haber.boxed(), ForkCondition::Timestamp(1716962820)),
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1719986788)),
             (Self::Bohr.boxed(), ForkCondition::Timestamp(1724116996)),
@@ -361,6 +363,7 @@ impl From<BscHardfork> for SpecId {
             BscHardfork::Kepler | BscHardfork::Feynman | BscHardfork::FeynmanFix => {
                 SpecId::SHANGHAI
             }
+            BscHardfork::Cancun |
             BscHardfork::Haber |
             BscHardfork::HaberFix |
             BscHardfork::Bohr |
