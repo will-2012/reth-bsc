@@ -49,7 +49,7 @@ reth-trie-db = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" 
 revm = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
 
 # alloy dependencies
-alloy-evm = { git = "https://github.com/will-2012/wrapper-evm", rev = "624f4815e28023f67c59a789e270c48c98382094" }
+alloy-evm = { git = "https://github.com/will-2012/wrapper-evm", rev = "9ea0abcc98e01c51f77ea6e40194df732e7cf21b" }
 
 alloy-genesis = "1.0.17"
 alloy-consensus = "1.0.17"
@@ -152,7 +152,7 @@ client = [
 
 [patch.crates-io]
 # Patch alloy-evm to use will-2012/wrapper-evm
-alloy-evm = { git = "https://github.com/will-2012/wrapper-evm", rev = "624f4815e28023f67c59a789e270c48c98382094" }
+alloy-evm = { git = "https://github.com/will-2012/wrapper-evm", rev = "9ea0abcc98e01c51f77ea6e40194df732e7cf21b" }
 # Patch revm and its sub-crates to use will-2012/revm PR #2
 revm = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
 revm-bytecode = { git = "https://github.com/will-2012/revm", rev = "9f0fc65c56d8f2c4061e9f9c5fdb6bc10d278a71" }
