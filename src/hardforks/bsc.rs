@@ -343,6 +343,7 @@ where
 
 impl From<BscHardfork> for SpecId {
     fn from(spec: BscHardfork) -> Self {
+        eprintln!("=== BscHardfork::from called, spec: {:?} ===", spec);
         match spec {
             BscHardfork::Frontier |
             BscHardfork::Ramanujan |
