@@ -12,62 +12,65 @@ name = "reth-bsc"
 path = "src/main.rs"
 
 [dependencies]
-reth = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-cli = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-cli-commands = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-basic-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-engine-local = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-chainspec = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-cli-util = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-discv4 = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b", features = ["test-utils"] }
-reth-engine-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-ethereum-forks = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b", features = ["serde"] }
-reth-ethereum-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-ethereum-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-eth-wire = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-eth-wire-types = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-evm = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-evm-ethereum = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-node-core = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-network = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b", features = ["test-utils"] }
-reth-network-p2p = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b", features = ["test-utils"] }
-reth-network-peers = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-optimism-rpc = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b", features = ["test-utils"] }
-reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-rpc-engine-api = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-trie-common = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
-reth-trie-db = { git = "https://github.com/paradigmxyz/reth", rev = "8e0ff926b" }
+reth = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-cli = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-cli-commands = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-basic-payload-builder = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-db = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-engine-local = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-chainspec = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-cli-util = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-discv4 = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9", features = ["test-utils"] }
+reth-engine-primitives = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-ethereum-forks = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9", features = ["serde"] }
+reth-ethereum-payload-builder = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-ethereum-primitives = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-eth-wire = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-eth-wire-types = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-evm = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-evm-ethereum = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+# reth-execution-types = { git = "https://github.com/clydemeng/reth.git", branch = "extend-8e0ff926b" }
+reth-transaction-pool = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-node-core = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-node-api = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-node-builder = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-payload-builder = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-revm = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-network = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9", features = ["test-utils"] }
+reth-network-p2p = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-network-api = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-node-ethereum = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9", features = ["test-utils"] }
+reth-network-peers = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-payload-primitives = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-primitives = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-primitives-traits = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-provider = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9", features = ["test-utils"] }
+reth-rpc-eth-api = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-rpc-engine-api = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-rpc-api = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-tracing = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-trie-common = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-trie-db = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+reth-rpc = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
 revm = "27.0.2"
 
-# alloy dependencies
-alloy-evm = "0.14"
-
-alloy-genesis = "1.0.17"
-alloy-consensus = "1.0.17"
-alloy-eips = "1.0.17"
-alloy-network = "1.0.17"
-alloy-rpc-types = { version = "1.0.17", features = ["engine"] }
-alloy-rpc-types-eth = "1.0.17"
+# Alloy stack (aligned with upstream reth @ 8e0ff9)
+alloy-evm         = "0.14"
+alloy-genesis     = "1.0.17"
+alloy-consensus   = "1.0.17"
+alloy-eips        = "1.0.17"
+alloy-network     = "1.0.17"
+alloy-rpc-types   = { version = "1.0.17", features = ["engine"] }
+alloy-rpc-types-eth    = "1.0.17"
 alloy-rpc-types-engine = "1.0.17"
-alloy-signer = "1.0.17"
-
-alloy-chains = "0.2.0"
-alloy-rlp = { version = "0.3.10", default-features = false, features = ["core-net"] }
-
-alloy-dyn-abi = "1.2.0"
-alloy-json-abi = { version = "1.2.0", default-features = false }
-alloy-primitives = { version = "1.2.0", default-features = false, features = ["map-foldhash"] }
-alloy-sol-macro = "1.2.0"
-alloy-sol-types = { version = "1.2.0", default-features = false }
+alloy-signer      = "1.0.17"
+alloy-chains      = "0.2.0"
+alloy-rlp         = { version = "0.3.10", default-features = false, features = ["core-net"] }
+alloy-dyn-abi     = "1.2.0"
+alloy-json-abi    = { version = "1.2.0", default-features = false }
+alloy-primitives  = { version = "1.2.0", default-features = false, features = ["map-foldhash"] }
+alloy-sol-macro   = "1.2.0"
+alloy-sol-types   = { version = "1.2.0", default-features = false }
 
 jsonrpsee = "0.25.1"
 jsonrpsee-core = { version = "0.25.1" }
@@ -85,10 +88,12 @@ futures = "0.3"
 lazy_static = "1.4.0"
 once_cell = { version = "1.19", default-features = false, features = ["alloc"] }
 parity-bytes = { version = "0.1.2", default-features = false }
-parking_lot = "0.12"
 secp256k1 = { version = "0.28", features = ["global-context", "std", "recovery"] }
 serde = { version = "1.0", features = ["derive"], default-features = false }
 serde_json = "1.0"
+serde_cbor = "0.11"
+parking_lot = "0.12"
+schnellru = "0.2"
 thiserror = "1.0"
 tokio = { version = "1.36", features = ["full"] }
 tokio-stream = "0.1"
@@ -106,6 +111,7 @@ cometbft-light-client = { git = "https://github.com/bnb-chain/greenfield-cometbf
 prost = { version = "0.12.6" }
 
 tendermint = { git = "https://github.com/bnb-chain/tendermint-rs-parlia", rev = "8c21ccbd58a174e07eed2c9343e63ccd00f0fbd5", features = ["secp256k1"] }
+rand = "0.8"
 
 [target.'cfg(unix)'.dependencies]
 tikv-jemalloc-ctl = "0.6"
@@ -149,3 +155,10 @@ client = [
     "jsonrpsee/async-client",
     "reth-rpc-eth-api/client",
 ]
+
+[dev-dependencies]
+# E2E test-suite support
+reth-e2e-test-utils = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
+# (all other reth crates are pulled in automatically via workspace deps)
+
+

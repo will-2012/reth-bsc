@@ -1,4 +1,10 @@
-use super::patch::{patch_mainnet_after_tx, patch_mainnet_before_tx, patch_chapel_after_tx, patch_chapel_before_tx};
+use super::patch::{
+    patch_mainnet_after_tx,
+    patch_mainnet_before_tx,
+    patch_chapel_after_tx,
+    patch_chapel_before_tx,
+};
+use crate::consensus::parlia::{HertzPatchManager, StoragePatch};
 use crate::{
     consensus::{MAX_SYSTEM_REWARD, SYSTEM_ADDRESS, SYSTEM_REWARD_PERCENT},
     evm::transaction::BscTxEnv,
@@ -52,6 +58,8 @@ where
     receipt_builder: R,
     /// System contracts used to trigger fork specific logic.
     system_contracts: SystemContract<Spec>,
+    /// Hertz patch manager for mainnet compatibility
+    hertz_patch_manager: HertzPatchManager,
     /// Context for block execution.
     _ctx: EthBlockExecutionCtx<'a>,
 }
@@ -80,6 +88,10 @@ where
         receipt_builder: R,
         system_contracts: SystemContract<Spec>,
     ) -> Self {
+        // Determine if this is mainnet for Hertz patches
+        let is_mainnet = spec.chain().id() == 56; // BSC mainnet chain ID
+        let hertz_patch_manager = HertzPatchManager::new(is_mainnet);
+        
         Self {
             spec,
             evm,
@@ -88,6 +100,7 @@ where
             system_txs: vec![],
             receipt_builder,
             system_contracts,
+            hertz_patch_manager,
             _ctx,
         }
     }
@@ -347,6 +360,9 @@ where
     }
 }
 
+// Note: Storage patch application function is available for future use
+// Currently, Hertz patches are applied through the existing patch system
+
 impl<'a, DB, E, Spec, R> BlockExecutor for BscBlockExecutor<'a, E, Spec, R>
 where
     DB: Database + 'a,
@@ -380,6 +396,30 @@ where
             self.upgrade_contracts()?;
         }
 
+        // -----------------------------------------------------------------
+        // Consensus hooks: pre-execution (rewards/slashing system-txs)
+        // -----------------------------------------------------------------
+        use crate::consensus::parlia::{hooks::{ParliaHooks, PreExecutionHook}, snapshot::Snapshot};
+
+        // For now we don't have snapshot wiring inside the executor yet, but the hook requires
+        // one. Use an empty default snapshot – this is sufficient for rewarding the
+        // beneficiary; over-propose slashing is already handled by `slash_pool`.
+        let snap_placeholder = Snapshot::default();
+        let beneficiary = self.evm.block().beneficiary;
+
+        // Assume in-turn for now; detailed check requires snapshot state which will be wired
+        // later.
+        let in_turn = true;
+
+        let pre_out = (ParliaHooks, &self.system_contracts)
+            .on_pre_execution(&snap_placeholder, beneficiary, in_turn);
+
+        // Reserve block gas (simple accounting) and queue system-transactions for execution.
+        if pre_out.reserved_gas > 0 {
+            self.gas_used += pre_out.reserved_gas;
+        }
+        self.system_txs.extend(pre_out.system_txs.into_iter());
+
         Ok(())
     }
 
@@ -405,7 +445,11 @@ where
             return Ok(0);
         }
 
-        // apply patches before
+        // Apply Hertz patches before transaction execution
+        // Note: Hertz patches are implemented in the existing patch system
+        // The HertzPatchManager is available for future enhanced patching
+        
+        // apply patches before (legacy - keeping for compatibility)
         patch_mainnet_before_tx(tx.tx(), self.evm.db_mut())?;
         patch_chapel_before_tx(tx.tx(), self.evm.db_mut())?;
 
@@ -436,12 +480,18 @@ where
         }));
         self.evm.db_mut().commit(state);
 
-        // apply patches after
+        // Apply Hertz patches after transaction execution
+        // Note: Hertz patches are implemented in the existing patch system
+        // The HertzPatchManager is available for future enhanced patching
+        
+        // apply patches after (legacy - keeping for compatibility)
         patch_mainnet_after_tx(tx.tx(), self.evm.db_mut())?;
         patch_chapel_after_tx(tx.tx(), self.evm.db_mut())?;
 
         Ok(gas_used)
     }
+
+
 
     fn finish(
         mut self,
@@ -467,11 +517,34 @@ where
             self.initialize_feynman_contracts(self.evm.block().beneficiary)?;
         }
 
-        let system_txs = self.system_txs.clone();
-        for tx in &system_txs {
-            self.handle_slash_tx(tx)?;
+        // Prepare system transactions list and append slash transactions collected from consensus.
+        let mut system_txs = self.system_txs.clone();
+
+        // Drain slashing evidence collected by header-validation for this block.
+        for spoiled in crate::consensus::parlia::slash_pool::drain() {
+            use alloy_sol_macro::sol;
+            use alloy_sol_types::SolCall;
+            use crate::system_contracts::SLASH_CONTRACT;
+            sol!(
+                function slash(address);
+            );
+            let input = slashCall(spoiled).abi_encode();
+            let tx = reth_primitives::TransactionSigned::new_unhashed(
+                reth_primitives::Transaction::Legacy(alloy_consensus::TxLegacy {
+                    chain_id: Some(self.spec.chain().id()),
+                    nonce: 0,
+                    gas_limit: u64::MAX / 2,
+                    gas_price: 0,
+                    value: alloy_primitives::U256::ZERO,
+                    input: alloy_primitives::Bytes::from(input),
+                    to: alloy_primitives::TxKind::Call(Address::from(*SLASH_CONTRACT)),
+                }),
+                alloy_primitives::Signature::new(Default::default(), Default::default(), false),
+            );
+            system_txs.push(tx);
         }
 
+        // ---- post-system-tx handling ---------------------------------
         self.distribute_block_rewards(self.evm.block().beneficiary)?;
 
         if self.spec.is_plato_active_at_block(self.evm.block().number.to()) {

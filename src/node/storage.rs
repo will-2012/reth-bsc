@@ -1,4 +1,5 @@
-use crate::{BscBlock, BscBlockBody, BscPrimitives};
+use crate::node::primitives::BscPrimitives;
+use reth_primitives::{Block, BlockBody};
 use reth_chainspec::EthereumHardforks;
 use reth_db::transaction::{DbTx, DbTxMut};
 use reth_provider::{
@@ -11,27 +12,18 @@ use reth_provider::{
 #[non_exhaustive]
 pub struct BscStorage(EthStorage);
 
-impl<Provider> BlockBodyWriter<Provider, BscBlockBody> for BscStorage
+impl<Provider> BlockBodyWriter<Provider, BlockBody> for BscStorage
 where
     Provider: DBProvider<Tx: DbTxMut>,
 {
     fn write_block_bodies(
         &self,
         provider: &Provider,
-        bodies: Vec<(u64, Option<BscBlockBody>)>,
+        bodies: Vec<(u64, Option<BlockBody>)>,
         write_to: StorageLocation,
     ) -> ProviderResult<()> {
-        let (eth_bodies, _sidecars) = bodies
-            .into_iter()
-            .map(|(block_number, body)| {
-                if let Some(BscBlockBody { inner, sidecars }) = body {
-                    ((block_number, Some(inner)), (block_number, Some(sidecars)))
-                } else {
-                    ((block_number, None), (block_number, None))
-                }
-            })
-            .unzip::<_, _, Vec<_>, Vec<_>>();
-        self.0.write_block_bodies(provider, eth_bodies, write_to)?;
+        // Since we're now using standard BlockBody, we can pass them directly
+        self.0.write_block_bodies(provider, bodies, write_to)?;
 
         // TODO: Write sidecars
 
@@ -56,18 +48,19 @@ impl<Provider> BlockBodyReader<Provider> for BscStorage
 where
     Provider: DBProvider + ChainSpecProvider<ChainSpec: EthereumHardforks>,
 {
-    type Block = BscBlock;
+    type Block = Block;
 
     fn read_block_bodies(
         &self,
         provider: &Provider,
         inputs: Vec<ReadBodyInput<'_, Self::Block>>,
-    ) -> ProviderResult<Vec<BscBlockBody>> {
+    ) -> ProviderResult<Vec<BlockBody>> {
         let eth_bodies = self.0.read_block_bodies(provider, inputs)?;
 
         // TODO: Read sidecars
 
-        Ok(eth_bodies.into_iter().map(|inner| BscBlockBody { inner, sidecars: None }).collect())
+        // Since we're using standard BlockBody, we can return them directly
+        Ok(eth_bodies)
     }
 }
 

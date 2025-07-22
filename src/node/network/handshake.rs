@@ -41,20 +41,22 @@ impl BscHandshake {
                 }
             };
 
+            // Debug log the received message
+            debug!("BSC handshake received message: len={}, hex={:x}", their_msg.len(), their_msg);
+
             // Decode their response
             match UpgradeStatus::decode(&mut their_msg.as_ref()).map_err(|e| {
-                debug!("Decode error in BSC handshake: msg={their_msg:x}");
+                debug!("Decode error in BSC handshake: msg={their_msg:x}, error={e:?}");
                 EthStreamError::InvalidMessage(e.into())
             }) {
-                Ok(_) => {
+                Ok(status) => {
                     // Successful handshake
+                    debug!("BSC handshake successful: status={:?}", status);
                     return Ok(negotiated_status);
                 }
-                Err(_) => {
+                Err(e) => {
                     unauth.disconnect(DisconnectReason::ProtocolBreach).await?;
-                    return Err(EthStreamError::EthHandshakeError(
-                        EthHandshakeError::NonStatusMessageInHandshake,
-                    ));
+                    return Err(e);
                 }
             }
         }

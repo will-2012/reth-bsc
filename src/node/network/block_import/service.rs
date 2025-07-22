@@ -2,9 +2,10 @@ use super::handle::ImportHandle;
 use crate::{
     consensus::{ParliaConsensus, ParliaConsensusErr},
     node::{network::BscNewBlock, rpc::engine_api::payload::BscPayloadTypes},
-    BscBlock, BscBlockBody,
 };
-use alloy_consensus::{BlockBody, Header};
+use reth_primitives::{Block, BlockBody};
+use alloy_consensus::Header;
+use reth_primitives_traits::Block as BlockTrait;
 use alloy_primitives::{B256, U128};
 use alloy_rpc_types::engine::{ForkchoiceState, PayloadStatusEnum};
 use futures::{future::Either, stream::FuturesUnordered, StreamExt};
@@ -18,7 +19,7 @@ use reth_network_api::PeerId;
 use reth_node_ethereum::EthEngineTypes;
 use reth_payload_primitives::{BuiltPayload, EngineApiMessageVersion, PayloadTypes};
 use reth_primitives::NodePrimitives;
-use reth_primitives_traits::{AlloyBlockHeader, Block};
+use reth_primitives_traits::AlloyBlockHeader;
 use reth_provider::{BlockHashReader, BlockNumReader};
 use std::{
     future::Future,
@@ -93,7 +94,7 @@ where
         let engine = self.engine.clone();
 
         Box::pin(async move {
-            let sealed_block = block.block.0.block.clone().seal();
+            let sealed_block = BlockTrait::seal_slow(block.block.0.block.clone());
             let payload = BscPayloadTypes::block_to_payload(sealed_block);
 
             match engine.new_payload(payload).await {
@@ -118,7 +119,7 @@ where
     fn update_fork_choice(&self, block: BlockMsg, peer_id: PeerId) -> ImportFut {
         let engine = self.engine.clone();
         let consensus = self.consensus.clone();
-        let sealed_block = block.block.0.block.clone().seal();
+        let sealed_block = BlockTrait::seal_slow(block.block.0.block.clone());
         let hash = sealed_block.hash();
         let number = sealed_block.number();
 
@@ -430,15 +431,12 @@ mod tests {
 
     /// Creates a test block message
     fn create_test_block() -> NewBlockMessage<BscNewBlock> {
-        let block = BscBlock {
+        let block = Block {
             header: Header::default(),
-            body: BscBlockBody {
-                inner: BlockBody {
-                    transactions: Vec::new(),
-                    ommers: Vec::new(),
-                    withdrawals: None,
-                },
-                sidecars: None,
+            body: BlockBody {
+                transactions: Vec::new(),
+                ommers: Vec::new(),
+                withdrawals: None,
             },
         };
         let new_block = BscNewBlock(NewBlock { block, td: U128::from(1) });
