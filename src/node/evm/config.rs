@@ -320,8 +320,6 @@ pub fn revm_spec_by_timestamp_and_block_number(
         BscHardfork::HaberFix
     } else if chain_spec.is_haber_active_at_timestamp(timestamp) {
         BscHardfork::Haber
-    } else if chain_spec.is_bsc_cancun_active_at_timestamp(timestamp) {
-        BscHardfork::Cancun
     } else if chain_spec.is_feynman_fix_active_at_timestamp(timestamp) {
         BscHardfork::FeynmanFix
     } else if chain_spec.is_feynman_active_at_timestamp(timestamp) {
