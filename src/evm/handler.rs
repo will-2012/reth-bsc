@@ -69,13 +69,18 @@ impl<DB: Database, INSP> Handler for BscHandler<DB, INSP> {
         let gas = exec_result.gas();
         let mut tx_fee = U256::from(gas.spent() - gas.refunded() as u64) * effective_gas_price;
 
+        println!("before cancun fee, tx_caller: {:?}, tx_fee: {:?}", tx.caller(), tx_fee);
         // EIP-4844
         let is_cancun = SpecId::from(ctx.cfg().spec()).is_enabled_in(SpecId::CANCUN);
         if is_cancun {
-            let data_fee = tx.calc_max_data_fee();
+            println!("before, tx_caller: {:?}, data_fee: {:?}", tx.caller(), tx.calc_max_data_fee());
+            //let data_fee = tx.calc_max_data_fee() / U256::from(1000);
+            //tx.calc_max_data_fee()*tx.blob;
+            let data_fee = U256::from(tx.total_blob_gas()) * ctx.blob_gasprice();
+            println!("after, tx_caller: {:?}, data_fee: {:?}", tx.caller(), data_fee);
             tx_fee = tx_fee.saturating_add(data_fee);
         }
-
+        println!("after cancun fee, tx_caller: {:?}, tx_fee: {:?}", tx.caller(), tx_fee);
         let system_account = ctx.journal_mut().load_account(SYSTEM_ADDRESS)?;
         system_account.data.mark_touch();
         system_account.data.info.balance = system_account.data.info.balance.saturating_add(tx_fee);
