@@ -45,18 +45,17 @@ impl BscHandshake {
             debug!("BSC handshake received message: len={}, hex={:x}", their_msg.len(), their_msg);
 
             // Decode their response
-            match UpgradeStatus::decode(&mut their_msg.as_ref()).map_err(|e| {
-                debug!("Decode error in BSC handshake: msg={their_msg:x}, error={e:?}");
-                EthStreamError::InvalidMessage(e.into())
-            }) {
+            match UpgradeStatus::decode(&mut their_msg.as_ref()) {
                 Ok(status) => {
-                    // Successful handshake
                     debug!("BSC handshake successful: status={:?}", status);
                     return Ok(negotiated_status);
                 }
                 Err(e) => {
-                    unauth.disconnect(DisconnectReason::ProtocolBreach).await?;
-                    return Err(e);
+                    // Some legacy BSC peers send an empty "0bc2c180" payload that cannot be decoded
+                    // with the strict RLP schema. We treat this as "no upgrade status" and continue
+                    // the session instead of disconnecting.
+                    debug!("Ignoring invalid BSC upgrade status message: msg={their_msg:x}, error={e:?}");
+                    return Ok(negotiated_status);
                 }
             }
         }
