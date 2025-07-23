@@ -73,9 +73,11 @@ impl<DB: Database, INSP> Handler for BscHandler<DB, INSP> {
         // EIP-4844
         let is_cancun = SpecId::from(ctx.cfg().spec()).is_enabled_in(SpecId::CANCUN);
         if is_cancun {
-            println!("before div, tx_caller: {:?}, data_fee: {:?}", tx.caller(), tx.calc_max_data_fee());
-            let data_fee = tx.calc_max_data_fee() / U256::from(1000);
-            println!("after div, tx_caller: {:?}, data_fee: {:?}", tx.caller(), data_fee);
+            println!("before, tx_caller: {:?}, data_fee: {:?}", tx.caller(), tx.calc_max_data_fee());
+            //let data_fee = tx.calc_max_data_fee() / U256::from(1000);
+            //tx.calc_max_data_fee()*tx.blob;
+            let data_fee = U256::from(tx.total_blob_gas()) * ctx.blob_gasprice();
+            println!("after, tx_caller: {:?}, data_fee: {:?}", tx.caller(), data_fee);
             tx_fee = tx_fee.saturating_add(data_fee);
         }
         println!("after cancun fee, tx_caller: {:?}, tx_fee: {:?}", tx.caller(), tx_fee);
