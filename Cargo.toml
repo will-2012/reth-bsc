@@ -148,3 +148,16 @@ client = [
     "jsonrpsee/async-client",
     "reth-rpc-eth-api/client",
 ]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+debug = "none"
+strip = "symbols"
+panic = "unwind"
+codegen-units = 16
+
+[profile.maxperf]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
