@@ -1,4 +1,4 @@
-use super::patch::{patch_mainnet_after_tx, patch_mainnet_before_tx};
+use super::patch::{patch_mainnet_after_tx, patch_mainnet_before_tx, patch_chapel_after_tx, patch_chapel_before_tx};
 use crate::{
     consensus::{MAX_SYSTEM_REWARD, SYSTEM_ADDRESS, SYSTEM_REWARD_PERCENT},
     evm::transaction::BscTxEnv,
@@ -196,14 +196,44 @@ where
 
         let tx = tx.clone();
         let gas_used = result.gas_used();
-        self.gas_used += gas_used;
-        self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
+        // Note: gas refund is not available in this context, so we use gas_used directly
+        let actual_gas_used = gas_used;
+        
+        // Enhanced logging for gas calculation debugging
+        tracing::info!(
+            "Transaction execution - tx_hash: {:?}, gas_used: {}, actual_gas_used: {}, cumulative_gas: {}",
+            tx.hash(),
+            gas_used,
+            actual_gas_used,
+            self.gas_used + actual_gas_used
+        );
+        
+        self.gas_used += actual_gas_used;
+        
+        let receipt = self.receipt_builder.build_receipt(ReceiptBuilderCtx {
             tx: &tx,
             evm: &self.evm,
             result,
             state: &state,
             cumulative_gas_used: self.gas_used,
-        }));
+        });
+        
+        // Log receipt details
+        tracing::info!(
+            "Receipt created - tx_hash: {:?}, cumulative_gas: {}, status: {:?}, logs_count: {}",
+            tx.hash(),
+            receipt.cumulative_gas_used(),
+            receipt.status(),
+            receipt.logs().len()
+        );
+        
+        // Log basic log information without accessing fields
+        tracing::info!(
+            "  Receipt has {} logs",
+            receipt.logs().len()
+        );
+        
+        self.receipts.push(receipt);
         self.evm.db_mut().commit(state);
 
         Ok(())
@@ -265,6 +295,27 @@ where
             input.len() >= 4 && input[..4] == distributeFinalityRewardCall::SELECTOR;
 
         if is_finality_reward_tx {
+            let signer = tx.recover_signer().map_err(BlockExecutionError::other)?;
+            self.transact_system_tx(tx, signer)?;
+        }
+
+        Ok(())
+    }
+
+    fn handle_update_validator_set_v2_tx(&mut self, tx: &TransactionSigned) -> Result<(), BlockExecutionError> {
+        sol!(
+            function updateValidatorSetV2(
+                address[] _consensusAddrs,
+                uint64[] _votingPowers,
+                bytes[] _voteAddrs
+            );
+        );
+
+        let input = tx.input();
+        let is_update_validator_set_tx =
+            input.len() >= 4 && input[..4] == updateValidatorSetV2Call::SELECTOR;
+
+        if is_update_validator_set_tx {
             let signer = tx.recover_signer().map_err(BlockExecutionError::other)?;
             self.transact_system_tx(tx, signer)?;
         }
@@ -378,14 +429,29 @@ where
         // Check if it's a system transaction
         let signer = tx.signer();
         if is_system_transaction(tx.tx(), *signer, self.evm.block().beneficiary) {
+            tracing::info!(
+                "System transaction detected - tx_hash: {:?}, signer: {:?}, beneficiary: {:?}",
+                tx.tx().hash(),
+                signer,
+                self.evm.block().beneficiary
+            );
             self.system_txs.push(tx.tx().clone());
             return Ok(0);
         }
 
         // apply patches before
         patch_mainnet_before_tx(tx.tx(), self.evm.db_mut())?;
+        patch_chapel_before_tx(tx.tx(), self.evm.db_mut())?;
 
         let block_available_gas = self.evm.block().gas_limit - self.gas_used;
+        tracing::info!(
+            "Regular transaction execution - tx_hash: {:?}, gas_limit: {}, block_available_gas: {}, current_gas_used: {}",
+            tx.tx().hash(),
+            tx.tx().gas_limit(),
+            block_available_gas,
+            self.gas_used
+        );
+        
         if tx.tx().gas_limit() > block_available_gas {
             return Err(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
                 transaction_gas_limit: tx.tx().gas_limit(),
@@ -402,18 +468,49 @@ where
         f(&result);
 
         let gas_used = result.gas_used();
-        self.gas_used += gas_used;
-        self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
+        // Note: gas refund is not available in this context, so we use gas_used directly
+        let actual_gas_used = gas_used;
+        
+        // Enhanced logging for regular transaction gas calculation
+        tracing::info!(
+            "Regular transaction execution result - tx_hash: {:?}, gas_used: {}, actual_gas_used: {}, cumulative_gas: {}",
+            tx.tx().hash(),
+            gas_used,
+            actual_gas_used,
+            self.gas_used + actual_gas_used
+        );
+        
+        self.gas_used += actual_gas_used;
+        
+        let receipt = self.receipt_builder.build_receipt(ReceiptBuilderCtx {
             tx: tx.tx(),
             evm: &self.evm,
             result,
             state: &state,
             cumulative_gas_used: self.gas_used,
-        }));
+        });
+        
+        // Log receipt details for regular transactions
+        tracing::info!(
+            "Regular transaction receipt - tx_hash: {:?}, cumulative_gas: {}, status: {:?}, logs_count: {}",
+            tx.tx().hash(),
+            receipt.cumulative_gas_used(),
+            receipt.status(),
+            receipt.logs().len()
+        );
+        
+        // Log basic log information without accessing fields
+        tracing::info!(
+            "  Regular transaction receipt has {} logs",
+            receipt.logs().len()
+        );
+        
+        self.receipts.push(receipt);
         self.evm.db_mut().commit(state);
 
         // apply patches after
         patch_mainnet_after_tx(tx.tx(), self.evm.db_mut())?;
+        patch_chapel_after_tx(tx.tx(), self.evm.db_mut())?;
 
         Ok(gas_used)
     }
@@ -455,9 +552,48 @@ where
             }
         }
 
+        // TODO: refine later
+        let system_txs_v2 = self.system_txs.clone();
+        for tx in &system_txs_v2 {
+            self.handle_update_validator_set_v2_tx(tx)?;
+        }
+
         // TODO:
         // Consensus: Slash validator if not in turn
-        // Consensus: Update validator set
+
+        // Enhanced logging: Block execution summary
+        tracing::info!(
+            "=== BLOCK EXECUTION SUMMARY ==="
+        );
+        tracing::info!(
+            "Block number: {}, total gas used: {}, receipts count: {}, system transactions: {}",
+            self.evm.block().number,
+            self.gas_used,
+            self.receipts.len(),
+            self.system_txs.len()
+        );
+        
+        // Log summary of all receipts in the block
+        tracing::info!(
+            "Block execution finished - total receipts: {}, total gas used: {}",
+            self.receipts.len(),
+            self.gas_used
+        );
+
+        // Log details of each receipt
+        for (receipt_idx, receipt) in self.receipts.iter().enumerate() {
+            tracing::info!(
+                "Receipt[{}] - status: {:?}, cumulative_gas: {}, logs_count: {}",
+                receipt_idx,
+                receipt.status(),
+                receipt.cumulative_gas_used(),
+                receipt.logs().len()
+            );
+        }
+        
+        tracing::info!(
+            "=== END BLOCK EXECUTION SUMMARY ==="
+        );
 
         Ok((
             self.evm,
