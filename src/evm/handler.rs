@@ -73,6 +73,7 @@ impl<DB: Database, INSP> Handler for BscHandler<DB, INSP> {
         let is_cancun = SpecId::from(ctx.cfg().spec()).is_enabled_in(SpecId::CANCUN);
         if is_cancun {
             let data_fee = U256::from(tx.total_blob_gas()) * ctx.blob_gasprice();
+            println!("data_fee: {:?}, total_blob_gas: {:?}, blob_gasprice: {:?}", data_fee, tx.total_blob_gas(), ctx.blob_gasprice());
             tx_fee = tx_fee.saturating_add(data_fee);
         }
 
