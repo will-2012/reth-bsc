@@ -164,7 +164,9 @@ pub fn haber() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
         let mut precompiles = feynman().clone();
-        precompiles.extend([kzg_point_evaluation::POINT_EVALUATION, secp256r1::P256VERIFY]);
+        // precompiles.extend([kzg_point_evaluation::POINT_EVALUATION, secp256r1::P256VERIFY]);
+        precompiles.extend([kzg_point_evaluation::POINT_EVALUATION]);
+
 
         Box::new(precompiles)
     })
