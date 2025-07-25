@@ -13,7 +13,7 @@ pub trait BscHardforks: EthereumHardforks {
 
     /// Convenience method to check if [`BscHardfork::Ramanujan`] is firstly active at a given
     /// block.
-    fn is_on_ramanujan_at_block(&self, block_number: u64) -> bool {
+    fn is_ramanujan_transition_at_block(&self, block_number: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::Ramanujan).transitions_at_block(block_number)
     }
 
@@ -38,7 +38,7 @@ pub trait BscHardforks: EthereumHardforks {
     }
 
     /// Convenience method to check if [`BscHardfork::Euler`] is firstly active at a given block.
-    fn is_on_euler_at_block(&self, block_number: u64) -> bool {
+    fn is_euler_transition_at_block(&self, block_number: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::Euler).transitions_at_block(block_number)
     }
 
@@ -63,7 +63,7 @@ pub trait BscHardforks: EthereumHardforks {
     }
 
     /// Convenience method to check if [`BscHardfork::Planck`] is firstly active at a given block.
-    fn is_on_planck_at_block(&self, block_number: u64) -> bool {
+    fn is_planck_transition_at_block(&self, block_number: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::Planck).transitions_at_block(block_number)
     }
 
@@ -73,7 +73,7 @@ pub trait BscHardforks: EthereumHardforks {
     }
 
     /// Convenience method to check if [`BscHardfork::Luban`] is firstly active at a given block.
-    fn is_on_luban_at_block(&self, block_number: u64) -> bool {
+    fn is_luban_transition_at_block(&self, block_number: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::Luban).transitions_at_block(block_number)
     }
 
@@ -83,7 +83,7 @@ pub trait BscHardforks: EthereumHardforks {
     }
 
     /// Convenience method to check if [`BscHardfork::Plato`] is firstly active at a given block.
-    fn is_on_plato_at_block(&self, block_number: u64) -> bool {
+    fn is_plato_transition_at_block(&self, block_number: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::Plato).transitions_at_block(block_number)
     }
 
@@ -104,7 +104,7 @@ pub trait BscHardforks: EthereumHardforks {
 
     /// Convenience method to check if [`BscHardfork::Kepler`] is firstly active at a given
     /// timestamp and parent timestamp.
-    fn is_on_kepler_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
+    fn is_kepler_transition_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::Kepler)
             .transitions_at_timestamp(timestamp, parent_timestamp)
     }
@@ -116,7 +116,7 @@ pub trait BscHardforks: EthereumHardforks {
 
     /// Convenience method to check if [`BscHardfork::Feynman`] is firstly active at a given
     /// timestamp and parent timestamp.
-    fn is_on_feynman_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
+    fn is_feynman_transition_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::Feynman)
             .transitions_at_timestamp(timestamp, parent_timestamp)
     }
@@ -128,7 +128,7 @@ pub trait BscHardforks: EthereumHardforks {
 
     /// Convenience method to check if [`BscHardfork::FeynmanFix`] is firstly active at a given
     /// timestamp and parent timestamp.
-    fn is_on_feynman_fix_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
+    fn is_feynman_fix_transition_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::FeynmanFix)
             .transitions_at_timestamp(timestamp, parent_timestamp)
     }
@@ -140,7 +140,7 @@ pub trait BscHardforks: EthereumHardforks {
 
     /// Convenience method to check if [`BscHardfork::Haber`] is firstly active at a given timestamp
     /// and parent timestamp.
-    fn is_on_haber_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
+    fn is_haber_transition_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::Haber)
             .transitions_at_timestamp(timestamp, parent_timestamp)
     }
@@ -152,7 +152,7 @@ pub trait BscHardforks: EthereumHardforks {
 
     /// Convenience method to check if [`BscHardfork::HaberFix`] is firstly active at a given
     /// timestamp and parent timestamp.
-    fn is_on_haber_fix_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
+    fn is_haber_fix_transition_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::HaberFix)
             .transitions_at_timestamp(timestamp, parent_timestamp)
     }
@@ -162,9 +162,21 @@ pub trait BscHardforks: EthereumHardforks {
         self.bsc_fork_activation(BscHardfork::HaberFix).active_at_timestamp(timestamp)
     }
 
+    /// Convenience method to check if [`BscHardfork::Cancun`] is firstly active at a given
+    /// timestamp and parent timestamp.
+    fn is_cancun_transition_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
+        self.bsc_fork_activation(BscHardfork::Cancun)
+            .transitions_at_timestamp(timestamp, parent_timestamp)
+    }
+
+    /// Convenience method to check if [`BscHardfork::Cancun`] is active at a given timestamp.
+    fn is_cancun_active_at_timestamp(&self, timestamp: u64) -> bool {
+        self.bsc_fork_activation(BscHardfork::Cancun).active_at_timestamp(timestamp)
+    }
+
     /// Convenience method to check if [`BscHardfork::Bohr`] is firstly active at a given
     /// timestamp and parent timestamp.
-    fn is_on_bohr_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
+    fn is_bohr_transition_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::Bohr)
             .transitions_at_timestamp(timestamp, parent_timestamp)
     }
