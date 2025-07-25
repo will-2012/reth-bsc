@@ -36,6 +36,8 @@ impl BscPrecompiles {
         tracing::info!("spec: {:?}", spec);
         let precompiles = if spec >= BscHardfork::Haber {
             haber()
+        } else if spec >= BscHardfork::Cancun {
+            cancun()
         } else if spec >= BscHardfork::Feynman {
             feynman()
         } else if spec >= BscHardfork::Hertz {
@@ -159,15 +161,22 @@ pub fn feynman() -> &'static Precompiles {
     })
 }
 
+/// Returns precompiles for Cancun spec.
+pub fn cancun() -> &'static Precompiles {
+    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = feynman().clone();
+        precompiles.extend([kzg_point_evaluation::POINT_EVALUATION]);
+        Box::new(precompiles)
+    })
+}
+
 /// Returns precompiles for Haber spec.
 pub fn haber() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
-        let mut precompiles = feynman().clone();
-        // precompiles.extend([kzg_point_evaluation::POINT_EVALUATION, secp256r1::P256VERIFY]);
-        precompiles.extend([kzg_point_evaluation::POINT_EVALUATION]);
-
-
+        let mut precompiles = cancun().clone();
+        precompiles.extend([secp256r1::P256VERIFY]);
         Box::new(precompiles)
     })
 }
