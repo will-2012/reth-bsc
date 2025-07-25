@@ -421,6 +421,7 @@ where
             .map_err(|err| BlockExecutionError::evm(err, tx.tx().trie_hash()))?;
         let ResultAndState { result, state } = result_and_state;
 
+        tracing::info!("tx_hash: {:?}, result: {:?}", tx.tx().hash(), result);
         f(&result);
 
         let gas_used = result.gas_used();
