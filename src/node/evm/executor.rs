@@ -419,8 +419,8 @@ where
 
         if self.spec.is_pascal_transition_at_timestamp(self.evm.block().timestamp.to(), self.evm.block().timestamp.to::<u64>() - 3) {
             //self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
-            eprintln!("apply_history_storage_account");
-            self.apply_history_storage_account(self.evm.block().number.to())?;
+            eprintln!("apply_history_storage_account, block_number: {:?}", self.evm.block().number.to::<u64>());
+            self.apply_history_storage_account(self.evm.block().number.to::<u64>())?;
         }
 
         eprintln!("parent_hash: {:?}, apply_blockhashes_contract_call", self._ctx.parent_hash);

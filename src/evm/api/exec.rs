@@ -119,6 +119,13 @@ where
             is_system_transaction: true,
         };
         
-        self.transact_one(tx)
+        let original_disable_nonce_check = self.inner.ctx.cfg.disable_nonce_check;
+        self.inner.ctx.cfg.disable_nonce_check = true;
+        
+        let result = self.transact_one(tx);
+        
+        self.inner.ctx.cfg.disable_nonce_check = original_disable_nonce_check;
+        
+        result
     }
 }
