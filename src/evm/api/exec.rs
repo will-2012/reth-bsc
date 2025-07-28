@@ -104,7 +104,7 @@ where
                 caller,
                 kind: alloy_primitives::TxKind::Call(contract),
                 nonce: 0,
-                gas_limit: u64::MAX / 2,
+                gas_limit: self.inner.ctx.block.gas_limit,
                 value: alloy_primitives::U256::ZERO,
                 data,
                 gas_price: 0,
