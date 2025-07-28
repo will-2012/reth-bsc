@@ -234,6 +234,7 @@ impl BscHardfork {
             (Self::Feynman.boxed(), ForkCondition::Timestamp(1713419340)), /* 2024-04-18
                                                                             * 05:49:00 AM UTC */
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1713419340)), /* 2024-04-18 05:49:00 AM UTC */
+            (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC */
             (Self::Cancun.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC */
             (Self::Haber.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00
                                                                           * AM UTC */
@@ -282,6 +283,7 @@ impl BscHardfork {
             (Self::Kepler.boxed(), ForkCondition::Timestamp(1702972800)),
             (Self::Feynman.boxed(), ForkCondition::Timestamp(1710136800)),
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1711342800)),
+            (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1713330442)),
             (Self::Cancun.boxed(), ForkCondition::Timestamp(1713330442)),
             (Self::Haber.boxed(), ForkCondition::Timestamp(1716962820)),
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1719986788)),
@@ -324,6 +326,7 @@ impl BscHardfork {
             (Self::Kepler.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::Feynman.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1722442622)),
+            (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::Cancun.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::Haber.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1722442622)),
