@@ -32,7 +32,9 @@ impl BscPrecompiles {
     /// Create a new precompile provider with the given bsc spec.
     #[inline]
     pub fn new(spec: BscHardfork) -> Self {
-        let precompiles = if spec >= BscHardfork::Haber {
+        let precompiles = if spec >= BscHardfork::Pascal {
+            pascal()
+        } else if  spec >= BscHardfork::Haber {
             haber()
         } else if spec >= BscHardfork::Cancun {
             cancun()
@@ -175,6 +177,20 @@ pub fn haber() -> &'static Precompiles {
     INSTANCE.get_or_init(|| {
         let mut precompiles = cancun().clone();
         precompiles.extend([secp256r1::P256VERIFY]);
+        Box::new(precompiles)
+    })
+}
+
+/// Returns precompiles for Pascal spec.
+pub fn pascal() -> &'static Precompiles {
+    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = haber().clone();
+        let precompiles = {
+            let mut precompiles = precompiles;
+            precompiles.extend(bls12_381::precompiles());
+            precompiles
+        };
         Box::new(precompiles)
     })
 }
