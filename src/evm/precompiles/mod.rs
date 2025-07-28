@@ -32,6 +32,7 @@ impl BscPrecompiles {
     /// Create a new precompile provider with the given bsc spec.
     #[inline]
     pub fn new(spec: BscHardfork) -> Self {
+        tracing::info!("spec: {:?}", spec);
         let precompiles = if spec >= BscHardfork::Haber {
             haber()
         } else if spec >= BscHardfork::Cancun {
