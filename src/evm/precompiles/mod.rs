@@ -33,7 +33,9 @@ impl BscPrecompiles {
     #[inline]
     pub fn new(spec: BscHardfork) -> Self {
         tracing::info!("spec: {:?}", spec);
-        let precompiles = if spec >= BscHardfork::Haber {
+        let precompiles = if spec >= BscHardfork::Pascal {
+            pascal()
+        } else if  spec >= BscHardfork::Haber {
             haber()
         } else if spec >= BscHardfork::Cancun {
             cancun()
@@ -176,6 +178,20 @@ pub fn haber() -> &'static Precompiles {
     INSTANCE.get_or_init(|| {
         let mut precompiles = cancun().clone();
         precompiles.extend([secp256r1::P256VERIFY]);
+        Box::new(precompiles)
+    })
+}
+
+pub fn pascal() -> &'static Precompiles {
+    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = haber().clone();
+        //precompiles.extend([secp256r1::P256VERIFY]);
+        let precompiles = {
+            let mut precompiles = precompiles;
+            precompiles.extend(bls12_381::precompiles());
+            precompiles
+        };
         Box::new(precompiles)
     })
 }
