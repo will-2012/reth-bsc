@@ -13,7 +13,7 @@ use crate::{
 use alloy_consensus::{Transaction, TxReceipt};
 use alloy_eips::{eip7685::Requests, Encodable2718};
 use alloy_evm::{block::ExecutableTx, eth::receipt_builder::ReceiptBuilderCtx};
-use alloy_primitives::{uint, Address, TxKind, U256};
+use alloy_primitives::{uint, Address, TxKind, U256, BlockNumber, Bytes};
 use alloy_sol_macro::sol;
 use alloy_sol_types::SolCall;
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
@@ -36,6 +36,9 @@ use revm::{
     state::Bytecode,
     Database as _, DatabaseCommit,
 };
+use tracing::debug;
+use alloy_eips::eip2935::{HISTORY_STORAGE_ADDRESS, HISTORY_STORAGE_CODE};
+use alloy_primitives::keccak256;
 
 pub struct BscBlockExecutor<'a, EVM, Spec, R: ReceiptBuilder>
 where
@@ -355,6 +358,30 @@ where
         self.transact_system_tx(&tx, validator)?;
         Ok(())
     }
+
+    pub(crate) fn apply_history_storage_account(
+        &mut self,
+        block_number: BlockNumber,
+    ) -> Result<bool, BlockExecutionError> {
+        debug!(
+            "Apply history storage account {:?} at height {:?}",
+            HISTORY_STORAGE_ADDRESS, block_number
+        );
+
+        let account = self.evm.db_mut().load_cache_account(HISTORY_STORAGE_ADDRESS).map_err(|err| {
+            BlockExecutionError::other(err)
+        })?;
+
+        let mut new_info = account.account_info().unwrap_or_default();
+        new_info.code_hash = keccak256(HISTORY_STORAGE_CODE.clone());
+        new_info.code = Some(Bytecode::new_raw(Bytes::from_static(&HISTORY_STORAGE_CODE)));
+        new_info.nonce = 1_u64;
+        new_info.balance = U256::ZERO;
+
+        let transition = account.change(new_info, Default::default());
+        self.evm.db_mut().apply_transition(vec![(HISTORY_STORAGE_ADDRESS, transition)]);
+        Ok(true)
+    }
 }
 
 impl<'a, DB, E, Spec, R> BlockExecutor for BscBlockExecutor<'a, E, Spec, R>
@@ -390,11 +417,20 @@ where
             self.upgrade_contracts()?;
         }
 
+        if self.spec.is_pascal_transition_at_timestamp(self.evm.block().timestamp.to(), self.evm.block().timestamp.to::<u64>() - 3) {
+            //self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
+            eprintln!("apply_history_storage_account");
+            self.apply_history_storage_account(self.evm.block().number.to())?;
+        }
+
         eprintln!("parent_hash: {:?}, apply_blockhashes_contract_call", self._ctx.parent_hash);
         self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
 
         Ok(())
     }
+
+   
+
 
     fn execute_transaction_with_commit_condition(
         &mut self,
