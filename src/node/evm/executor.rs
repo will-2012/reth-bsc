@@ -21,6 +21,7 @@ use reth_evm::{
     block::{BlockValidationError, CommitChanges},
     eth::{receipt_builder::ReceiptBuilder, EthBlockExecutionCtx},
     execute::{BlockExecutionError, BlockExecutor},
+    system_calls::SystemCaller,
     Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, OnStateHook, RecoveredTx,
 };
 use reth_primitives::TransactionSigned;
@@ -56,6 +57,8 @@ where
     system_contracts: SystemContract<Spec>,
     /// Context for block execution.
     _ctx: EthBlockExecutionCtx<'a>,
+    /// Utility to call system caller.
+    system_caller: SystemCaller<Spec>,
 }
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
@@ -82,6 +85,7 @@ where
         receipt_builder: R,
         system_contracts: SystemContract<Spec>,
     ) -> Self {
+        let spec_clone = spec.clone();
         Self {
             spec,
             evm,
@@ -91,6 +95,7 @@ where
             receipt_builder,
             system_contracts,
             _ctx,
+            system_caller: SystemCaller::new(spec_clone),
         }
     }
 
@@ -384,6 +389,9 @@ where
         if !self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
             self.upgrade_contracts()?;
         }
+
+        eprintln!("parent_hash: {:?}, apply_blockhashes_contract_call", self._ctx.parent_hash);
+        self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
 
         Ok(())
     }
