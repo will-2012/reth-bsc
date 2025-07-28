@@ -18,7 +18,7 @@ use revm::{
         result::{EVMError, HaltReason, ResultAndState},
         BlockEnv,
     },
-    Context, ExecuteEvm, InspectEvm, Inspector,
+    Context, ExecuteEvm, InspectEvm, Inspector, SystemCallEvm,
 };
 
 mod assembler;
@@ -81,11 +81,13 @@ where
 
     fn transact_system_call(
         &mut self,
-        _caller: Address,
-        _contract: Address,
-        _data: Bytes,
+        caller: Address,
+        contract: Address,
+        data: Bytes,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        unimplemented!()
+        let result = SystemCallEvm::transact_system_call_with_caller(self, caller, contract, data)?;
+        let state = self.finalize();
+        Ok(ResultAndState::new(result, state))
     }
 
     fn finish(self) -> (Self::DB, EvmEnv<Self::Spec>) {

@@ -3,6 +3,7 @@ use crate::evm::{
     handler::BscHandler,
     transaction::BscTxEnv,
 };
+use alloy_primitives::{Address, Bytes};
 use reth_evm::Database;
 use revm::{
     context::{BlockEnv, ContextSetters},
@@ -10,7 +11,7 @@ use revm::{
         result::{EVMError, ExecutionResult, ResultAndState},
         ContextTr,
     },
-    handler::Handler,
+    handler::{Handler, SystemCallEvm, SYSTEM_ADDRESS},
     inspector::{InspectCommitEvm, InspectEvm, Inspector, InspectorHandler},
     state::EvmState,
     DatabaseCommit, ExecuteCommitEvm, ExecuteEvm,
@@ -78,4 +79,53 @@ where
     DB: Database + DatabaseCommit,
     INSP: Inspector<BscContext<DB>>,
 {
+}
+
+impl<DB, INSP> SystemCallEvm for BscEvm<DB, INSP>
+where
+    DB: Database,
+{
+    fn transact_system_call(
+        &mut self,
+        contract: Address,
+        data: Bytes,
+    ) -> Result<ExecutionResult, Self::Error> {
+        self.transact_system_call_with_caller(SYSTEM_ADDRESS, contract, data)
+    }
+
+    fn transact_system_call_with_caller(
+        &mut self,
+        caller: Address,
+        contract: Address,
+        data: Bytes,
+    ) -> Result<ExecutionResult, Self::Error> {
+        let tx = BscTxEnv {
+            base: revm::context::TxEnv {
+                caller,
+                kind: alloy_primitives::TxKind::Call(contract),
+                nonce: 0,
+                gas_limit: self.inner.ctx.block.gas_limit,
+                value: alloy_primitives::U256::ZERO,
+                data,
+                gas_price: 0,
+                chain_id: Some(self.inner.ctx.cfg.chain_id),
+                gas_priority_fee: None,
+                access_list: Default::default(),
+                blob_hashes: Vec::new(),
+                max_fee_per_blob_gas: 0,
+                tx_type: 0,
+                authorization_list: Default::default(),
+            },
+            is_system_transaction: true,
+        };
+        
+        let original_disable_nonce_check = self.inner.ctx.cfg.disable_nonce_check;
+        self.inner.ctx.cfg.disable_nonce_check = true;
+        
+        let result = self.transact_one(tx);
+        
+        self.inner.ctx.cfg.disable_nonce_check = original_disable_nonce_check;
+        
+        result
+    }
 }
