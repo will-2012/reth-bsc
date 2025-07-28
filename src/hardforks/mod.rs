@@ -186,11 +186,10 @@ pub trait BscHardforks: EthereumHardforks {
         self.bsc_fork_activation(BscHardfork::Bohr).active_at_timestamp(timestamp)
     }
 
-    /// Convenience method to check if [`BscHardfork::Pascal`] is firstly active at a given
+    /// Convenience method to check if [`EthereumHardfork::Prague`] is firstly active at a given
     /// timestamp and parent timestamp.
-    fn is_pascal_transition_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
-        self.bsc_fork_activation(BscHardfork::Pascal)
-            .transitions_at_timestamp(timestamp, parent_timestamp)
+    fn is_prague_transition_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
+        self.is_prague_active_at_timestamp(timestamp) && !self.is_prague_active_at_timestamp(parent_timestamp)
     }
 
     /// Convenience method to check if [`BscHardfork::Pascal`] is active at a given timestamp.

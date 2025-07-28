@@ -418,10 +418,12 @@ where
         }
 
         // enable BEP-440/EIP-2935 for historical block hashes from state
-        if self.spec.is_pascal_transition_at_timestamp(self.evm.block().timestamp.to(), self.evm.block().timestamp.to::<u64>() - 3) {
+        if self.spec.is_prague_transition_at_timestamp(self.evm.block().timestamp.to(), self.evm.block().timestamp.to::<u64>() - 3) {
             self.apply_history_storage_account(self.evm.block().number.to::<u64>())?;
         }
-        self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
+        if self.spec.is_prague_active_at_timestamp(self.evm.block().timestamp.to()) {
+            self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
+        }
 
         Ok(())
     }

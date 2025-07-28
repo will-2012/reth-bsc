@@ -11,7 +11,7 @@ use revm::{
         result::{EVMError, ExecutionResult, ResultAndState},
         ContextTr,
     },
-    handler::{Handler, SystemCallEvm, SYSTEM_ADDRESS},
+    handler::{Handler, SystemCallEvm},
     inspector::{InspectCommitEvm, InspectEvm, Inspector, InspectorHandler},
     state::EvmState,
     DatabaseCommit, ExecuteCommitEvm, ExecuteEvm,
@@ -87,10 +87,10 @@ where
 {
     fn transact_system_call(
         &mut self,
-        contract: Address,
-        data: Bytes,
+        _contract: Address,
+        _data: Bytes,
     ) -> Result<ExecutionResult, Self::Error> {
-        self.transact_system_call_with_caller(SYSTEM_ADDRESS, contract, data)
+        unimplemented!()
     }
 
     fn transact_system_call_with_caller(
