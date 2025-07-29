@@ -32,6 +32,7 @@ impl BscPrecompiles {
     /// Create a new precompile provider with the given bsc spec.
     #[inline]
     pub fn new(spec: BscHardfork) -> Self {
+        eprintln!("spec: {:?} for precompiles", spec);
         let precompiles = if spec >= BscHardfork::Pascal {
             pascal()
         } else if  spec >= BscHardfork::Haber {
