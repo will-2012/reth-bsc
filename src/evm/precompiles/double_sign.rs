@@ -106,6 +106,7 @@ fn double_sign_evidence_validation_run(input: &[u8], gas_limit: u64) -> Precompi
     if header1.extra.len() < EXTRA_SEAL_LENGTH || header1.extra.len() < EXTRA_SEAL_LENGTH {
         return revert()
     }
+
     let sig1 = &header1.extra[header1.extra.len() - EXTRA_SEAL_LENGTH..];
     let sig2 = &header2.extra[header2.extra.len() - EXTRA_SEAL_LENGTH..];
     if sig1.eq(sig2) {

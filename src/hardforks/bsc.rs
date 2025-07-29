@@ -46,6 +46,8 @@ hardfork!(
         Feynman,
         /// BSC `FeynmanFix` hardfork
         FeynmanFix,
+        /// BSC `Cancun` hardfork
+        Cancun,
         /// BSC `Haber` hardfork
         Haber,
         /// BSC `HaberFix` hardfork
@@ -165,12 +167,14 @@ impl BscHardfork {
             |fork| match fork {
                 EthereumHardfork::Shanghai => Some(1705996800),
                 EthereumHardfork::Cancun => Some(1718863500),
+                EthereumHardfork::Prague => Some(1742436600),
                 _ => None,
             },
             |fork| match fork {
                 Self::Kepler => Some(1705996800),
                 Self::Feynman | Self::FeynmanFix => Some(1713419340),
                 Self::Haber => Some(1718863500),
+                Self::HaberFix => Some(1727316120),
                 _ => None,
             },
         )
@@ -183,6 +187,7 @@ impl BscHardfork {
             |fork| match fork {
                 EthereumHardfork::Shanghai => Some(1702972800),
                 EthereumHardfork::Cancun => Some(1713330442),
+                EthereumHardfork::Prague => Some(1740452880),
                 _ => None,
             },
             |fork| match fork {
@@ -230,6 +235,8 @@ impl BscHardfork {
                                                                             * 05:49:00 AM UTC */
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1713419340)), /* 2024-04-18 05:49:00 AM UTC */
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC */
+            (Self::Cancun.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00
+                                                                           * AM UTC */
             (Self::Haber.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00
                                                                           * AM UTC */
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1727316120)), /* 2024-09-26 02:02:00 AM UTC */
@@ -278,6 +285,7 @@ impl BscHardfork {
             (Self::Feynman.boxed(), ForkCondition::Timestamp(1710136800)),
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1711342800)),
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1713330442)),
+            (Self::Cancun.boxed(), ForkCondition::Timestamp(1713330442)),
             (Self::Haber.boxed(), ForkCondition::Timestamp(1716962820)),
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1719986788)),
             (Self::Bohr.boxed(), ForkCondition::Timestamp(1724116996)),
@@ -320,6 +328,7 @@ impl BscHardfork {
             (Self::Feynman.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1722442622)),
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1722442622)),
+            (Self::Cancun.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::Haber.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::Bohr.boxed(), ForkCondition::Timestamp(1722444422)),
@@ -360,12 +369,11 @@ impl From<BscHardfork> for SpecId {
             BscHardfork::Kepler | BscHardfork::Feynman | BscHardfork::FeynmanFix => {
                 SpecId::SHANGHAI
             }
+            BscHardfork::Cancun |
             BscHardfork::Haber |
             BscHardfork::HaberFix |
-            BscHardfork::Bohr |
-            BscHardfork::Pascal |
-            BscHardfork::Lorentz |
-            BscHardfork::Maxwell => SpecId::CANCUN,
+            BscHardfork::Bohr => SpecId::CANCUN,
+            BscHardfork::Pascal | BscHardfork::Lorentz | BscHardfork::Maxwell => SpecId::PRAGUE,
         }
     }
 }
@@ -373,6 +381,7 @@ impl From<BscHardfork> for SpecId {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chainspec::{bsc::bsc_mainnet, bsc_chapel::bsc_testnet};
 
     #[test]
     fn test_match_hardfork() {
@@ -381,6 +390,111 @@ mod tests {
             BscHardfork::bsc_mainnet_activation_timestamp(EthereumHardfork::Cancun),
             Some(1718863500)
         );
-        assert_eq!(BscHardfork::bsc_mainnet_activation_timestamp(BscHardfork::HaberFix), None);
+        assert_eq!(
+            BscHardfork::bsc_mainnet_activation_timestamp(BscHardfork::HaberFix),
+            Some(1727316120)
+        );
+    }
+
+    #[test]
+    fn test_hardfork_activation_order_differences() {
+        // Test the critical difference between mainnet and testnet activation orders
+        // This demonstrates why the order in revm_spec_by_timestamp_and_block_number matters
+
+        // Mainnet activation blocks (from the code):
+        // Euler: 18907621, Nano: 21962149, Moran: 22107423, Gibbs: 23846001
+        // Order: Gibbs -> Moran -> Nano -> Euler (newest to oldest)
+
+        // Testnet activation blocks (from the code):
+        // Euler: 19203503, Gibbs: 22800220, Nano: 23482428, Moran: 23603940
+        // Order: Moran -> Nano -> Gibbs -> Euler (newest to oldest)
+
+        // Test mainnet chain spec
+        let mainnet_spec = crate::chainspec::BscChainSpec::from(bsc_mainnet());
+
+        // Test blocks around the critical transition points
+        // Block 23846000: Should be Moran (before Gibbs activation)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                mainnet_spec.clone(),
+                1700000000, // Some timestamp
+                23846000
+            ),
+            BscHardfork::Moran
+        );
+
+        // Block 23846001: Should be Gibbs (Gibbs activation block)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                mainnet_spec.clone(),
+                1700000000, // Some timestamp
+                23846001
+            ),
+            BscHardfork::Gibbs
+        );
+
+        // Block 22107422: Should be Nano (before Moran activation)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                mainnet_spec.clone(),
+                1700000000, // Some timestamp
+                22107422
+            ),
+            BscHardfork::Nano
+        );
+
+        // Block 22107423: Should be Moran (Moran activation block)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                mainnet_spec.clone(),
+                1700000000, // Some timestamp
+                22107423
+            ),
+            BscHardfork::Moran
+        );
+
+        // Test testnet chain spec
+        let testnet_spec = crate::chainspec::BscChainSpec::from(bsc_testnet());
+
+        // Test blocks around the critical transition points for testnet
+        // Block 23603939: Should be Nano (before Moran activation)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                testnet_spec.clone(),
+                1700000000, // Some timestamp
+                23603939
+            ),
+            BscHardfork::Nano
+        );
+
+        // Block 23603940: Should be Moran (Moran activation block)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                testnet_spec.clone(),
+                1700000000, // Some timestamp
+                23603940
+            ),
+            BscHardfork::Moran
+        );
+
+        // Block 23482427: Should be Gibbs (before Nano activation)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                testnet_spec.clone(),
+                1700000000, // Some timestamp
+                23482427
+            ),
+            BscHardfork::Gibbs
+        );
+
+        // Block 23482428: Should be Nano (Nano activation block)
+        assert_eq!(
+            crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+                testnet_spec.clone(),
+                1700000000, // Some timestamp
+                23482428
+            ),
+            BscHardfork::Nano
+        );
     }
 }

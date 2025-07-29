@@ -99,7 +99,7 @@ where
     }
 
     fn components(&self) -> (&Self::DB, &Self::Inspector, &Self::Precompiles) {
-        (&self.inner.journaled_state.database, &self.inner.inspector, &self.inner.precompiles)
+        (&self.journaled_state.database, &self.inner.inspector, &self.inner.precompiles)
     }
 
     fn components_mut(&mut self) -> (&mut Self::DB, &mut Self::Inspector, &mut Self::Precompiles) {

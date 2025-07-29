@@ -11,7 +11,6 @@ use reth::{
 use reth_engine_primitives::{EngineValidator, ExecutionPayload, PayloadValidator};
 use reth_payload_primitives::{
     EngineApiMessageVersion, EngineObjectValidationError, NewPayloadError, PayloadOrAttributes,
-    PayloadTypes,
 };
 use reth_primitives::{RecoveredBlock, SealedBlock};
 use reth_primitives_traits::Block as _;
@@ -84,13 +83,12 @@ impl ExecutionPayload for BscExecutionData {
     }
 }
 
-impl PayloadValidator for BscEngineValidator {
+impl PayloadValidator<BscPayloadTypes> for BscEngineValidator {
     type Block = BscBlock;
-    type ExecutionData = BscExecutionData;
 
     fn ensure_well_formed_payload(
         &self,
-        payload: Self::ExecutionData,
+        payload: BscExecutionData,
     ) -> Result<RecoveredBlock<Self::Block>, NewPayloadError> {
         let sealed_block =
             self.inner.ensure_well_formed_payload(payload).map_err(NewPayloadError::other)?;
@@ -106,14 +104,11 @@ impl PayloadValidator for BscEngineValidator {
     }
 }
 
-impl<Types> EngineValidator<Types> for BscEngineValidator
-where
-    Types: PayloadTypes<PayloadAttributes = PayloadAttributes, ExecutionData = BscExecutionData>,
-{
+impl EngineValidator<BscPayloadTypes> for BscEngineValidator {
     fn validate_version_specific_fields(
         &self,
         _version: EngineApiMessageVersion,
-        _payload_or_attrs: PayloadOrAttributes<'_, Self::ExecutionData, PayloadAttributes>,
+        _payload_or_attrs: PayloadOrAttributes<'_, BscExecutionData, PayloadAttributes>,
     ) -> Result<(), EngineObjectValidationError> {
         Ok(())
     }
