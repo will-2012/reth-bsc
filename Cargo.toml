@@ -36,7 +36,6 @@ reth-network-p2p = { git = "https://github.com/paradigmxyz/reth", rev = "6487f0b
 reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "6487f0b" }
 reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth", rev = "6487f0b", features = ["test-utils"] }
 reth-network-peers = { git = "https://github.com/paradigmxyz/reth", rev = "6487f0b" }
-reth-optimism-rpc = { git = "https://github.com/paradigmxyz/reth", rev = "6487f0b" }
 reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "6487f0b" }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "6487f0b" }
 reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", rev = "6487f0b" }

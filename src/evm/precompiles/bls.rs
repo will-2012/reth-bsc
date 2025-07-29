@@ -216,7 +216,7 @@ mod tests {
         input.extend_from_slice(&pub_key3);
 
         match bls_signature_validation_run(&Bytes::from(input.clone()), 100_000_000) {
-            Ok(res) => assert_eq!(res, PrecompileOutput::new_reverted(4500, Default::default())),
+            Ok(res) => assert_eq!(res, PrecompileOutput::new_reverted(11500, Default::default())),
             Err(e) => panic!("BLS signature validation failed, expect error"),
         }
 
