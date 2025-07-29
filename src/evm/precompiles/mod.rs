@@ -34,7 +34,7 @@ impl BscPrecompiles {
     pub fn new(spec: BscHardfork) -> Self {
         let precompiles = if spec >= BscHardfork::Pascal {
             pascal()
-        } else if  spec >= BscHardfork::Haber {
+        } else if spec >= BscHardfork::Haber {
             haber()
         } else if spec >= BscHardfork::Cancun {
             cancun()

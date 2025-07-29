@@ -235,7 +235,8 @@ impl BscHardfork {
                                                                             * 05:49:00 AM UTC */
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1713419340)), /* 2024-04-18 05:49:00 AM UTC */
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC */
-            (Self::Cancun.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC */
+            (Self::Cancun.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00
+                                                                           * AM UTC */
             (Self::Haber.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00
                                                                           * AM UTC */
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1727316120)), /* 2024-09-26 02:02:00 AM UTC */
@@ -368,7 +369,10 @@ impl From<BscHardfork> for SpecId {
             BscHardfork::Kepler | BscHardfork::Feynman | BscHardfork::FeynmanFix => {
                 SpecId::SHANGHAI
             }
-            BscHardfork::Cancun | BscHardfork::Haber | BscHardfork::HaberFix | BscHardfork::Bohr => SpecId::CANCUN,
+            BscHardfork::Cancun |
+            BscHardfork::Haber |
+            BscHardfork::HaberFix |
+            BscHardfork::Bohr => SpecId::CANCUN,
             BscHardfork::Pascal | BscHardfork::Lorentz | BscHardfork::Maxwell => SpecId::PRAGUE,
         }
     }
@@ -386,7 +390,10 @@ mod tests {
             BscHardfork::bsc_mainnet_activation_timestamp(EthereumHardfork::Cancun),
             Some(1718863500)
         );
-        assert_eq!(BscHardfork::bsc_mainnet_activation_timestamp(BscHardfork::HaberFix), Some(1727316120));
+        assert_eq!(
+            BscHardfork::bsc_mainnet_activation_timestamp(BscHardfork::HaberFix),
+            Some(1727316120)
+        );
     }
 
     #[test]
