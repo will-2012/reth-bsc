@@ -310,19 +310,57 @@ where
 
     /// Distributes block rewards to the validator.
     fn distribute_block_rewards(&mut self, validator: Address) -> Result<(), BlockExecutionError> {
+        info!(
+            target: "bsc::executor",
+            "=== DISTRIBUTE BLOCK REWARDS START ==="
+        );
+        info!(
+            target: "bsc::executor",
+            "Distributing rewards to validator: {:?}",
+            validator
+        );
+        
         let system_account = self
             .evm
             .db_mut()
             .load_cache_account(SYSTEM_ADDRESS)
             .map_err(BlockExecutionError::other)?;
 
+        info!(
+            target: "bsc::executor",
+            "System account loaded - exists: {}, balance: {}",
+            system_account.account.is_some(),
+            system_account.account.as_ref().map(|acc| acc.info.balance).unwrap_or_default()
+        );
+
         if system_account.account.is_none() ||
             system_account.account.as_ref().unwrap().info.balance == U256::ZERO
         {
+            info!(
+                target: "bsc::executor",
+                "=== DISTRIBUTE BLOCK REWARDS EARLY RETURN ==="
+            );
+            info!(
+                target: "bsc::executor",
+                "Early return reason: account_exists={}, balance_zero={}",
+                system_account.account.is_some(),
+                system_account.account.as_ref().map(|acc| acc.info.balance == U256::ZERO).unwrap_or(true)
+            );
             return Ok(());
         }
 
+        info!(
+            target: "bsc::executor",
+            "Proceeding with block reward distribution"
+        );
+
         let (mut block_reward, mut transition) = system_account.drain_balance();
+        info!(
+            target: "bsc::executor",
+            "Drained balance: block_reward={}",
+            block_reward
+        );
+        
         transition.info = None;
         self.evm.db_mut().apply_transition(vec![(SYSTEM_ADDRESS, transition)]);
         let balance_increment = vec![(validator, block_reward)];
@@ -332,6 +370,11 @@ where
             .increment_balances(balance_increment)
             .map_err(BlockExecutionError::other)?;
 
+        info!(
+            target: "bsc::executor",
+            "Applied balance increment to validator"
+        );
+
         let system_reward_balance = self
             .evm
             .db_mut()
@@ -340,22 +383,70 @@ where
             .unwrap_or_default()
             .balance;
 
+        info!(
+            target: "bsc::executor",
+            "System reward contract balance: {}, max_system_reward: {}",
+            system_reward_balance, MAX_SYSTEM_REWARD
+        );
+
         // Kepler introduced a max system reward limit, so we need to pay the system reward to the
         // system contract if the limit is not exceeded.
-        if !self.spec.is_kepler_active_at_timestamp(self.evm.block().timestamp.to()) &&
-            system_reward_balance < U256::from(MAX_SYSTEM_REWARD)
+        let kepler_active = self.spec.is_kepler_active_at_timestamp(self.evm.block().timestamp.to());
+        info!(
+            target: "bsc::executor",
+            "Kepler hardfork active: {} (timestamp: {})",
+            kepler_active, self.evm.block().timestamp.to::<u64>()
+        );
+        
+        if !kepler_active && system_reward_balance < U256::from(MAX_SYSTEM_REWARD)
         {
             let reward_to_system = block_reward >> SYSTEM_REWARD_PERCENT;
+            info!(
+                target: "bsc::executor",
+                "Calculated system reward: {} (from block_reward: {}, shift: {})",
+                reward_to_system, block_reward, SYSTEM_REWARD_PERCENT
+            );
+            
             if reward_to_system > 0 {
+                info!(
+                    target: "bsc::executor",
+                    "Executing system reward transaction"
+                );
                 let tx = self.system_contracts.pay_system_tx(reward_to_system);
                 self.transact_system_tx(&tx, validator)?;
+            } else {
+                info!(
+                    target: "bsc::executor",
+                    "Skipping system reward transaction (reward_to_system <= 0)"
+                );
             }
 
             block_reward -= reward_to_system;
+            info!(
+                target: "bsc::executor",
+                "Updated block_reward after system reward: {}",
+                block_reward
+            );
+        } else {
+            info!(
+                target: "bsc::executor",
+                "Skipping system reward - kepler_active: {}, balance_limit_exceeded: {}",
+                kepler_active, system_reward_balance >= U256::from(MAX_SYSTEM_REWARD)
+            );
         }
 
+        info!(
+            target: "bsc::executor",
+            "Executing validator reward transaction with amount: {}",
+            block_reward
+        );
         let tx = self.system_contracts.pay_validator_tx(validator, block_reward);
         self.transact_system_tx(&tx, validator)?;
+        
+        info!(
+            target: "bsc::executor",
+            "=== DISTRIBUTE BLOCK REWARDS COMPLETED ==="
+        );
         Ok(())
     }
 
