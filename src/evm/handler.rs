@@ -45,6 +45,11 @@ impl<DB: Database, INSP> Handler for BscHandler<DB, INSP> {
     type Error = EVMError<DB::Error>;
     type HaltReason = HaltReason;
 
+
+    // This function is based on the implementation of the EIP-7702.
+    // https://github.com/bluealloy/revm/blob/df467931c4b1b8b620ff2cb9f62501c7abc3ea03/crates/handler/src/pre_execution.rs#L186
+    // with slight modifications to support BSC specific validation.
+    // https://github.com/bnb-chain/bsc/blob/develop/core/state_transition.go#L593
     fn apply_eip7702_auth_list(&self, evm: &mut Self::Evm) -> Result<u64, Self::Error> {
         let ctx = evm.ctx_ref();
         let tx = ctx.tx();
