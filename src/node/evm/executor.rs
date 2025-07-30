@@ -36,7 +36,7 @@ use revm::{
     state::Bytecode,
     Database as _, DatabaseCommit,
 };
-use tracing::debug;
+use tracing::info;
 use alloy_eips::eip2935::{HISTORY_STORAGE_ADDRESS, HISTORY_STORAGE_CODE};
 use alloy_primitives::keccak256;
 
@@ -363,23 +363,80 @@ where
         &mut self,
         block_number: BlockNumber,
     ) -> Result<bool, BlockExecutionError> {
-        debug!(
-            "Apply history storage account {:?} at height {:?}",
+        info!(
+            target: "bsc::executor",
+            "=== HISTORY STORAGE ACCOUNT INITIALIZATION START ==="
+        );
+        info!(
+            target: "bsc::executor",
+            "Initializing history storage account {:?} at height {:?}",
             HISTORY_STORAGE_ADDRESS, block_number
         );
 
+        // Get current account state before modification
         let account = self.evm.db_mut().load_cache_account(HISTORY_STORAGE_ADDRESS).map_err(|err| {
             BlockExecutionError::other(err)
         })?;
+        
+        let old_info = account.account_info();
+        let old_info_clone = old_info.clone();
+        info!(
+            target: "bsc::executor",
+            "Current account state - exists: {}, nonce: {}, balance: {}, has_code: {}",
+            old_info.is_some(),
+            old_info.as_ref().map(|info| info.nonce).unwrap_or(0),
+            old_info.as_ref().map(|info| info.balance).unwrap_or_default(),
+            old_info.as_ref().map(|info| info.code.is_some()).unwrap_or(false)
+        );
 
-        let mut new_info = account.account_info().unwrap_or_default();
+        let mut new_info = old_info.unwrap_or_default();
+        let old_code_hash = new_info.code_hash;
+        let old_nonce = new_info.nonce;
+        let old_balance = new_info.balance;
+        
         new_info.code_hash = keccak256(HISTORY_STORAGE_CODE.clone());
         new_info.code = Some(Bytecode::new_raw(Bytes::from_static(&HISTORY_STORAGE_CODE)));
         new_info.nonce = 1_u64;
         new_info.balance = U256::ZERO;
 
+        info!(
+            target: "bsc::executor",
+            "Account state changes:"
+        );
+        info!(
+            target: "bsc::executor",
+            "  code_hash: {:?} -> {:?}",
+            old_code_hash, new_info.code_hash
+        );
+        info!(
+            target: "bsc::executor",
+            "  nonce: {} -> {}",
+            old_nonce, new_info.nonce
+        );
+        info!(
+            target: "bsc::executor",
+            "  balance: {} -> {}",
+            old_balance, new_info.balance
+        );
+        info!(
+            target: "bsc::executor",
+            "  code: {} -> {}",
+            old_info_clone.as_ref().map(|info| info.code.is_some()).unwrap_or(false),
+            new_info.code.is_some()
+        );
+
         let transition = account.change(new_info, Default::default());
         self.evm.db_mut().apply_transition(vec![(HISTORY_STORAGE_ADDRESS, transition)]);
+        
+        info!(
+            target: "bsc::executor",
+            "History storage account transition applied successfully"
+        );
+        info!(
+            target: "bsc::executor",
+            "=== HISTORY STORAGE ACCOUNT INITIALIZATION COMPLETED ==="
+        );
+        
         Ok(true)
     }
 }
@@ -405,25 +462,99 @@ where
     type Evm = E;
 
     fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
+        let block_number = self.evm.block().number.to::<u64>();
+        let timestamp = self.evm.block().timestamp.to::<u64>();
+        let parent_hash = self._ctx.parent_hash;
+        
+        info!(
+            target: "bsc::executor",
+            "=== EMPTY BLOCK PRE-EXECUTION START ==="
+        );
+        info!(
+            target: "bsc::executor",
+            "Block #{} (timestamp: {}, parent_hash: {:?})",
+            block_number, timestamp, parent_hash
+        );
+        
         // Set state clear flag if the block is after the Spurious Dragon hardfork.
         let state_clear_flag =
             self.spec.is_spurious_dragon_active_at_block(self.evm.block().number.to());
         self.evm.db_mut().set_state_clear_flag(state_clear_flag);
+        
+        info!(
+            target: "bsc::executor",
+            "State clear flag set to: {} (Spurious Dragon active: {})",
+            state_clear_flag,
+            self.spec.is_spurious_dragon_active_at_block(self.evm.block().number.to())
+        );
 
         // TODO: (Consensus Verify cascading fields)[https://github.com/bnb-chain/reth/blob/main/crates/bsc/evm/src/pre_execution.rs#L43]
         // TODO: (Consensus System Call Before Execution)[https://github.com/bnb-chain/reth/blob/main/crates/bsc/evm/src/execute.rs#L678]
 
-        if !self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
+        let feynman_active = self.spec.is_feynman_active_at_timestamp(timestamp);
+        info!(
+            target: "bsc::executor",
+            "Feynman hardfork active: {} (timestamp: {})",
+            feynman_active, timestamp
+        );
+        
+        if !feynman_active {
+            info!(
+                target: "bsc::executor",
+                "Upgrading contracts (Feynman not active)"
+            );
             self.upgrade_contracts()?;
         }
 
         // enable BEP-440/EIP-2935 for historical block hashes from state
-        if self.spec.is_prague_transition_at_timestamp(self.evm.block().timestamp.to(), self.evm.block().timestamp.to::<u64>() - 3) {
-            self.apply_history_storage_account(self.evm.block().number.to::<u64>())?;
+        let parent_timestamp = timestamp.saturating_sub(3);
+        let prague_transition = self.spec.is_prague_transition_at_timestamp(timestamp, parent_timestamp);
+        let prague_active = self.spec.is_prague_active_at_timestamp(timestamp);
+        
+        info!(
+            target: "bsc::executor",
+            "Prague hardfork - Transition: {} (current: {}, parent: {}), Active: {}",
+            prague_transition, timestamp, parent_timestamp, prague_active
+        );
+        
+        if prague_transition {
+            info!(
+                target: "bsc::executor",
+                "=== APPLYING HISTORY STORAGE ACCOUNT (Prague transition) ==="
+            );
+            info!(
+                target: "bsc::executor",
+                "Initializing history storage account at block #{}",
+                block_number
+            );
+            self.apply_history_storage_account(block_number)?;
+            info!(
+                target: "bsc::executor",
+                "History storage account initialization completed"
+            );
         }
-        if self.spec.is_prague_active_at_timestamp(self.evm.block().timestamp.to()) {
-            self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
+        
+        if prague_active {
+            info!(
+                target: "bsc::executor",
+                "=== APPLYING BLOCKHASHES CONTRACT CALL (Prague active) ==="
+            );
+            info!(
+                target: "bsc::executor",
+                "Calling blockhashes contract with parent_hash: {:?}",
+                parent_hash
+            );
+            self.system_caller.apply_blockhashes_contract_call(parent_hash, &mut self.evm)?;
+            info!(
+                target: "bsc::executor",
+                "Blockhashes contract call completed"
+            );
         }
+        
+        info!(
+            target: "bsc::executor",
+            "=== EMPTY BLOCK PRE-EXECUTION COMPLETED ==="
+        );
 
         Ok(())
     }
@@ -491,48 +622,167 @@ where
     fn finish(
         mut self,
     ) -> Result<(Self::Evm, BlockExecutionResult<R::Receipt>), BlockExecutionError> {
+        let block_number = self.evm.block().number.to::<u64>();
+        let timestamp = self.evm.block().timestamp.to::<u64>();
+        let beneficiary = self.evm.block().beneficiary;
+        
+        info!(
+            target: "bsc::executor",
+            "=== EMPTY BLOCK FINISH START ==="
+        );
+        info!(
+            target: "bsc::executor",
+            "Finishing block #{} (timestamp: {}, beneficiary: {:?}, gas_used: {})",
+            block_number, timestamp, beneficiary, self.gas_used
+        );
+        info!(
+            target: "bsc::executor",
+            "System transactions count: {}, Regular transactions count: {}",
+            self.system_txs.len(), self.receipts.len()
+        );
+        
         // TODO:
         // Consensus: Verify validators
         // Consensus: Verify turn length
 
         // If first block deploy genesis contracts
         if self.evm.block().number == uint!(1U256) {
+            info!(
+                target: "bsc::executor",
+                "=== DEPLOYING GENESIS CONTRACTS ==="
+            );
             self.deploy_genesis_contracts(self.evm.block().beneficiary)?;
+            info!(
+                target: "bsc::executor",
+                "Genesis contracts deployment completed"
+            );
         }
 
-        if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
+        let feynman_active = self.spec.is_feynman_active_at_timestamp(timestamp);
+        info!(
+            target: "bsc::executor",
+            "Feynman hardfork active: {} (timestamp: {})",
+            feynman_active, timestamp
+        );
+        
+        if feynman_active {
+            info!(
+                target: "bsc::executor",
+                "=== UPGRADING CONTRACTS (Feynman active) ==="
+            );
             self.upgrade_contracts()?;
+            info!(
+                target: "bsc::executor",
+                "Contract upgrade completed"
+            );
         }
 
-        if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) &&
-            !self
-                .spec
-                .is_feynman_active_at_timestamp(self.evm.block().timestamp.to::<u64>() - 100)
-        {
+        let feynman_transition = feynman_active && 
+            !self.spec.is_feynman_active_at_timestamp(timestamp.saturating_sub(100));
+        info!(
+            target: "bsc::executor",
+            "Feynman transition check: {} (current: {}, 100 blocks ago: {})",
+            feynman_transition, 
+            feynman_active,
+            self.spec.is_feynman_active_at_timestamp(timestamp.saturating_sub(100))
+        );
+        
+        if feynman_transition {
+            info!(
+                target: "bsc::executor",
+                "=== INITIALIZING FEYNMAN CONTRACTS ==="
+            );
             self.initialize_feynman_contracts(self.evm.block().beneficiary)?;
+            info!(
+                target: "bsc::executor",
+                "Feynman contracts initialization completed"
+            );
         }
 
         let system_txs = self.system_txs.clone();
-        for tx in &system_txs {
+        info!(
+            target: "bsc::executor",
+            "Processing {} system transactions for slash handling",
+            system_txs.len()
+        );
+        for (i, tx) in system_txs.iter().enumerate() {
+            info!(
+                target: "bsc::executor",
+                "Processing system transaction #{}: {:?}",
+                i, tx.hash()
+            );
             self.handle_slash_tx(tx)?;
         }
 
+        info!(
+            target: "bsc::executor",
+            "=== DISTRIBUTING BLOCK REWARDS ==="
+        );
+        info!(
+            target: "bsc::executor",
+            "Distributing rewards to beneficiary: {:?}",
+            beneficiary
+        );
         self.distribute_block_rewards(self.evm.block().beneficiary)?;
+        info!(
+            target: "bsc::executor",
+            "Block rewards distribution completed"
+        );
 
-        if self.spec.is_plato_active_at_block(self.evm.block().number.to()) {
-            for tx in system_txs {
-                self.handle_finality_reward_tx(&tx)?;
+        let plato_active = self.spec.is_plato_active_at_block(block_number);
+        info!(
+            target: "bsc::executor",
+            "Plato hardfork active: {} (block: {})",
+            plato_active, block_number
+        );
+        
+        if plato_active {
+            info!(
+                target: "bsc::executor",
+                "=== PROCESSING FINALITY REWARDS (Plato active) ==="
+            );
+            for (i, tx) in system_txs.iter().enumerate() {
+                info!(
+                    target: "bsc::executor",
+                    "Processing finality reward for system transaction #{}: {:?}",
+                    i, tx.hash()
+                );
+                self.handle_finality_reward_tx(tx)?;
             }
+            info!(
+                target: "bsc::executor",
+                "Finality rewards processing completed"
+            );
         }
 
         // TODO: add breathe check and polish it later.
         let system_txs_v2 = self.system_txs.clone();
-        for tx in &system_txs_v2 {
+        info!(
+            target: "bsc::executor",
+            "Processing {} system transactions for validator set updates",
+            system_txs_v2.len()
+        );
+        for (i, tx) in system_txs_v2.iter().enumerate() {
+            info!(
+                target: "bsc::executor",
+                "Processing validator set update for system transaction #{}: {:?}",
+                i, tx.hash()
+            );
             self.handle_update_validator_set_v2_tx(tx)?;
         }
 
         // TODO:
         // Consensus: Slash validator if not in turn
+
+        info!(
+            target: "bsc::executor",
+            "=== EMPTY BLOCK FINISH COMPLETED ==="
+        );
+        info!(
+            target: "bsc::executor",
+            "Final execution result - gas_used: {}, receipts: {}, requests: {}",
+            self.gas_used, self.receipts.len(), 0
+        );
 
         Ok((
             self.evm,
