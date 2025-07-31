@@ -11,7 +11,7 @@ use reth_ethereum_forks::ForkFilter;
 use std::{future::Future, pin::Pin};
 use tokio::time::{timeout, Duration};
 use tokio_stream::StreamExt;
-use tracing::debug;
+use tracing::{debug, trace};
 
 #[derive(Debug, Default)]
 /// The Binance Smart Chain (BSC) P2P handshake.
@@ -24,41 +24,97 @@ impl BscHandshake {
         unauth: &mut dyn UnauthEth,
         negotiated_status: UnifiedStatus,
     ) -> Result<UnifiedStatus, EthStreamError> {
+        debug!(
+            target: "net::session::bad_message_debug",
+            "BSC handshake: starting upgrade status negotiation, version={:?}",
+            negotiated_status.version
+        );
+        
         if negotiated_status.version > EthVersion::Eth66 {
             // Send upgrade status message allowing peer to broadcast transactions
             let upgrade_msg = UpgradeStatus {
                 extension: UpgradeStatusExtension { disable_peer_tx_broadcast: false },
             };
+            
+            debug!(
+                target: "net::session::bad_message_debug",
+                "BSC handshake: sending upgrade status message"
+            );
+            
             unauth.start_send_unpin(upgrade_msg.into_rlpx())?;
 
             // Receive peer's upgrade status response
+            debug!(
+                target: "net::session::bad_message_debug",
+                "BSC handshake: waiting for peer's upgrade status response"
+            );
+            
             let their_msg = match unauth.next().await {
-                Some(Ok(msg)) => msg,
-                Some(Err(e)) => return Err(EthStreamError::from(e)),
+                Some(Ok(msg)) => {
+                    debug!(
+                        target: "net::session::bad_message_debug",
+                        "BSC handshake: received peer response, msg_len={}",
+                        msg.len()
+                    );
+                    msg
+                },
+                Some(Err(e)) => {
+                    debug!(
+                        target: "net::session::bad_message_debug",
+                        "BSC handshake: error receiving peer response: {:?}",
+                        e
+                    );
+                    return Err(EthStreamError::from(e))
+                },
                 None => {
+                    debug!(
+                        target: "net::session::bad_message_debug",
+                        "BSC handshake: no response from peer, disconnecting"
+                    );
                     unauth.disconnect(DisconnectReason::DisconnectRequested).await?;
                     return Err(EthStreamError::EthHandshakeError(EthHandshakeError::NoResponse));
                 }
             };
 
             // Decode their response
+            debug!(
+                target: "net::session::bad_message_debug",
+                "BSC handshake: decoding peer's upgrade status response"
+            );
+            
             match UpgradeStatus::decode(&mut their_msg.as_ref()).map_err(|e| {
-                debug!("Decode error in BSC handshake: msg={their_msg:x}");
+                debug!(
+                    target: "net::session::bad_message_debug",
+                    "BSC handshake: decode error in upgrade status response: msg={:x}, error={:?}",
+                    their_msg, e
+                );
                 EthStreamError::InvalidMessage(e.into())
             }) {
                 Ok(_) => {
+                    debug!(
+                        target: "net::session::bad_message_debug",
+                        "BSC handshake: successful upgrade status negotiation"
+                    );
                     // Successful handshake
                     return Ok(negotiated_status);
                 }
-                Err(_) => {
+                Err(e) => {
+                    debug!(
+                        target: "net::session::bad_message_debug",
+                        "BSC handshake: protocol breach, disconnecting: {:?}",
+                        e
+                    );
                     unauth.disconnect(DisconnectReason::ProtocolBreach).await?;
-                    return Err(EthStreamError::EthHandshakeError(
-                        EthHandshakeError::NonStatusMessageInHandshake,
-                    ));
+                    return Err(e);
                 }
             }
         }
 
+        debug!(
+            target: "net::session::bad_message_debug",
+            "BSC handshake: no upgrade status needed for version {:?}",
+            negotiated_status.version
+        );
         Ok(negotiated_status)
     }
 }
