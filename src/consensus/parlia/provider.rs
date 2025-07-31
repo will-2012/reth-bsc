@@ -90,7 +90,7 @@ impl<DB: Database> DbSnapshotProvider<DB> {
     }
 
     fn persist_to_db(&self, snap: &Snapshot) -> Result<(), DatabaseError> {
-        let mut tx = self.db.tx_mut()?;
+        let tx = self.db.tx_mut()?;
         tx.put::<crate::consensus::parlia::db::ParliaSnapshots>(snap.block_number, ParliaSnapshotBlob(snap.clone().compress()))?;
         tx.commit()?;
         Ok(())

@@ -41,21 +41,26 @@ impl BscHandshake {
                 }
             };
 
-            // Debug log the received message
-            debug!("BSC handshake received message: len={}, hex={:x}", their_msg.len(), their_msg);
-
             // Decode their response
-            match UpgradeStatus::decode(&mut their_msg.as_ref()) {
-                Ok(status) => {
-                    debug!("BSC handshake successful: status={:?}", status);
+            match UpgradeStatus::decode(&mut their_msg.as_ref()).map_err(|e| {
+                debug!("Decode error in BSC handshake: msg={their_msg:x}");
+                EthStreamError::InvalidMessage(e.into())
+            }) {
+                Ok(_) => {
+                    // Successful handshake
                     return Ok(negotiated_status);
                 }
-                Err(e) => {
-                    // Some legacy BSC peers send an empty "0bc2c180" payload that cannot be decoded
-                    // with the strict RLP schema. We treat this as "no upgrade status" and continue
-                    // the session instead of disconnecting.
-                    debug!("Ignoring invalid BSC upgrade status message: msg={their_msg:x}, error={e:?}");
-                    return Ok(negotiated_status);
+                Err(_) => {
+                    // Some legacy BSC nodes respond with an empty 0x0b upgrade-status (0x0bc2c180).
+                    // Accept this specific payload leniency but still disconnect on all other errors.
+                    if their_msg.as_ref() == [0x0b, 0xc2, 0xc1, 0x80] {
+                        debug!("Tolerating legacy empty upgrade-status 0x0bc2c180 message");
+                        return Ok(negotiated_status);
+                    }
+                    unauth.disconnect(DisconnectReason::ProtocolBreach).await?;
+                    return Err(EthStreamError::EthHandshakeError(
+                        EthHandshakeError::NonStatusMessageInHandshake,
+                    ));
                 }
             }
         }

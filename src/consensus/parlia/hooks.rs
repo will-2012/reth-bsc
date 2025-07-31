@@ -10,7 +10,6 @@ use once_cell::sync::Lazy;
 use super::snapshot::Snapshot;
 
 // Import canonical addresses from `system_contracts` crate to avoid duplication.
-use crate::system_contracts::SLASH_CONTRACT as SLASH_CONTRACT_STR;
 
 /// StakeHub contract address (system reward pool).
 /// `0x0000000000000000000000000000000000002000` on BSC main-net/test-net.

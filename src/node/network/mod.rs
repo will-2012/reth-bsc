@@ -192,7 +192,9 @@ impl BscNetworkBuilder {
             .discovery(discv4)
             .eth_rlpx_handshake(Arc::new(BscHandshake::default()));
 
-        let network_config = ctx.build_network_config(network_builder);
+        let mut network_config = ctx.build_network_config(network_builder);
+        // Ensure our advertised fork ID matches the fork filter we validate against.
+        network_config.status.forkid = network_config.fork_filter.current();
 
         Ok(network_config)
     }

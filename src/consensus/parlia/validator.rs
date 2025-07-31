@@ -9,7 +9,6 @@ use super::constants::{VALIDATOR_BYTES_LEN_BEFORE_LUBAN, VALIDATOR_NUMBER_SIZE, 
 use bls_on_arkworks as bls;
 use super::gas::validate_gas_limit;
 use super::slash_pool;
-use reth_db::table::Compress; // for Snapshot::compress
 
 // ---------------------------------------------------------------------------
 // Helper: parse epoch update (validator set & turn-length) from a header.
@@ -114,10 +113,34 @@ pub trait SnapshotProvider: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct ParliaHeaderValidator<P> {
     provider: Arc<P>,
+    /// Activation block number for the Ramanujan hardfork (network-dependent).
+    ramanujan_activation_block: u64,
 }
 
 impl<P> ParliaHeaderValidator<P> {
-    pub fn new(provider: Arc<P>) -> Self { Self { provider } }
+    /// Create from chain spec that implements `BscHardforks`.
+    #[allow(dead_code)]
+    pub fn from_chain_spec<Spec>(provider: Arc<P>, spec: &Spec) -> Self
+    where
+        Spec: crate::hardforks::BscHardforks,
+    {
+        // The chain-spec gives the *first* block where Ramanujan is active.
+        let act_block = match spec.bsc_fork_activation(crate::hardforks::bsc::BscHardfork::Ramanujan) {
+            reth_chainspec::ForkCondition::Block(b) => b,
+            _ => 13_082_191,
+        };
+        Self { provider, ramanujan_activation_block: act_block }
+    }
+    /// Create a validator that assumes main-net Ramanujan activation (block 13_082_191).
+    /// Most unit-tests rely on this default.
+    pub fn new(provider: Arc<P>) -> Self {
+        Self { provider, ramanujan_activation_block: 13_082_191 }
+    }
+
+    /// Create a validator with a custom Ramanujan activation block (e.g. test-net 1_010_000).
+    pub fn with_ramanujan_activation(provider: Arc<P>, activation_block: u64) -> Self {
+        Self { provider, ramanujan_activation_block: activation_block }
+    }
 }
 
 // Helper to get expected difficulty.
@@ -137,14 +160,7 @@ where
         // Fetch snapshot for parent block.
         let parent_number = header.number() - 1;
         let Some(snap) = self.provider.snapshot(parent_number) else {
-            // During initial sync, we may not have snapshots for blocks yet.
-            // In this case, we skip validation and trust the network consensus.
-            // The full validation will happen when we catch up and have proper snapshots.
-            // This is safe because:
-            // 1. We're syncing from trusted peers
-            // 2. The chain has already been validated by the network
-            // 3. We'll validate properly once we have snapshots
-            return Ok(());
+            return Err(ConsensusError::Other("missing snapshot for parent header".to_string()));
         };
 
         let miner: Address = header.beneficiary();
@@ -204,16 +220,14 @@ where
         // 2. Snapshot of the *parent* block (needed for gas-limit & attestation verification)
         // --------------------------------------------------------------------
         let Some(parent_snap) = self.provider.snapshot(parent.number()) else {
-            // During initial sync, we may not have snapshots yet.
-            // Skip Parlia-specific validation and only do basic checks.
-            return Ok(());
+            return Err(ConsensusError::Other("missing snapshot for parent header".into()));
         };
 
         // --------------------------------------------------------------------
         // 2.5 Ramanujan block time validation
         // --------------------------------------------------------------------
         // After Ramanujan fork, enforce stricter timing rules
-        if parent.number() >= 13082191 { // Ramanujan activation block on BSC mainnet
+        if parent.number() >= self.ramanujan_activation_block { // Ramanujan hardfork active
             let block_interval = parent_snap.block_interval;
             let validator = header.beneficiary();
             let is_inturn = parent_snap.inturn_validator() == validator;
@@ -353,14 +367,9 @@ where
             turn_len,
             is_bohr,
         ) {
-            self.provider.insert(new_snap.clone());
-            // If this is a checkpoint boundary, enqueue the compressed snapshot so the execution
-            // stage can persist it via `ExecutionOutcome`.
-            // use reth_execution_types::snapshot_pool;
-            if new_snap.block_number % super::snapshot::CHECKPOINT_INTERVAL == 0 {
-                let blob = new_snap.clone().compress();
-                // snapshot_pool::push((new_snap.block_number, blob));
-            }
+            self.provider.insert(new_snap);
+        } else {
+            return Err(ConsensusError::Other("failed to apply snapshot".to_string()));
         }
 
         // Report slashing evidence if proposer is not in-turn and previous inturn validator hasn't signed recently.

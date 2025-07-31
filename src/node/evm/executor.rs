@@ -4,7 +4,7 @@ use super::patch::{
     patch_chapel_after_tx,
     patch_chapel_before_tx,
 };
-use crate::consensus::parlia::{HertzPatchManager, StoragePatch};
+use crate::consensus::parlia::HertzPatchManager;
 use crate::{
     consensus::{MAX_SYSTEM_REWARD, SYSTEM_ADDRESS, SYSTEM_REWARD_PERCENT},
     evm::transaction::BscTxEnv,
