@@ -7,6 +7,7 @@ use reth_primitives::{NodePrimitives, TransactionSigned};
 use reth_primitives_traits::{Block, BlockBody as BlockBodyTrait, InMemorySize};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use tracing::{debug, error};
 
 /// Primitive types for BSC.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -199,15 +200,43 @@ mod rlp {
 
     impl Decodable for BscBlockBody {
         fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-            let BlockBodyHelper { transactions, ommers, withdrawals, sidecars } =
-                BlockBodyHelper::decode(buf)?;
-            Ok(Self {
-                inner: BlockBody {
-                    transactions: transactions.into_owned(),
-                    ommers: ommers.into_owned(),
-                    withdrawals: withdrawals.map(|w| w.into_owned()),
-                },
-                sidecars: sidecars.map(|s| s.into_owned()),
+            debug!(
+                target: "bsc::primitives::rlp_decode",
+                buffer_length=?buf.len(),
+                "Decoding BscBlockBody from RLP"
+            );
+            
+            let result = BlockBodyHelper::decode(buf);
+            match &result {
+                Ok(helper) => {
+                    debug!(
+                        target: "bsc::primitives::rlp_decode",
+                        transactions_count=?helper.transactions.len(),
+                        ommers_count=?helper.ommers.len(),
+                        has_withdrawals=?helper.withdrawals.is_some(),
+                        has_sidecars=?helper.sidecars.is_some(),
+                        "Successfully decoded BscBlockBody components"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        target: "bsc::primitives::rlp_decode",
+                        error=?e,
+                        buffer_length=?buf.len(),
+                        "Failed to decode BscBlockBody from RLP"
+                    );
+                }
+            }
+            
+            result.map(|BlockBodyHelper { transactions, ommers, withdrawals, sidecars }| {
+                Self {
+                    inner: BlockBody {
+                        transactions: transactions.into_owned(),
+                        ommers: ommers.into_owned(),
+                        withdrawals: withdrawals.map(|w| w.into_owned()),
+                    },
+                    sidecars: sidecars.map(|s| s.into_owned()),
+                }
             })
         }
     }
@@ -224,18 +253,48 @@ mod rlp {
 
     impl Decodable for BscBlock {
         fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-            let BlockHelper { header, transactions, ommers, withdrawals, sidecars } =
-                BlockHelper::decode(buf)?;
-            Ok(Self {
-                header: header.into_owned(),
-                body: BscBlockBody {
-                    inner: BlockBody {
-                        transactions: transactions.into_owned(),
-                        ommers: ommers.into_owned(),
-                        withdrawals: withdrawals.map(|w| w.into_owned()),
+            debug!(
+                target: "bsc::primitives::rlp_decode",
+                buffer_length=?buf.len(),
+                "Decoding BscBlock from RLP"
+            );
+            
+            let result = BlockHelper::decode(buf);
+            match &result {
+                Ok(helper) => {
+                    debug!(
+                        target: "bsc::primitives::rlp_decode",
+                        header_number=?helper.header.number,
+                        header_hash=?helper.header.hash_slow(),
+                        transactions_count=?helper.transactions.len(),
+                        ommers_count=?helper.ommers.len(),
+                        has_withdrawals=?helper.withdrawals.is_some(),
+                        has_sidecars=?helper.sidecars.is_some(),
+                        "Successfully decoded BscBlock components"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        target: "bsc::primitives::rlp_decode",
+                        error=?e,
+                        buffer_length=?buf.len(),
+                        "Failed to decode BscBlock from RLP"
+                    );
+                }
+            }
+            
+            result.map(|BlockHelper { header, transactions, ommers, withdrawals, sidecars }| {
+                Self {
+                    header: header.into_owned(),
+                    body: BscBlockBody {
+                        inner: BlockBody {
+                            transactions: transactions.into_owned(),
+                            ommers: ommers.into_owned(),
+                            withdrawals: withdrawals.map(|w| w.into_owned()),
+                        },
+                        sidecars: sidecars.map(|s| s.into_owned()),
                     },
-                    sidecars: sidecars.map(|s| s.into_owned()),
-                },
+                }
             })
         }
     }

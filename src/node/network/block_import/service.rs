@@ -27,6 +27,7 @@ use std::{
     task::{Context, Poll},
 };
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tracing::{debug, error};
 
 /// Network message containing a new block
 pub(crate) type BlockMsg = NewBlockMessage<BscNewBlock>;
@@ -96,20 +97,93 @@ where
             let sealed_block = block.block.0.block.clone().seal();
             let payload = BscPayloadTypes::block_to_payload(sealed_block);
 
+            debug!(
+                target: "bsc::block_import::new_payload",
+                peer_id=?peer_id,
+                block_number=?block.block.0.block.header.number,
+                block_hash=?block.block.0.block.header.hash_slow(),
+                parent_hash=?block.block.0.block.header.parent_hash,
+                timestamp=?block.block.0.block.header.timestamp,
+                "Processing new payload for BSC block"
+            );
+
             match engine.new_payload(payload).await {
-                Ok(payload_status) => match payload_status.status {
-                    PayloadStatusEnum::Valid => {
-                        Outcome { peer: peer_id, result: Ok(BlockValidation::ValidBlock { block }) }
+                Ok(payload_status) => {
+                    debug!(
+                        target: "bsc::block_import::new_payload",
+                        peer_id=?peer_id,
+                        block_number=?block.block.0.block.header.number,
+                        payload_status=?payload_status.status,
+                        "Engine new_payload response received"
+                    );
+                    
+                    match payload_status.status {
+                        PayloadStatusEnum::Valid => {
+                            debug!(
+                                target: "bsc::block_import::new_payload",
+                                peer_id=?peer_id,
+                                block_number=?block.block.0.block.header.number,
+                                "Payload validation successful"
+                            );
+                            Outcome { peer: peer_id, result: Ok(BlockValidation::ValidBlock { block }) }
+                                .into()
+                        }
+                        PayloadStatusEnum::Invalid { validation_error } => {
+                            error!(
+                                target: "bsc::block_import::new_payload",
+                                peer_id=?peer_id,
+                                block_number=?block.block.0.block.header.number,
+                                block_hash=?block.block.0.block.header.hash_slow(),
+                                validation_error=?validation_error,
+                                "Payload validation failed"
+                            );
+                            Outcome {
+                                peer: peer_id,
+                                result: Err(BlockImportError::Other(validation_error.into())),
+                            }
                             .into()
+                        }
+                        PayloadStatusEnum::Syncing => {
+                            debug!(
+                                target: "bsc::block_import::new_payload",
+                                peer_id=?peer_id,
+                                block_number=?block.block.0.block.header.number,
+                                "Engine is syncing, payload not processed"
+                            );
+                            None
+                        }
+                        PayloadStatusEnum::Accepted => {
+                            debug!(
+                                target: "bsc::block_import::new_payload",
+                                peer_id=?peer_id,
+                                block_number=?block.block.0.block.header.number,
+                                "Payload accepted but not yet valid"
+                            );
+                            None
+                        }
+                        _ => {
+                            error!(
+                                target: "bsc::block_import::new_payload",
+                                peer_id=?peer_id,
+                                block_number=?block.block.0.block.header.number,
+                                payload_status=?payload_status.status,
+                                "Unexpected payload status"
+                            );
+                            None
+                        }
                     }
-                    PayloadStatusEnum::Invalid { validation_error } => Outcome {
-                        peer: peer_id,
-                        result: Err(BlockImportError::Other(validation_error.into())),
-                    }
-                    .into(),
-                    _ => None,
-                },
-                Err(err) => None,
+                }
+                Err(err) => {
+                    error!(
+                        target: "bsc::block_import::new_payload",
+                        peer_id=?peer_id,
+                        block_number=?block.block.0.block.header.number,
+                        block_hash=?block.block.0.block.header.hash_slow(),
+                        error=?err,
+                        "Engine new_payload call failed"
+                    );
+                    None
+                }
             }
         })
     }
@@ -155,9 +229,33 @@ where
 
     /// Add a new block import task to the pending imports
     fn on_new_block(&mut self, block: BlockMsg, peer_id: PeerId) {
+        debug!(
+            target: "bsc::block_import::on_new_block",
+            peer_id=?peer_id,
+            block_hash=?block.hash,
+            block_number=?block.block.0.block.header.number,
+            parent_hash=?block.block.0.block.header.parent_hash,
+            timestamp=?block.block.0.block.header.timestamp,
+            transactions_count=?block.block.0.block.body.inner.transactions.len(),
+            "Received new block from peer"
+        );
+
         if self.processed_blocks.contains(&block.hash) {
+            debug!(
+                target: "bsc::block_import::on_new_block",
+                peer_id=?peer_id,
+                block_hash=?block.hash,
+                "Block already processed, skipping"
+            );
             return;
         }
+
+        debug!(
+            target: "bsc::block_import::on_new_block",
+            peer_id=?peer_id,
+            block_hash=?block.hash,
+            "Adding block to pending imports"
+        );
 
         let payload_fut = self.new_payload(block.clone(), peer_id);
         self.pending_imports.push(payload_fut);

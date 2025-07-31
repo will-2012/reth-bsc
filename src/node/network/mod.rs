@@ -25,12 +25,13 @@ use reth_network::{NetworkConfig, NetworkHandle, NetworkManager};
 use reth_network_api::PeersInfo;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, oneshot, Mutex};
-use tracing::info;
+use tracing::{debug, error, info};
 
 pub mod block_import;
 pub mod bootnodes;
 pub mod handshake;
 pub(crate) mod upgrade_status;
+
 /// BSC `NewBlock` message value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BscNewBlock(pub NewBlock<BscBlock>);
@@ -92,6 +93,12 @@ mod rlp {
 
     impl Encodable for BscNewBlock {
         fn encode(&self, out: &mut dyn bytes::BufMut) {
+            debug!(
+                target: "bsc::network::rlp_encode",
+                block_number=?self.0.block.header.number,
+                block_hash=?self.0.block.header.hash_slow(),
+                "Encoding BscNewBlock to RLP"
+            );
             BscNewBlockHelper::from(self).encode(out);
         }
 
@@ -102,26 +109,50 @@ mod rlp {
 
     impl Decodable for BscNewBlock {
         fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-            let BscNewBlockHelper {
-                block: BlockHelper { header, transactions, ommers, withdrawals },
-                td,
-                sidecars,
-            } = BscNewBlockHelper::decode(buf)?;
-
-            Ok(BscNewBlock(NewBlock {
-                block: BscBlock {
-                    header: header.into_owned(),
-                    body: BscBlockBody {
-                        inner: BlockBody {
-                            transactions: transactions.into_owned(),
-                            ommers: ommers.into_owned(),
-                            withdrawals: withdrawals.map(|w| w.into_owned()),
+            debug!(
+                target: "bsc::network::rlp_decode",
+                buffer_length=?buf.len(),
+                "Decoding BscNewBlock from RLP"
+            );
+            
+            let result = BscNewBlockHelper::decode(buf);
+            match &result {
+                Ok(helper) => {
+                    debug!(
+                        target: "bsc::network::rlp_decode",
+                        block_number=?helper.block.header.number,
+                        block_hash=?helper.block.header.hash_slow(),
+                        td=?helper.td,
+                        has_sidecars=?helper.sidecars.is_some(),
+                        "Successfully decoded BscNewBlock"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        target: "bsc::network::rlp_decode",
+                        error=?e,
+                        buffer_length=?buf.len(),
+                        "Failed to decode BscNewBlock from RLP"
+                    );
+                }
+            }
+            result.map(|helper| {
+                let BscNewBlockHelper { block, td, sidecars } = helper;
+                BscNewBlock(NewBlock {
+                    block: BscBlock {
+                        header: block.header.into_owned(),
+                        body: BscBlockBody {
+                            inner: BlockBody {
+                                transactions: block.transactions.into_owned(),
+                                ommers: block.ommers.into_owned(),
+                                withdrawals: block.withdrawals.map(|w| w.into_owned()),
+                            },
+                            sidecars: sidecars.map(|s| s.into_owned()),
                         },
-                        sidecars: sidecars.map(|s| s.into_owned()),
                     },
-                },
-                td,
-            }))
+                    td,
+                })
+            })
         }
     }
 }
