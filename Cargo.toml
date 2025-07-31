@@ -12,39 +12,49 @@ name = "reth-bsc"
 path = "src/main.rs"
 
 [dependencies]
-reth = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-cli = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-cli-commands = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-basic-payload-builder = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-db = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-engine-local = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-chainspec = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-cli-util = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-discv4 = { git = "https://github.com/will-2012/reth", branch = "debugp2p", features = ["test-utils"] }
-reth-engine-primitives = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-ethereum-forks = { git = "https://github.com/will-2012/reth", branch = "debugp2p", features = ["serde"] }
-reth-ethereum-payload-builder = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-ethereum-primitives = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-eth-wire = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-eth-wire-types = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-evm = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-evm-ethereum = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-node-core = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-revm = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-network = { git = "https://github.com/will-2012/reth", branch = "debugp2p", features = ["test-utils"] }
-reth-network-p2p = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-network-api = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-node-ethereum = { git = "https://github.com/will-2012/reth", branch = "debugp2p", features = ["test-utils"] }
-reth-network-peers = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-payload-primitives = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-primitives = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-primitives-traits = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-provider = { git = "https://github.com/will-2012/reth", branch = "debugp2p", features = ["test-utils"] }
-reth-rpc-eth-api = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-rpc-engine-api = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-tracing = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-trie-common = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
-reth-trie-db = { git = "https://github.com/will-2012/reth", branch = "debugp2p" }
+reth = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-cli = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-cli-commands = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-basic-payload-builder = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-db = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-engine-local = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-chainspec = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-cli-util = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-discv4 = { git = "https://github.com/will-2012/reth", rev = "13530d6", features = ["test-utils"] }
+reth-engine-primitives = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-ethereum-forks = { git = "https://github.com/will-2012/reth", rev = "13530d6", features = ["serde"] }
+reth-ethereum-payload-builder = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-ethereum-primitives = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-eth-wire = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-eth-wire-types = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-execution-types = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-network = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-network-api = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-network-p2p = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-network-peers = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-network-types = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-primitives = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-primitives-traits = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-provider = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-rpc = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-rpc-api = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-rpc-builder = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-rpc-eth-api = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-rpc-server-types = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-stages = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-stages-api = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-storage-api = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-tasks = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-tracing = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-transaction-pool = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-payload-primitives = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-rpc-engine-api = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-trie-common = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-trie-db = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-evm = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-evm-ethereum = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
+reth-node-ethereum = { git = "https://github.com/will-2012/reth", rev = "13530d6", features = ["test-utils"] }
+reth-revm = { git = "https://github.com/will-2012/reth", rev = "13530d6" }
 revm = "27.0.2"
 
 # alloy dependencies
@@ -136,7 +146,6 @@ serde = [
     "reth-network/serde",
     "reth-network-api/serde",
     "reth-primitives-traits/serde",
-    "reth-revm/serde",
     "reth-trie-common/serde",
     "reth-trie-db/serde",
     "revm/serde",
