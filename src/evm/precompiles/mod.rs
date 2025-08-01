@@ -12,6 +12,7 @@ use revm::{
     primitives::{hardfork::SpecId, Address},
 };
 use std::boxed::Box;
+use tracing::info;
 
 mod bls;
 mod cometbft;
@@ -32,6 +33,12 @@ impl BscPrecompiles {
     /// Create a new precompile provider with the given bsc spec.
     #[inline]
     pub fn new(spec: BscHardfork) -> Self {
+        info!(
+            target: "reth::evm::precompiles",
+            "Creating BSC precompiles with spec: {:?}",
+            spec
+        );
+        
         let precompiles = if spec >= BscHardfork::Pascal {
             pascal()
         } else if spec >= BscHardfork::Haber {

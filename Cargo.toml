@@ -45,7 +45,7 @@ reth-rpc-engine-api = { git = "https://github.com/paradigmxyz/reth", rev = "6487
 reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "6487f0b" }
 reth-trie-common = { git = "https://github.com/paradigmxyz/reth", rev = "6487f0b" }
 reth-trie-db = { git = "https://github.com/paradigmxyz/reth", rev = "6487f0b" }
-revm = "27.0.3"
+revm = "27.0.1"
 
 # alloy dependencies
 alloy-evm = "0.16.1"
@@ -161,3 +161,7 @@ codegen-units = 16
 inherits = "release"
 lto = "fat"
 codegen-units = 1
+
+# Patch revm to use will-2012's fork with gas logging
+[patch.crates-io]
+revm = { git = "https://github.com/will-2012/revm", branch = "debug-50126728" }

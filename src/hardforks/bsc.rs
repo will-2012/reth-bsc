@@ -4,6 +4,7 @@ use core::any::Any;
 use reth_chainspec::ForkCondition;
 use reth_ethereum_forks::{hardfork, ChainHardforks, EthereumHardfork, Hardfork};
 use revm::primitives::hardfork::SpecId;
+use tracing::info;
 
 hardfork!(
     /// The name of a bsc hardfork.
@@ -352,6 +353,12 @@ where
 
 impl From<BscHardfork> for SpecId {
     fn from(spec: BscHardfork) -> Self {
+        info!(
+            target: "reth::hardforks::bsc",
+            "Converting BSC hardfork to SpecId: {:?}",
+            spec
+        );
+        
         match spec {
             BscHardfork::Frontier |
             BscHardfork::Ramanujan |

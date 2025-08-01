@@ -36,7 +36,7 @@ use revm::{
     state::Bytecode,
     Database as _, DatabaseCommit,
 };
-use tracing::debug;
+use tracing::{debug, info, error};
 use alloy_eips::eip2935::{HISTORY_STORAGE_ADDRESS, HISTORY_STORAGE_CODE};
 use alloy_primitives::keccak256;
 
@@ -411,6 +411,8 @@ where
     type Receipt = R::Receipt;
     type Evm = E;
 
+    
+
     fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
         // Set state clear flag if the block is after the Spurious Dragon hardfork.
         let state_clear_flag =
@@ -429,7 +431,22 @@ where
             self.apply_history_storage_account(self.evm.block().number.to::<u64>())?;
         }
         if self.spec.is_prague_active_at_timestamp(self.evm.block().timestamp.to()) {
-            self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
+            let parent_hash = self._ctx.parent_hash;
+            self.system_caller.apply_blockhashes_contract_call(parent_hash, &mut self.evm)?;
+            
+            // reset system address nonce to 0
+            let account_load = self
+                .evm
+                .db_mut()
+                .load_cache_account(SYSTEM_ADDRESS)
+                .map_err(BlockExecutionError::other)?;
+
+            // Only modify if account exists and is not destroyed
+            if account_load.account.is_some() && !account_load.status.was_destroyed() {
+                let mut info = account_load.account_info().unwrap_or_default();
+                info.nonce = 0;
+                self.evm.db_mut().insert_account(SYSTEM_ADDRESS, info);
+            }
         }
 
         Ok(())
@@ -457,23 +474,79 @@ where
             return Ok(0);
         }
 
+        // Log transaction execution start
+        let tx_hash = *tx.tx().hash();
+        let tx_type = tx.tx().tx_type();
+        let gas_limit = tx.tx().gas_limit();
+        let value = tx.tx().value();
+        let to = tx.tx().to();
+        let from = *signer;
+        
+        info!(
+            target: "reth::evm::executor",
+            "Starting transaction execution tx_hash={:?} tx_type={:?} gas_limit={} value={} from={:?} to={:?}",
+            tx_hash, tx_type, gas_limit, value, from, to
+        );
+
         // apply patches before
         patch_mainnet_before_tx(tx.tx(), self.evm.db_mut())?;
         patch_chapel_before_tx(tx.tx(), self.evm.db_mut())?;
 
         let block_available_gas = self.evm.block().gas_limit - self.gas_used;
         if tx.tx().gas_limit() > block_available_gas {
+            error!(
+                target: "reth::evm::executor",
+                "Transaction gas limit exceeds available block gas tx_hash={:?} tx_gas_limit={} block_available_gas={}",
+                tx_hash, tx.tx().gas_limit(), block_available_gas
+            );
             return Err(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
                 transaction_gas_limit: tx.tx().gas_limit(),
                 block_available_gas,
             }
             .into());
         }
+        
         let result_and_state = self
             .evm
             .transact(tx)
-            .map_err(|err| BlockExecutionError::evm(err, tx.tx().trie_hash()))?;
+            .map_err(|err| {
+                error!(
+                    target: "reth::evm::executor",
+                    "Transaction execution failed tx_hash={:?} error={:?}",
+                    tx_hash, err
+                );
+                BlockExecutionError::evm(err, tx.tx().trie_hash())
+            })?;
         let ResultAndState { result, state } = result_and_state;
+
+        // Log detailed execution result
+        let gas_used = result.gas_used();
+        let (status, return_data, logs_count) = match &result {
+            ExecutionResult::Success { output, logs, .. } => {
+                let return_data = format!("0x{}", output.data().to_string());
+                ("Success", return_data, logs.len())
+            },
+            ExecutionResult::Revert { output, .. } => {
+                let return_data = format!("0x{}", output.to_string());
+                ("Revert", return_data, 0)
+            },
+            ExecutionResult::Halt { .. } => {
+                ("Halt", "0x".to_string(), 0)
+            },
+        };
+
+        info!(
+            target: "reth::evm::executor",
+            "Transaction execution completed tx_hash={:?} status={} gas_used={} gas_limit={} return_data={} logs_count={}",
+            tx_hash, status, gas_used, gas_limit, return_data, logs_count
+        );
+
+        // Log detailed result information
+        debug!(
+            target: "reth::evm::executor",
+            "Transaction execution details tx_hash={:?} result={:?}",
+            tx_hash, result
+        );
 
         f(&result);
 
@@ -484,7 +557,6 @@ where
             hook.on_state(StateChangeSource::Transaction(self.receipts.len()), &temp_state);
         }
 
-        let gas_used = result.gas_used();
         self.gas_used += gas_used;
         self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
             tx: tx.tx(),
