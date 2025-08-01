@@ -12,8 +12,8 @@ use crate::{
 };
 use alloy_consensus::{Transaction, TxReceipt};
 use alloy_eips::{eip7685::Requests, Encodable2718};
-use alloy_evm::{block::ExecutableTx, eth::receipt_builder::ReceiptBuilderCtx};
-use alloy_primitives::{uint, Address, TxKind, U256};
+use alloy_evm::{block::{ExecutableTx, StateChangeSource}, eth::receipt_builder::ReceiptBuilderCtx};
+use alloy_primitives::{uint, Address, TxKind, U256, BlockNumber, Bytes};
 use alloy_sol_macro::sol;
 use alloy_sol_types::SolCall;
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
@@ -21,6 +21,7 @@ use reth_evm::{
     block::{BlockValidationError, CommitChanges},
     eth::{receipt_builder::ReceiptBuilder, EthBlockExecutionCtx},
     execute::{BlockExecutionError, BlockExecutor},
+    system_calls::SystemCaller,
     Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, OnStateHook, RecoveredTx,
 };
 use reth_primitives::TransactionSigned;
@@ -35,6 +36,9 @@ use revm::{
     state::Bytecode,
     Database as _, DatabaseCommit,
 };
+use tracing::debug;
+use alloy_eips::eip2935::{HISTORY_STORAGE_ADDRESS, HISTORY_STORAGE_CODE};
+use alloy_primitives::keccak256;
 
 pub struct BscBlockExecutor<'a, EVM, Spec, R: ReceiptBuilder>
 where
@@ -56,6 +60,10 @@ where
     system_contracts: SystemContract<Spec>,
     /// Context for block execution.
     _ctx: EthBlockExecutionCtx<'a>,
+    /// Utility to call system caller.
+    system_caller: SystemCaller<Spec>,
+    /// state hook
+    hook: Option<Box<dyn OnStateHook>>,
 }
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
@@ -82,6 +90,7 @@ where
         receipt_builder: R,
         system_contracts: SystemContract<Spec>,
     ) -> Self {
+        let spec_clone = spec.clone();
         Self {
             spec,
             evm,
@@ -91,6 +100,8 @@ where
             receipt_builder,
             system_contracts,
             _ctx,
+            system_caller: SystemCaller::new(spec_clone),
+            hook: None,
         }
     }
 
@@ -195,6 +206,10 @@ where
         let result_and_state = self.evm.transact(tx_env).map_err(BlockExecutionError::other)?;
 
         let ResultAndState { result, state } = result_and_state;
+
+        if let Some(hook) = &mut self.hook {
+            hook.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);
+        } 
 
         let tx = tx.clone();
         let gas_used = result.gas_used();
@@ -350,6 +365,30 @@ where
         self.transact_system_tx(&tx, validator)?;
         Ok(())
     }
+
+    pub(crate) fn apply_history_storage_account(
+        &mut self,
+        block_number: BlockNumber,
+    ) -> Result<bool, BlockExecutionError> {
+        debug!(
+            "Apply history storage account {:?} at height {:?}",
+            HISTORY_STORAGE_ADDRESS, block_number
+        );
+
+        let account = self.evm.db_mut().load_cache_account(HISTORY_STORAGE_ADDRESS).map_err(|err| {
+            BlockExecutionError::other(err)
+        })?;
+
+        let mut new_info = account.account_info().unwrap_or_default();
+        new_info.code_hash = keccak256(HISTORY_STORAGE_CODE.clone());
+        new_info.code = Some(Bytecode::new_raw(Bytes::from_static(&HISTORY_STORAGE_CODE)));
+        new_info.nonce = 1_u64;
+        new_info.balance = U256::ZERO;
+
+        let transition = account.change(new_info, Default::default());
+        self.evm.db_mut().apply_transition(vec![(HISTORY_STORAGE_ADDRESS, transition)]);
+        Ok(true)
+    }
 }
 
 impl<'a, DB, E, Spec, R> BlockExecutor for BscBlockExecutor<'a, E, Spec, R>
@@ -383,6 +422,14 @@ where
 
         if !self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
             self.upgrade_contracts()?;
+        }
+
+        // enable BEP-440/EIP-2935 for historical block hashes from state
+        if self.spec.is_prague_transition_at_timestamp(self.evm.block().timestamp.to(), self.evm.block().timestamp.to::<u64>() - 3) {
+            self.apply_history_storage_account(self.evm.block().number.to::<u64>())?;
+        }
+        if self.spec.is_prague_active_at_timestamp(self.evm.block().timestamp.to()) {
+            self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
         }
 
         Ok(())
@@ -429,6 +476,13 @@ where
         let ResultAndState { result, state } = result_and_state;
 
         f(&result);
+
+        // Call state hook if it exists, passing the evmstate
+        if let Some(hook) = &mut self.hook {
+            let mut temp_state = state.clone();
+            temp_state.remove(&SYSTEM_ADDRESS);
+            hook.on_state(StateChangeSource::Transaction(self.receipts.len()), &temp_state);
+        }
 
         let gas_used = result.gas_used();
         self.gas_used += gas_used;
@@ -504,7 +558,9 @@ where
         ))
     }
 
-    fn set_state_hook(&mut self, _hook: Option<Box<dyn OnStateHook>>) {}
+    fn set_state_hook(&mut self, _hook: Option<Box<dyn OnStateHook>>) {
+        self.hook = _hook;
+    }
 
     fn evm_mut(&mut self) -> &mut Self::Evm {
         &mut self.evm
