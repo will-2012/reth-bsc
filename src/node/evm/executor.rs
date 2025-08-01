@@ -430,6 +430,19 @@ where
         }
         if self.spec.is_prague_active_at_timestamp(self.evm.block().timestamp.to()) {
             self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
+            
+            // reset system address
+            let system_account = self
+                .evm
+                .db_mut()
+                .load_cache_account(SYSTEM_ADDRESS)
+                .map_err(BlockExecutionError::other)?;
+
+            if system_account.account.is_some() {
+                let (_, mut transition) = system_account.drain_balance();
+                transition.info = None;
+                self.evm.db_mut().apply_transition(vec![(SYSTEM_ADDRESS, transition)]);
+            }
         }
 
         Ok(())
