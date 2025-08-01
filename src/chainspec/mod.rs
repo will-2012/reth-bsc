@@ -29,7 +29,12 @@ impl EthChainSpec for BscChainSpec {
     type Header = Header;
 
     fn blob_params_at_timestamp(&self, timestamp: u64) -> Option<BlobParams> {
-        self.inner.blob_params_at_timestamp(timestamp)
+        // self.inner.blob_params_at_timestamp(timestamp)
+        if self.inner.is_cancun_active_at_timestamp(timestamp) {
+            Some(self.inner.blob_params.cancun)
+        } else {
+            None
+        }
     }
 
     fn final_paris_total_difficulty(&self) -> Option<U256> {
