@@ -435,27 +435,17 @@ where
             self.system_caller.apply_blockhashes_contract_call(parent_hash, &mut self.evm)?;
             
             // reset system address nonce to 0
-            let system_account_info = self
+            let account_load = self
                 .evm
                 .db_mut()
-                .basic(SYSTEM_ADDRESS)
-                .map_err(BlockExecutionError::other)?
-                .unwrap_or_default();
+                .load_cache_account(SYSTEM_ADDRESS)
+                .map_err(BlockExecutionError::other)?;
 
-            // Only modify if account exists and is not empty
-            if !system_account_info.is_empty() {
-                // Check if account is not destroyed before modifying
-                let account_load = self
-                    .evm
-                    .db_mut()
-                    .load_cache_account(SYSTEM_ADDRESS)
-                    .map_err(BlockExecutionError::other)?;
-                
-                if !account_load.status.was_destroyed() {
-                    let mut info = system_account_info;
-                    info.nonce = 0;
-                    self.evm.db_mut().insert_account(SYSTEM_ADDRESS, info);
-                }
+            // Only modify if account exists and is not destroyed
+            if account_load.account.is_some() && !account_load.status.was_destroyed() {
+                let mut info = account_load.account_info().unwrap_or_default();
+                info.nonce = 0;
+                self.evm.db_mut().insert_account(SYSTEM_ADDRESS, info);
             }
         }
 
