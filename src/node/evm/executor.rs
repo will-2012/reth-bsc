@@ -411,6 +411,8 @@ where
     type Receipt = R::Receipt;
     type Evm = E;
 
+    
+
     fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
         // Set state clear flag if the block is after the Spurious Dragon hardfork.
         let state_clear_flag =
@@ -429,20 +431,23 @@ where
             self.apply_history_storage_account(self.evm.block().number.to::<u64>())?;
         }
         if self.spec.is_prague_active_at_timestamp(self.evm.block().timestamp.to()) {
-            self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
+            let parent_hash = self._ctx.parent_hash;
+            self.system_caller.apply_blockhashes_contract_call(parent_hash, &mut self.evm)?;
             
-            // reset system address
-            let system_account = self
+            // reset system address nonce to 0
+            let system_account_info = self
                 .evm
                 .db_mut()
-                .load_cache_account(SYSTEM_ADDRESS)
-                .map_err(BlockExecutionError::other)?;
+                .basic(SYSTEM_ADDRESS)
+                .map_err(BlockExecutionError::other)?
+                .unwrap_or_default();
 
-            if system_account.account.is_some() {
-                let (_, mut transition) = system_account.drain_balance();
-                transition.info = None;
-                self.evm.db_mut().apply_transition(vec![(SYSTEM_ADDRESS, transition)]);
+            if !system_account_info.is_empty() {
+                let mut info = system_account_info;
+                info.nonce = 0;
+                self.evm.db_mut().insert_account(SYSTEM_ADDRESS, info);
             }
+            
         }
 
         Ok(())
