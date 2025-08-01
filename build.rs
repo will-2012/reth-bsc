@@ -26,7 +26,7 @@ fn main() {
 
     // Rerun if any of the hardfork directories change
     for hardfork in &hardforks {
-        println!("cargo:rerun-if-changed=src/system_contracts/{}", hardfork);
+        println!("cargo:rerun-if-changed=src/system_contracts/{hardfork}");
     }
 
     let contracts_dir = "src/system_contracts";
@@ -34,44 +34,35 @@ fn main() {
 
     // Get all hardfork directories
     if let Ok(entries) = fs::read_dir(contracts_dir) {
-        for entry in entries {
-            if let Ok(entry) = entry {
-                let path = entry.path();
-                if path.is_dir() {
-                    let hardfork_name = path.file_name().unwrap().to_string_lossy();
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let hardfork_name = path.file_name().unwrap().to_string_lossy();
 
-                    // Skip the abi.rs file and other non-hardfork directories
-                    if hardfork_name == "abi" || hardfork_name.starts_with('.') {
-                        continue;
-                    }
+                // Skip the abi.rs file and other non-hardfork directories
+                if hardfork_name == "abi" || hardfork_name.starts_with('.') {
+                    continue;
+                }
 
-                    // Process mainnet and chapel subdirectories
-                    for network in ["mainnet", "chapel"] {
-                        let network_path = path.join(network);
-                        if network_path.exists() {
-                            if let Ok(contract_files) = fs::read_dir(&network_path) {
-                                for contract_file in contract_files {
-                                    if let Ok(contract_file) = contract_file {
-                                        let contract_path = contract_file.path();
-                                        if contract_path.is_file() {
-                                            let contract_name = contract_path
-                                                .file_name()
-                                                .unwrap()
-                                                .to_string_lossy();
+                // Process mainnet and chapel subdirectories
+                for network in ["mainnet", "chapel"] {
+                    let network_path = path.join(network);
+                    if network_path.exists() {
+                        if let Ok(contract_files) = fs::read_dir(&network_path) {
+                            for contract_file in contract_files.flatten() {
+                                let contract_path = contract_file.path();
+                                if contract_path.is_file() {
+                                    let contract_name =
+                                        contract_path.file_name().unwrap().to_string_lossy();
 
-                                            // Read the contract hex data
-                                            if let Ok(hex_data) = fs::read_to_string(&contract_path)
-                                            {
-                                                let hex_data = hex_data.trim();
+                                    // Read the contract hex data
+                                    if let Ok(hex_data) = fs::read_to_string(&contract_path) {
+                                        let hex_data = hex_data.trim();
 
-                                                // Store the contract data
-                                                let key = format!(
-                                                    "{}_{}_{}",
-                                                    hardfork_name, network, contract_name
-                                                );
-                                                contract_data.insert(key, hex_data.to_string());
-                                            }
-                                        }
+                                        // Store the contract data
+                                        let key =
+                                            format!("{hardfork_name}_{network}_{contract_name}");
+                                        contract_data.insert(key, hex_data.to_string());
                                     }
                                 }
                             }
@@ -93,7 +84,7 @@ fn main() {
     code.push_str("        let mut map = HashMap::new();\n");
 
     for (key, hex_data) in &contract_data {
-        code.push_str(&format!("        map.insert(\"{}\".to_string(), \"{}\");\n", key, hex_data));
+        code.push_str(&format!("        map.insert(\"{key}\".to_string(), \"{hex_data}\");\n"));
     }
 
     code.push_str("        map\n");
