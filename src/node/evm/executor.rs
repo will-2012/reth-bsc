@@ -432,18 +432,10 @@ where
             self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
 
             // reset system address - clear all fields
-            let account_load = self
-                .evm
-                .db_mut()
-                .load_cache_account(SYSTEM_ADDRESS)
-                .map_err(BlockExecutionError::other)?;
-
-            // Only modify if account exists and is not destroyed
-            if account_load.account.is_some() && !account_load.status.was_destroyed() {
-                // Create a completely empty account info
-                let empty_info = revm::state::AccountInfo::default();
-                self.evm.db_mut().insert_account(SYSTEM_ADDRESS, empty_info);
-            }
+            // Always clear the system address regardless of its current state
+            // This ensures the account is reset even if it was destroyed or doesn't exist
+            let empty_info = revm::state::AccountInfo::default();
+            self.evm.db_mut().insert_account(SYSTEM_ADDRESS, empty_info);
         }
 
         Ok(())
