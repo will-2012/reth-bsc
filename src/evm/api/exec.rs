@@ -3,6 +3,7 @@ use crate::evm::{
     handler::BscHandler,
     transaction::BscTxEnv,
 };
+use crate::consensus::SYSTEM_ADDRESS;
 use alloy_primitives::{Address, Bytes};
 use reth_evm::Database;
 use revm::{
@@ -122,9 +123,20 @@ where
         // disable nonce check for system calls
         let original_disable_nonce_check = self.inner.ctx.cfg.disable_nonce_check;
         self.inner.ctx.cfg.disable_nonce_check = true;
-        let result = self.transact_one(tx);
+        
+        // Set the transaction and use replay to get both result and state
+        self.inner.ctx.set_tx(tx);
+        let result_and_state = self.replay();
+        
         self.inner.ctx.cfg.disable_nonce_check = original_disable_nonce_check;
         
-        result
+        // Remove SYSTEM_ADDRESS from the state and return only the result
+        match result_and_state {
+            Ok(ResultAndState { result, mut state }) => {
+                state.remove(&SYSTEM_ADDRESS);
+                Ok(result)
+            }
+            Err(e) => Err(e),
+        }
     }
 }
