@@ -442,12 +442,21 @@ where
                 .map_err(BlockExecutionError::other)?
                 .unwrap_or_default();
 
+            // Only modify if account exists and is not empty
             if !system_account_info.is_empty() {
-                let mut info = system_account_info;
-                info.nonce = 0;
-                self.evm.db_mut().insert_account(SYSTEM_ADDRESS, info);
+                // Check if account is not destroyed before modifying
+                let account_load = self
+                    .evm
+                    .db_mut()
+                    .load_cache_account(SYSTEM_ADDRESS)
+                    .map_err(BlockExecutionError::other)?;
+                
+                if !account_load.status.was_destroyed() {
+                    let mut info = system_account_info;
+                    info.nonce = 0;
+                    self.evm.db_mut().insert_account(SYSTEM_ADDRESS, info);
+                }
             }
-            
         }
 
         Ok(())
