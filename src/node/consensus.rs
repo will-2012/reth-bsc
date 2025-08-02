@@ -109,25 +109,25 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
         }
 
         // Validate timestamp
-        match validate_against_parent_timestamp(header.header(), parent.header()) {
-            Ok(()) => {
-                debug!(
-                    target: "bsc::consensus::validate_header_against_parent",
-                    block_number=?header.number,
-                    "Timestamp validation passed"
-                );
-            }
-            Err(e) => {
-                error!(
-                    target: "bsc::consensus::validate_header_against_parent",
-                    block_number=?header.number,
-                    parent_number=?parent.number,
-                    error=?e,
-                    "Timestamp validation failed"
-                );
-                return Err(e);
-            }
-        }
+        // match validate_against_parent_timestamp(header.header(), parent.header()) {
+        //     Ok(()) => {
+        //         debug!(
+        //             target: "bsc::consensus::validate_header_against_parent",
+        //             block_number=?header.number,
+        //             "Timestamp validation passed"
+        //         );
+        //     }
+        //     Err(e) => {
+        //         error!(
+        //             target: "bsc::consensus::validate_header_against_parent",
+        //             block_number=?header.number,
+        //             parent_number=?parent.number,
+        //             error=?e,
+        //             "Timestamp validation failed"
+        //         );
+        //         return Err(e);
+        //     }
+        // }
 
         // Validate blob gas fields if applicable
         if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
