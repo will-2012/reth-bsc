@@ -1,5 +1,6 @@
-use super::{ParliaHeaderValidator, SnapshotProvider, BscConsensusValidator, Snapshot, constants::{DIFF_INTURN, DIFF_NOTURN}};
-use alloy_consensus::{Header, TxReceipt};
+use super::{ParliaHeaderValidator, SnapshotProvider, BscConsensusValidator, Snapshot, TransactionSplitter, SplitTransactions, constants::{DIFF_INTURN, DIFF_NOTURN}};
+use alloy_consensus::{Header, TxReceipt, Transaction};
+use reth_primitives_traits::SignerRecoverable;
 use crate::{
     node::primitives::BscBlock,
     hardforks::BscHardforks,
@@ -166,7 +167,10 @@ where
     ) -> Result<(), ConsensusError> {
         let header = block.header();
 
-        // Validate epoch transitions
+        // 1. Split and validate system transactions
+        self.validate_system_transactions(block)?;
+
+        // 2. Validate epoch transitions
         if header.number % self.epoch == 0 {
             // TODO: Implement epoch transition validation
             // This would verify validator set updates every 200 blocks
@@ -176,7 +180,69 @@ where
         // TODO: Add more BSC-specific post-execution validations:
         // - System reward distribution validation
         // - Slash contract interaction validation
-        // - System transaction validation
+
+        Ok(())
+    }
+
+    /// Validate system transactions using splitTxs logic
+    fn validate_system_transactions(&self, block: &RecoveredBlock<BscBlock>) -> Result<(), ConsensusError> {
+        let header = block.header();
+        // Extract the raw transactions from the block  
+        let transactions: Vec<_> = block.body().transactions().cloned().collect();
+        let beneficiary = header.beneficiary;
+
+        // Split transactions into user and system transactions
+        let split_result = TransactionSplitter::split_transactions(&transactions, beneficiary)
+            .map_err(|e| ConsensusError::Other(format!("Failed to split transactions: {}", e).into()))?;
+
+        // Log transaction split results for debugging
+        // TODO: Remove debug logging in production
+        if split_result.system_count() > 0 {
+            // System transactions found - validate them
+            self.validate_split_system_transactions(&split_result, header)?;
+        }
+
+        Ok(())
+    }
+
+    /// Validate the identified system transactions
+    fn validate_split_system_transactions(
+        &self,
+        split: &SplitTransactions,
+        header: &alloy_consensus::Header,
+    ) -> Result<(), ConsensusError> {
+        // TODO: Implement comprehensive system transaction validation:
+        // 1. Verify system transactions are in the correct order
+        // 2. Validate system transaction parameters (SlashIndicator, StakeHub, etc.)
+        // 3. Check that required system transactions are present
+        // 4. Validate system transaction execution results
+
+        // For now, just ensure we can identify system transactions correctly
+        for (i, system_tx) in split.system_txs.iter().enumerate() {
+            // Basic validation: system transaction should have gas price 0
+            if system_tx.max_fee_per_gas() != 0 {
+                return Err(ConsensusError::Other(
+                    format!("System transaction {} has non-zero gas price: {}", i, system_tx.max_fee_per_gas()).into()
+                ));
+            }
+
+            // Basic validation: system transaction should be sent by beneficiary
+            match system_tx.recover_signer() {
+                Ok(signer) => {
+                    if signer != header.beneficiary {
+                        return Err(ConsensusError::Other(
+                            format!("System transaction {} not sent by beneficiary: signer={}, beneficiary={}", 
+                                    i, signer, header.beneficiary).into()
+                        ));
+                    }
+                }
+                Err(_) => {
+                    return Err(ConsensusError::Other(
+                        format!("Failed to recover signer for system transaction {}", i).into()
+                    ));
+                }
+            }
+        }
 
         Ok(())
     }

@@ -16,6 +16,7 @@ pub mod attestation;
 pub mod gas;
 pub mod hooks;
 pub mod slash_pool;
+pub mod transaction_splitter;
 pub mod consensus;
 
 pub use snapshot::{Snapshot, ValidatorInfo, CHECKPOINT_INTERVAL};
@@ -26,6 +27,7 @@ pub use attestation::parse_vote_attestation_from_header;
 pub use validator::{ParliaHeaderValidator, SnapshotProvider};
 pub use validation::BscConsensusValidator;
 pub use hertz_patch::{HertzPatchManager, StoragePatch};
+pub use transaction_splitter::{TransactionSplitter, SplitTransactions, TransactionSplitterError};
 pub use consensus::ParliaConsensus;
 
 /// Epoch length (200 blocks on BSC main-net).
