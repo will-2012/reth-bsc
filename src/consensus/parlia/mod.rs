@@ -46,17 +46,6 @@ impl StepSigner {
     pub fn proposer_index(&self, number: u64) -> u64 { number % self.epoch }
 }
 
-// ============================================================================
-// Consensus Engine stub (will implement traits in later milestones)
-// ============================================================================
-
-#[derive(Debug, Default, Clone)]
-pub struct ParliaEngine;
-
-impl ParliaEngine {
-    pub fn new() -> Self { Self }
-}
-
 // The real trait impls (HeaderValidator, Consensus, FullConsensus) will be
 // added in a later milestone. For now we only ensure the module compiles.
 
