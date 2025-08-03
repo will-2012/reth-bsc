@@ -1,13 +1,14 @@
 use super::{ParliaHeaderValidator, SnapshotProvider, BscConsensusValidator, Snapshot, constants::{DIFF_INTURN, DIFF_NOTURN}};
 use alloy_consensus::Header;
-use alloy_primitives::{Address, U256};
 use crate::{
-    node::primitives::{BscBlock, BscBlockBody},
+    node::primitives::BscBlock,
     hardforks::BscHardforks,
+    BscPrimitives,
 };
 use reth::consensus::{Consensus, FullConsensus, ConsensusError, HeaderValidator};
-use reth_primitives::{RecoveredBlock, Receipt};
-use reth_primitives_traits::{Block, SealedBlock, SealedHeader};
+use reth_primitives::{Receipt};
+use reth_provider::BlockExecutionResult;
+use reth_primitives_traits::{Block, SealedBlock, SealedHeader, RecoveredBlock};
 use reth_chainspec::EthChainSpec;
 use std::sync::Arc;
 
@@ -61,11 +62,14 @@ where
             .snapshot(parent_number)
             .ok_or_else(|| ConsensusError::Other("Failed to get snapshot".into()))?;
 
+        // Create a SealedHeader for validation methods
+        let sealed_header = SealedHeader::new(header.clone(), block.hash());
+
         // Verify seal (proposer signature)
-        self.verify_seal(header, &snapshot)?;
+        self.verify_seal(&sealed_header, &snapshot)?;
 
         // Verify turn-based proposing (difficulty check)
-        self.verify_difficulty(header, &snapshot)?;
+        self.verify_difficulty(&sealed_header, &snapshot)?;
 
         Ok(())
     }
@@ -73,8 +77,8 @@ where
     /// Validate block post-execution using Parlia rules
     fn validate_block_post_execution_impl(
         &self,
-        block: &RecoveredBlock,
-        _receipts: &[Receipt],
+        block: &RecoveredBlock<BscBlock>,
+        _result: &BlockExecutionResult<Receipt>,
     ) -> Result<(), ConsensusError> {
         // For now, implement basic system contract validation
         // Full implementation would include:
@@ -82,7 +86,7 @@ where
         // - System reward distribution
         // - Slash contract interactions
 
-        let header = &block.block().header;
+        let header = block.header();
 
         // Validate epoch transitions
         if header.number % self.epoch == 0 {
@@ -144,7 +148,7 @@ where
     }
 }
 
-impl<ChainSpec, P> Consensus<SealedBlock<BscBlock>> for ParliaConsensus<ChainSpec, P>
+impl<ChainSpec, P> Consensus<BscBlock> for ParliaConsensus<ChainSpec, P>
 where
     ChainSpec: EthChainSpec + BscHardforks + 'static,
     P: SnapshotProvider + std::fmt::Debug + 'static,
@@ -153,7 +157,7 @@ where
 
     fn validate_body_against_header(
         &self,
-        _body: &<SealedBlock<BscBlock> as Block>::Body,
+        _body: &<BscBlock as Block>::Body,
         _header: &SealedHeader<Header>,
     ) -> Result<(), Self::Error> {
         // Basic body validation - for now accept all
@@ -168,16 +172,16 @@ where
     }
 }
 
-impl<ChainSpec, P> FullConsensus<SealedBlock<BscBlock>> for ParliaConsensus<ChainSpec, P>
+impl<ChainSpec, P> FullConsensus<BscPrimitives> for ParliaConsensus<ChainSpec, P>
 where
     ChainSpec: EthChainSpec + BscHardforks + 'static,
     P: SnapshotProvider + std::fmt::Debug + 'static,
 {
     fn validate_block_post_execution(
         &self,
-        block: &RecoveredBlock,
-        receipts: &[Receipt],
+        block: &RecoveredBlock<BscBlock>,
+        result: &BlockExecutionResult<Receipt>,
     ) -> Result<(), ConsensusError> {
-        self.validate_block_post_execution_impl(block, receipts)
+        self.validate_block_post_execution_impl(block, result)
     }
 } 
