@@ -1,3 +1,29 @@
+# feat_parlia_20250804 Status 
+
+## Validation Pipeline Structure:
+```rust
+validate_block_pre_execution_impl()
+├── validate_basic_block_fields()          // Standard Ethereum validation
+│   ├── transaction_root_validation()
+│   └── cancun_blob_gas_validation()
+└── validate_parlia_specific_fields()      // BSC-specific Parlia rules
+    ├── verify_block_timing()             // Ramanujan constraints
+    ├── verify_vote_attestation()         // Plato BLS signatures  
+    ├── verify_seal()                     // Enhanced proposer authorization
+    ├── verify_difficulty()               // Turn-based INTURN/NOTURN
+    └── verify_turn_length()              // Bohr epoch boundaries
+
+validate_block_post_execution_impl()
+├── validate_basic_post_execution_fields() // Standard validation
+│   ├── gas_used_verification()
+│   └── verify_receipts_and_logs()
+└── validate_parlia_post_execution_fields() // BSC-specific
+    └── epoch_transition_validation()
+```
+
+
+
+
 # Branch Current Status
 - It is working on EC2 for testnet. (in execution stage, 1800w)
 - It can successfully run for testnet by specifying debug.tip to 100ws

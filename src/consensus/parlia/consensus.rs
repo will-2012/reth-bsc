@@ -1,12 +1,13 @@
 use super::{ParliaHeaderValidator, SnapshotProvider, BscConsensusValidator, Snapshot, constants::{DIFF_INTURN, DIFF_NOTURN}};
-use alloy_consensus::Header;
+use alloy_consensus::{Header, TxReceipt};
 use crate::{
     node::primitives::BscBlock,
     hardforks::BscHardforks,
     BscPrimitives,
 };
 use reth::consensus::{Consensus, FullConsensus, ConsensusError, HeaderValidator};
-use reth_primitives::{Receipt};
+use reth_primitives::Receipt;
+use reth_primitives_traits::proofs;
 use reth_provider::BlockExecutionResult;
 use reth_primitives_traits::{Block, SealedBlock, SealedHeader, RecoveredBlock};
 use reth_chainspec::EthChainSpec;
@@ -56,7 +57,35 @@ where
             return Ok(());
         }
 
-        // Get snapshot for the parent block
+        // 1. Basic block validation (similar to standard pre-execution)
+        self.validate_basic_block_fields(block)?;
+
+        // 2. BSC-specific Parlia validation
+        self.validate_parlia_specific_fields(block)?;
+
+        Ok(())
+    }
+
+    /// Validate basic block fields (transaction root, blob gas, etc.)
+    fn validate_basic_block_fields(&self, block: &SealedBlock<BscBlock>) -> Result<(), ConsensusError> {
+        // Check transaction root
+        if let Err(error) = block.ensure_transaction_root_valid() {
+            return Err(ConsensusError::BodyTransactionRootDiff(error.into()));
+        }
+
+        // EIP-4844: Blob gas validation for Cancun fork
+        if self.chain_spec.is_cancun_active_at_timestamp(block.timestamp) {
+            self.validate_cancun_blob_gas(block)?;
+        }
+
+        Ok(())
+    }
+
+    /// Validate BSC-specific Parlia consensus fields
+    fn validate_parlia_specific_fields(&self, block: &SealedBlock<BscBlock>) -> Result<(), ConsensusError> {
+        let header = block.header();
+
+        // Get snapshot for validation
         let parent_number = header.number - 1;
         let snapshot = self.snapshot_provider
             .snapshot(parent_number)
@@ -65,11 +94,21 @@ where
         // Create a SealedHeader for validation methods
         let sealed_header = SealedHeader::new(header.clone(), block.hash());
 
-        // Verify seal (proposer signature)
+        // Verify cascading fields in order:
+        // 1. Block timing constraints (Ramanujan fork)
+        self.verify_block_timing(&sealed_header, &snapshot)?;
+
+        // 2. Vote attestation (Plato fork) 
+        self.verify_vote_attestation(&sealed_header)?;
+
+        // 3. Seal verification (signature recovery and validator authorization)
         self.verify_seal(&sealed_header, &snapshot)?;
 
-        // Verify turn-based proposing (difficulty check)
+        // 4. Turn-based proposing (difficulty validation)
         self.verify_difficulty(&sealed_header, &snapshot)?;
+
+        // 5. Turn length validation (Bohr fork)
+        self.verify_turn_length(&sealed_header)?;
 
         Ok(())
     }
@@ -78,20 +117,143 @@ where
     fn validate_block_post_execution_impl(
         &self,
         block: &RecoveredBlock<BscBlock>,
-        _result: &BlockExecutionResult<Receipt>,
+        result: &BlockExecutionResult<Receipt>,
     ) -> Result<(), ConsensusError> {
-        // For now, implement basic system contract validation
-        // Full implementation would include:
-        // - Validator set updates at epoch boundaries
-        // - System reward distribution
-        // - Slash contract interactions
+        let _header = block.header();
+        let receipts = &result.receipts;
 
+        // 1. Basic post-execution validation (gas used, receipts root, logs bloom)
+        self.validate_basic_post_execution_fields(block, receipts)?;
+
+        // 2. BSC-specific post-execution validation
+        self.validate_parlia_post_execution_fields(block, receipts)?;
+
+        Ok(())
+    }
+
+    /// Validate basic post-execution fields (gas, receipts, logs)
+    fn validate_basic_post_execution_fields(
+        &self,
+        block: &RecoveredBlock<BscBlock>,
+        receipts: &[Receipt],
+    ) -> Result<(), ConsensusError> {
+        let header = block.header();
+
+        // Check if gas used matches the value set in header
+        let cumulative_gas_used = receipts.last()
+            .map(|receipt| receipt.cumulative_gas_used)
+            .unwrap_or(0);
+        
+        if header.gas_used != cumulative_gas_used {
+            return Err(ConsensusError::Other(
+                format!("Gas used mismatch: header={}, receipts={}", header.gas_used, cumulative_gas_used).into()
+            ));
+        }
+
+        // Verify receipts root and logs bloom (after Byzantium fork)
+        if self.chain_spec.is_byzantium_active_at_block(header.number) {
+            self.verify_receipts_and_logs(header, receipts)?;
+        }
+
+        Ok(())
+    }
+
+    /// Validate BSC-specific post-execution fields
+    fn validate_parlia_post_execution_fields(
+        &self,
+        block: &RecoveredBlock<BscBlock>,
+        _receipts: &[Receipt],
+    ) -> Result<(), ConsensusError> {
         let header = block.header();
 
         // Validate epoch transitions
         if header.number % self.epoch == 0 {
             // TODO: Implement epoch transition validation
             // This would verify validator set updates every 200 blocks
+            // For now, just log that we're at an epoch boundary
+        }
+
+        // TODO: Add more BSC-specific post-execution validations:
+        // - System reward distribution validation
+        // - Slash contract interaction validation
+        // - System transaction validation
+
+        Ok(())
+    }
+
+    /// Validate EIP-4844 blob gas fields for Cancun fork
+    fn validate_cancun_blob_gas(&self, block: &SealedBlock<BscBlock>) -> Result<(), ConsensusError> {
+        // Check that blob gas used field exists in header for Cancun fork
+        if block.header().blob_gas_used.is_none() {
+            return Err(ConsensusError::Other("Blob gas used missing in Cancun block".into()));
+        }
+
+        // TODO: Implement detailed blob gas validation
+        // This would check that the blob gas used in the header matches the sum of blob gas used by transactions
+        // For now, we just verify the field exists
+
+        Ok(())
+    }
+
+    /// Verify block timing constraints for Ramanujan fork
+    fn verify_block_timing(&self, header: &SealedHeader<Header>, _snapshot: &Snapshot) -> Result<(), ConsensusError> {
+        if !self.chain_spec.is_ramanujan_active_at_block(header.number) {
+            return Ok(());
+        }
+
+        // TODO: Implement block timing validation
+        // This would check that block.timestamp >= parent.timestamp + period + backoff_time
+        // For now, we'll skip this validation as it requires parent header access
+        
+        Ok(())
+    }
+
+    /// Verify vote attestation for Plato fork
+    fn verify_vote_attestation(&self, header: &SealedHeader<Header>) -> Result<(), ConsensusError> {
+        if !self.chain_spec.is_plato_active_at_block(header.number) {
+            return Ok(());
+        }
+
+        // TODO: Implement vote attestation verification
+        // This involves parsing and validating BLS signature aggregation
+        // For now, we'll skip this complex validation
+        
+        Ok(())
+    }
+
+    /// Verify turn length at epoch boundaries for Bohr fork
+    fn verify_turn_length(&self, header: &SealedHeader<Header>) -> Result<(), ConsensusError> {
+        if header.number % self.epoch != 0 || !self.chain_spec.is_bohr_active_at_timestamp(header.timestamp) {
+            return Ok(());
+        }
+
+        // TODO: Implement turn length verification
+        // This would parse turn length from header extra data and compare with contract state
+        // For now, we'll skip this validation
+        
+        Ok(())
+    }
+
+    /// Verify receipts root and logs bloom
+    fn verify_receipts_and_logs(&self, header: &alloy_consensus::Header, receipts: &[Receipt]) -> Result<(), ConsensusError> {
+        // Calculate receipts root
+        let receipts_with_bloom = receipts.iter().map(|r| r.with_bloom_ref()).collect::<Vec<_>>();
+        let calculated_receipts_root = proofs::calculate_receipt_root(&receipts_with_bloom);
+
+        if header.receipts_root != calculated_receipts_root {
+            return Err(ConsensusError::Other(
+                format!("Receipts root mismatch: header={}, calculated={}", header.receipts_root, calculated_receipts_root).into()
+            ));
+        }
+
+        // Calculate logs bloom
+        let calculated_logs_bloom = receipts_with_bloom.iter()
+            .fold(alloy_primitives::Bloom::ZERO, |bloom, r| bloom | r.bloom());
+
+        if header.logs_bloom != calculated_logs_bloom {
+            return Err(ConsensusError::Other(
+                format!("Logs bloom mismatch").into()
+            ));
         }
 
         Ok(())
@@ -99,16 +261,28 @@ where
 
     /// Verify the seal (proposer signature) in the header
     fn verify_seal(&self, header: &SealedHeader<Header>, snapshot: &Snapshot) -> Result<(), ConsensusError> {
-        // For now, just check if coinbase is in validator set
-        // TODO: Implement proper signature recovery and verification
-        let proposer = header.beneficiary; // Use beneficiary instead of coinbase
+        // Enhanced seal verification with proper authorization checks
+        let proposer = header.beneficiary;
 
-        // Check if proposer is a validator
+        // Check if proposer is in the current validator set
         if !snapshot.validators.contains(&proposer) {
             return Err(ConsensusError::Other(
                 format!("Unauthorized proposer: {}", proposer).into()
             ));
         }
+
+        // Check if proposer signed recently (to prevent spamming)
+        if snapshot.sign_recently(proposer) {
+            return Err(ConsensusError::Other(
+                format!("Proposer {} signed recently", proposer).into()
+            ));
+        }
+
+        // TODO: Implement actual signature recovery and verification
+        // This would involve:
+        // 1. Recovering the proposer address from the signature in header.extra_data
+        // 2. Verifying it matches header.beneficiary
+        // For now, we assume the beneficiary is correct
 
         Ok(())
     }
