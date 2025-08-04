@@ -437,7 +437,7 @@ where
                 .db_mut()
                 .load_cache_account(SYSTEM_ADDRESS)
                 .map_err(BlockExecutionError::other)?;
-            if !system_account.account.is_none() {
+            if system_account.account.is_some() {
                 // Create a completely empty account info
                 let empty_info = AccountInfo {
                     balance: U256::ZERO,
