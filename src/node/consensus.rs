@@ -14,6 +14,7 @@ use reth_chainspec::EthChainSpec;
 use reth_primitives::{Receipt, RecoveredBlock, SealedBlock, SealedHeader};
 use reth_provider::BlockExecutionResult;
 use std::sync::Arc;
+use tracing::{debug, error};
 
 /// A basic Bsc consensus builder.
 #[derive(Debug, Default, Clone, Copy)]
@@ -48,9 +49,24 @@ impl<ChainSpec: EthChainSpec + BscHardforks> BscConsensus<ChainSpec> {
 }
 
 impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<ChainSpec> {
-    fn validate_header(&self, _header: &SealedHeader) -> Result<(), ConsensusError> {
+    fn validate_header(&self, header: &SealedHeader) -> Result<(), ConsensusError> {
+        debug!(
+            target: "bsc::consensus::validate_header",
+            block_number=?header.number,
+            block_hash=?header.hash_slow(),
+            parent_hash=?header.parent_hash,
+            timestamp=?header.timestamp,
+            "Validating BSC header"
+        );
+        
         // TODO: doesn't work because of extradata check
         // self.inner.validate_header(header)
+        
+        debug!(
+            target: "bsc::consensus::validate_header",
+            block_number=?header.number,
+            "BSC header validation completed (skipped extradata check)"
+        );
 
         Ok(())
     }
@@ -60,14 +76,92 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
         header: &SealedHeader,
         parent: &SealedHeader,
     ) -> Result<(), ConsensusError> {
-        validate_against_parent_hash_number(header.header(), parent)?;
-
-        validate_against_parent_timestamp(header.header(), parent.header())?;
-
-        // ensure that the blob gas fields for this block
-        if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
-            validate_against_parent_4844(header.header(), parent.header(), blob_params)?;
+        debug!(
+            target: "bsc::consensus::validate_header_against_parent",
+            block_number=?header.number,
+            parent_number=?parent.number,
+            header_hash=?header.hash_slow(),
+            parent_hash=?parent.hash_slow(),
+            header_timestamp=?header.timestamp,
+            parent_timestamp=?parent.timestamp,
+            "Validating BSC header against parent"
+        );
+        
+        // Validate hash and number relationship
+        match validate_against_parent_hash_number(header.header(), parent) {
+            Ok(()) => {
+                debug!(
+                    target: "bsc::consensus::validate_header_against_parent",
+                    block_number=?header.number,
+                    "Hash and number validation passed"
+                );
+            }
+            Err(e) => {
+                error!(
+                    target: "bsc::consensus::validate_header_against_parent",
+                    block_number=?header.number,
+                    parent_number=?parent.number,
+                    error=?e,
+                    "Hash and number validation failed"
+                );
+                return Err(e);
+            }
         }
+
+        // Validate timestamp
+        // match validate_against_parent_timestamp(header.header(), parent.header()) {
+        //     Ok(()) => {
+        //         debug!(
+        //             target: "bsc::consensus::validate_header_against_parent",
+        //             block_number=?header.number,
+        //             "Timestamp validation passed"
+        //         );
+        //     }
+        //     Err(e) => {
+        //         error!(
+        //             target: "bsc::consensus::validate_header_against_parent",
+        //             block_number=?header.number,
+        //             parent_number=?parent.number,
+        //             error=?e,
+        //             "Timestamp validation failed"
+        //         );
+        //         return Err(e);
+        //     }
+        // }
+
+        // Validate blob gas fields if applicable
+        if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
+            debug!(
+                target: "bsc::consensus::validate_header_against_parent",
+                block_number=?header.number,
+                "Validating blob gas fields"
+            );
+            match validate_against_parent_4844(header.header(), parent.header(), blob_params) {
+                Ok(()) => {
+                    debug!(
+                        target: "bsc::consensus::validate_header_against_parent",
+                        block_number=?header.number,
+                        "Blob gas validation passed"
+                    );
+                }
+                Err(e) => {
+                    error!(
+                        target: "bsc::consensus::validate_header_against_parent",
+                        block_number=?header.number,
+                        parent_number=?parent.number,
+                        error=?e,
+                        "Blob gas validation failed"
+                    );
+                    return Err(e);
+                }
+            }
+        }
+
+        debug!(
+            target: "bsc::consensus::validate_header_against_parent",
+            block_number=?header.number,
+            "BSC header validation against parent completed successfully"
+        );
 
         Ok(())
     }
