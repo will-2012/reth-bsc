@@ -153,11 +153,11 @@ pub fn calculate_millisecond_timestamp<H: alloy_consensus::BlockHeader>(header: 
     
     let milliseconds = if mix_digest != B256::ZERO {
         let bytes = mix_digest.as_slice();
-        // Use all 32 bytes as big-endian integer, matching Go uint256.SetBytes32 implementation
+        // Use last 8 bytes as big-endian integer, matching Go uint256.SetBytes32 implementation
         if bytes.len() >= 32 {
-            // Convert 32 bytes to u64 (big-endian), equivalent to Go's uint256.SetBytes32().Uint64()
+            // Convert last 8 bytes to u64 (big-endian), equivalent to Go's uint256.SetBytes32().Uint64()
             let mut result = 0u64;
-            for i in 0..8 {
+            for i in 24..32 {
                 result = (result << 8) | u64::from(bytes[i]);
             }
             result
@@ -205,7 +205,8 @@ mod tests {
         
         let milliseconds = 750u64;
         let mut mix_hash_bytes = [0u8; 32];
-        mix_hash_bytes[0..8].copy_from_slice(&milliseconds.to_be_bytes());
+        // Place milliseconds in the last 8 bytes, matching Go's uint256.Bytes32() behavior
+        mix_hash_bytes[24..32].copy_from_slice(&milliseconds.to_be_bytes());
         let mix_hash = B256::new(mix_hash_bytes);
 
         let header = Header {
