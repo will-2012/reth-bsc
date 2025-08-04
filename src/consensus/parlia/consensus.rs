@@ -104,6 +104,11 @@ where
         }
     }
 
+    /// Get reference to the snapshot provider
+    pub fn snapshot_provider(&self) -> &Arc<P> {
+        &self.snapshot_provider
+    }
+
     /// Create genesis snapshot from BSC chain specification
     pub fn create_genesis_snapshot(chain_spec: Arc<ChainSpec>, epoch: u64) -> Result<crate::consensus::parlia::snapshot::Snapshot, ConsensusError> 
     where

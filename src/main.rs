@@ -3,7 +3,9 @@ use reth::{builder::NodeHandle, cli::Cli};
 use reth_bsc::{
     chainspec::parser::BscChainSpecParser,
     node::{evm::config::BscEvmConfig, BscNode},
+    consensus::parlia::{ParliaConsensus, EPOCH},
 };
+use std::sync::Arc;
 
 // We use jemalloc for performance reasons
 #[cfg(all(feature = "jemalloc", unix))]
@@ -25,52 +27,52 @@ fn main() -> eyre::Result<()> {
 
     Cli::<BscChainSpecParser, NoArgs>::parse().run_with_components::<BscNode>(
         |spec| {
-            // 🚀 Create enhanced ParliaConsensus with PERSISTENT MDBX snapshots for CLI fullnode!
-            use reth_bsc::consensus::parlia::{
-                provider::DbSnapshotProvider, 
-                ParliaConsensus, EPOCH
-            };
-            use reth_db::{init_db, mdbx::DatabaseArguments};
-
-            use reth_chainspec::EthChainSpec;
-            use std::sync::Arc;
-
-            tracing::info!("🚀 [BSC] CLI: Creating fullnode with persistent MDBX snapshots");
-
-            // Create database path for persistent snapshots in the same datadir as the main node
-            // This ensures proper permissions and avoids conflicts
-            use reth_node_core::dirs::data_dir;
-            let base_dir = data_dir().unwrap_or_else(|| {
-                // On macOS, use ~/Library/Application Support/reth as fallback
-                dirs::data_dir()
-                    .map(|d| d.join("reth"))
-                    .unwrap_or_else(|| std::env::current_dir().unwrap().join("data"))
-            });
-            let db_path = base_dir.join(spec.chain().to_string()).join("parlia_snapshots");
+            // Create components: (EVM config, Consensus)
+            // Note: Consensus will be created by BscConsensusBuilder with correct datadir
+            let evm_config = BscEvmConfig::new(spec.clone());
             
-            // Ensure the parent directory exists
-            if let Err(e) = std::fs::create_dir_all(&db_path) {
-                panic!("Failed to create snapshot database directory at {:?}: {}", db_path, e);
-            }
-
-            // Initialize persistent MDBX database for snapshots
-            let snapshot_db = init_db(&db_path, DatabaseArguments::new(Default::default()))
-                .unwrap_or_else(|e| {
-                    panic!("Failed to initialize snapshot database at {:?}: {}", db_path, e);
-                });
-
-            tracing::info!("🚀 [BSC] CLI: SNAPSHOT DATABASE READY! Using DbSnapshotProvider with MDBX persistence");
-            let snapshot_provider = Arc::new(DbSnapshotProvider::new(Arc::new(snapshot_db), 2048));
-            let consensus = ParliaConsensus::new(spec.clone(), snapshot_provider, EPOCH);
-            (BscEvmConfig::new(spec.clone()), consensus)
+            // Create a temporary consensus for CLI components
+            // This will be replaced by BscConsensusBuilder's consensus with proper database
+            use reth_bsc::consensus::parlia::provider::InMemorySnapshotProvider;
+            let temp_provider = Arc::new(InMemorySnapshotProvider::new(1));
+            let consensus = ParliaConsensus::new(spec, temp_provider, EPOCH);
+            
+            (evm_config, consensus)
         },
         async move |builder, _| {
             // Create node with proper engine handle communication (matches official BSC)
             let (node, engine_handle_tx) = BscNode::new();
+            
             let NodeHandle { node, node_exit_future: exit_future } =
-                builder.node(node).launch().await?;
+                builder.node(node)
+                    .extend_rpc_modules(move |ctx| {
+                        // 🚀 [BSC] Register Parlia RPC API for snapshot queries
+                        use reth_bsc::rpc::parlia::{ParliaApiImpl, ParliaApiServer, DynSnapshotProvider};
 
-            // CRITICAL: Send engine handle to enable RPC server communication
+
+                        tracing::info!("🚀 [BSC] Registering Parlia RPC API: parlia_getSnapshot");
+                        
+                        // Get the snapshot provider from the global shared instance
+                        let snapshot_provider = if let Some(provider) = reth_bsc::shared::get_snapshot_provider() {
+                            tracing::info!("✅ [BSC] Using shared persistent snapshot provider from consensus builder");
+                            provider.clone()
+                        } else {
+                            // Fallback to an empty in-memory provider
+                            tracing::error!("❌ [BSC] Shared snapshot provider not available, using fallback");
+                            use reth_bsc::consensus::parlia::{InMemorySnapshotProvider, SnapshotProvider};
+                            Arc::new(InMemorySnapshotProvider::new(1000)) as Arc<dyn SnapshotProvider + Send + Sync>
+                        };
+                        
+                        let wrapped_provider = Arc::new(DynSnapshotProvider::new(snapshot_provider));
+                        let parlia_api = ParliaApiImpl::new(wrapped_provider);
+                        ctx.modules.merge_configured(parlia_api.into_rpc())?;
+
+                        tracing::info!("✅ [BSC] Parlia RPC API registered successfully!");
+                        Ok(())
+                    })
+                    .launch().await?;
+
+            // Send the engine handle to the network
             engine_handle_tx.send(node.beacon_engine_handle.clone()).unwrap();
 
             exit_future.await
@@ -78,5 +80,3 @@ fn main() -> eyre::Result<()> {
     )?;
     Ok(())
 }
-
-

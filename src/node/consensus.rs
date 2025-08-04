@@ -44,9 +44,12 @@ where
         
         let consensus = ParliaConsensus::new(
             ctx.chain_spec(), 
-            snapshot_provider,
+            snapshot_provider.clone(),
             EPOCH, // BSC epoch length (200 blocks)
         );
+        
+        // Store the snapshot provider globally so RPC can access it
+        let _ = crate::shared::set_snapshot_provider(snapshot_provider as Arc<dyn crate::consensus::parlia::SnapshotProvider + Send + Sync>);
         
         Ok(Arc::new(consensus))
     }

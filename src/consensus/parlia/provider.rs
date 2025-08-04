@@ -42,23 +42,44 @@ impl Default for InMemorySnapshotProvider {
 impl SnapshotProvider for InMemorySnapshotProvider {
     fn snapshot(&self, block_number: u64) -> Option<Snapshot> {
         let guard = self.inner.read();
+        tracing::info!("🔍 [BSC-PROVIDER] InMemorySnapshotProvider::snapshot called for block {}, cache size: {}", 
+            block_number, guard.len());
+        
+        if guard.is_empty() {
+            tracing::warn!("⚠️ [BSC-PROVIDER] InMemorySnapshotProvider cache is empty!");
+        } else {
+            let cache_keys: Vec<u64> = guard.keys().cloned().collect();
+            tracing::info!("🔍 [BSC-PROVIDER] Cache keys: {:?}", cache_keys);
+        }
+        
         // Find the greatest key <= block_number.
-        if let Some((_, snap)) = guard.range(..=block_number).next_back() {
+        if let Some((found_block, snap)) = guard.range(..=block_number).next_back() {
+            tracing::info!("✅ [BSC-PROVIDER] Found snapshot for block {} (requested {}): validators={}, epoch_num={}", 
+                found_block, block_number, snap.validators.len(), snap.epoch_num);
             return Some(snap.clone());
         }
+        
+        tracing::warn!("⚠️ [BSC-PROVIDER] No snapshot found for block {}", block_number);
         None
     }
 
     fn insert(&self, snapshot: Snapshot) {
         let mut guard = self.inner.write();
-        guard.insert(snapshot.block_number, snapshot);
+        tracing::info!("📝 [BSC-PROVIDER] InMemorySnapshotProvider::insert called for block {}, cache size before: {}", 
+            snapshot.block_number, guard.len());
+        guard.insert(snapshot.block_number, snapshot.clone());
+        tracing::info!("✅ [BSC-PROVIDER] Inserted snapshot for block {}: validators={}, epoch_num={}", 
+            snapshot.block_number, snapshot.validators.len(), snapshot.epoch_num);
+        
         // clamp size
         while guard.len() > self.max_entries {
             // remove the smallest key
             if let Some(first_key) = guard.keys().next().cloned() {
+                tracing::debug!("🗑️ [BSC-PROVIDER] Removing old snapshot for block {} (cache full)", first_key);
                 guard.remove(&first_key);
             }
         }
+        tracing::debug!("🔍 [BSC-PROVIDER] Cache size after insert: {}", guard.len());
     }
 }
 
