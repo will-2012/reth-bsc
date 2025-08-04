@@ -85,7 +85,7 @@ where
         contract: Address,
         data: Bytes,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        let result = SystemCallEvm::transact_system_call_with_caller(self, caller, contract, data)?;
+        let result = self.inner.transact_system_call_with_caller(caller, contract, data)?;
         let state = self.finalize();
         Ok(ResultAndState::new(result, state))
     }
