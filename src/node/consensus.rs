@@ -62,10 +62,21 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
     ) -> Result<(), ConsensusError> {
         validate_against_parent_hash_number(header.header(), parent)?;
 
-        if calculate_millisecond_timestamp(header.header()) <= calculate_millisecond_timestamp(parent.header()) {
+        let header_timestamp = calculate_millisecond_timestamp(header.header());
+        let parent_timestamp = calculate_millisecond_timestamp(parent.header());
+        
+        if header_timestamp <= parent_timestamp {
+            tracing::warn!(
+                "Header timestamp validation failed: header={:?}, parent={:?}, header_timestamp={}, parent_timestamp={}",
+                header.header(),
+                parent.header(),
+                header_timestamp,
+                parent_timestamp
+            );
+            
             return Err(ConsensusError::TimestampIsInPast {
-                parent_timestamp: calculate_millisecond_timestamp(parent.header()),
-                timestamp: calculate_millisecond_timestamp(header.header()),
+                parent_timestamp,
+                timestamp: header_timestamp,
             })
         }
 
