@@ -1,5 +1,6 @@
 use crate::{hardforks::BscHardforks, node::BscNode, BscBlock, BscBlockBody, BscPrimitives};
 use alloy_consensus::Header;
+use alloy_primitives::B256;
 use reth::{
     api::FullNodeTypes,
     beacon_consensus::EthBeaconConsensus,
@@ -7,7 +8,6 @@ use reth::{
     consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator},
     consensus_common::validation::{
         validate_against_parent_4844, validate_against_parent_hash_number,
-        validate_against_parent_timestamp,
     },
 };
 use reth_chainspec::EthChainSpec;
@@ -62,7 +62,23 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
     ) -> Result<(), ConsensusError> {
         validate_against_parent_hash_number(header.header(), parent)?;
 
-        validate_against_parent_timestamp(header.header(), parent.header())?;
+        let header_timestamp = calculate_millisecond_timestamp(header.header());
+        let parent_timestamp = calculate_millisecond_timestamp(parent.header());
+        
+        if header_timestamp <= parent_timestamp {
+            tracing::warn!(
+                "Header timestamp validation failed: header={:?}, parent={:?}, header_timestamp={}, parent_timestamp={}",
+                header.header(),
+                parent.header(),
+                header_timestamp,
+                parent_timestamp
+            );
+            
+            return Err(ConsensusError::TimestampIsInPast {
+                parent_timestamp,
+                timestamp: header_timestamp,
+            })
+        }
 
         // ensure that the blob gas fields for this block
         if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
@@ -126,5 +142,80 @@ impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> FullConsensus<BscP
         result: &BlockExecutionResult<Receipt>,
     ) -> Result<(), ConsensusError> {
         FullConsensus::<BscPrimitives>::validate_block_post_execution(&self.inner, block, result)
+    }
+}
+
+/// Calculate the millisecond timestamp of a block header.
+/// Refer to https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP-520.md.
+pub fn calculate_millisecond_timestamp<H: alloy_consensus::BlockHeader>(header: &H) -> u64 {
+    let seconds = header.timestamp();
+    let mix_digest = header.mix_hash().unwrap_or(B256::ZERO);
+    
+    let milliseconds = if mix_digest != B256::ZERO {
+        let bytes = mix_digest.as_slice();
+        // Use last 8 bytes as big-endian integer, matching Go uint256.SetBytes32 implementation
+        if bytes.len() >= 32 {
+            // Convert last 8 bytes to u64 (big-endian), equivalent to Go's uint256.SetBytes32().Uint64()
+            let mut result = 0u64;
+            for i in 24..32 {
+                result = (result << 8) | u64::from(bytes[i]);
+            }
+            result
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+    
+    seconds * 1000 + milliseconds
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_consensus::Header;
+    use alloy_primitives::B256;
+
+    #[test]
+    fn test_calculate_millisecond_timestamp_without_mix_hash() {
+        // Create a header with current timestamp and zero mix_hash
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        let header = Header {
+            timestamp,
+            mix_hash: B256::ZERO,
+            ..Default::default()
+        };
+
+        let result = calculate_millisecond_timestamp(&header);
+        assert_eq!(result, timestamp * 1000);
+    }
+
+    #[test]
+    fn test_calculate_millisecond_timestamp_with_milliseconds() {
+        // Create a header with current timestamp and mix_hash containing milliseconds
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        let milliseconds = 750u64;
+        let mut mix_hash_bytes = [0u8; 32];
+        // Place milliseconds in the last 8 bytes, matching Go's uint256.Bytes32() behavior
+        mix_hash_bytes[24..32].copy_from_slice(&milliseconds.to_be_bytes());
+        let mix_hash = B256::new(mix_hash_bytes);
+
+        let header = Header {
+            timestamp,
+            mix_hash,
+            ..Default::default()
+        };
+
+        let result = calculate_millisecond_timestamp(&header);
+        assert_eq!(result, timestamp * 1000 + milliseconds);
     }
 }
