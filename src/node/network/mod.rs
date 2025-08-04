@@ -3,6 +3,7 @@ use crate::{
     node::{
         network::block_import::{handle::ImportHandle, BscBlockImport},
         primitives::{BscBlobTransactionSidecar, BscPrimitives},
+        rpc::engine_api::payload::BscPayloadTypes,
         BscNode,
     },
     BscBlock,
@@ -19,10 +20,11 @@ use reth_discv4::Discv4Config;
 
 use reth_eth_wire::{BasicNetworkPrimitives, NewBlock, NewBlockPayload};
 use reth_ethereum_primitives::PooledTransactionVariant;
+use reth_engine_primitives::BeaconConsensusEngineHandle;
 use reth_network::{NetworkConfig, NetworkHandle, NetworkManager};
 use reth_network_api::PeersInfo;
 use std::{sync::Arc, time::Duration};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tracing::info;
 
 pub mod block_import;
@@ -137,8 +139,27 @@ pub type BscNetworkPrimitives =
     BasicNetworkPrimitives<BscPrimitives, PooledTransactionVariant, BscNewBlock>;
 
 /// A basic bsc network builder.
-#[derive(Debug, Default)]
-pub struct BscNetworkBuilder {}
+#[derive(Debug)]
+pub struct BscNetworkBuilder {
+    engine_handle_rx: Arc<
+        Mutex<Option<oneshot::Receiver<BeaconConsensusEngineHandle<BscPayloadTypes>>>>,
+    >,
+}
+
+impl BscNetworkBuilder {
+    pub fn new(
+        engine_handle_rx: Arc<Mutex<Option<oneshot::Receiver<BeaconConsensusEngineHandle<BscPayloadTypes>>>>>,
+    ) -> Self {
+        Self { engine_handle_rx }
+    }
+}
+
+impl Default for BscNetworkBuilder {
+    fn default() -> Self {
+        let (_tx, rx) = oneshot::channel();
+        Self::new(Arc::new(Mutex::new(Some(rx))))
+    }
+}
 
 
 
@@ -153,7 +174,7 @@ impl BscNetworkBuilder {
     where
         Node: FullNodeTypes<Types = BscNode>,
     {
-        let Self {} = self;
+        let Self { engine_handle_rx } = self;
 
         let network_builder = ctx.network_config_builder()?;
         let mut discv4 = Discv4Config::builder();
@@ -163,13 +184,30 @@ impl BscNetworkBuilder {
         }
         discv4.lookup_interval(Duration::from_millis(500));
 
-        let (to_import, _from_network) = mpsc::unbounded_channel();
-        let (_to_network, import_outcome) = mpsc::unbounded_channel();
+        let (to_import, from_network) = mpsc::unbounded_channel();
+        let (to_network, import_outcome) = mpsc::unbounded_channel();
 
         let handle = ImportHandle::new(to_import, import_outcome);
         
-        // Note: Engine handle integration was removed as it was unused infrastructure
-        // Block import service can be added here if needed in the future
+        // Import the necessary types for consensus
+        use crate::consensus::ParliaConsensus;
+        use crate::node::network::block_import::service::ImportService;
+        
+        // Create consensus instance for ImportService
+        let consensus = Arc::new(ParliaConsensus { provider: ctx.provider().clone() });
+        
+        // Spawn the critical ImportService task exactly like the official implementation
+        ctx.task_executor().spawn_critical("block import", async move {
+            let handle = engine_handle_rx
+                .lock()
+                .await
+                .take()
+                .expect("node should only be launched once")
+                .await
+                .unwrap();
+
+            ImportService::new(consensus, handle, from_network, to_network).await.unwrap();
+        });
 
         let network_builder = network_builder
             .boot_nodes(ctx.chain_spec().bootnodes().unwrap_or_default())

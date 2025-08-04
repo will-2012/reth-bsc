@@ -65,11 +65,13 @@ fn main() -> eyre::Result<()> {
             (BscEvmConfig::new(spec.clone()), consensus)
         },
         async move |builder, _| {
-            // Create a simple node without the complex engine handle setup
-            // The consensus was already provided in the components above
-            let node = BscNode::default();
-            let NodeHandle { node: _, node_exit_future: exit_future } =
+            // Create node with proper engine handle communication (matches official BSC)
+            let (node, engine_handle_tx) = BscNode::new();
+            let NodeHandle { node, node_exit_future: exit_future } =
                 builder.node(node).launch().await?;
+
+            // CRITICAL: Send engine handle to enable RPC server communication
+            engine_handle_tx.send(node.beacon_engine_handle.clone()).unwrap();
 
             exit_future.await
         },

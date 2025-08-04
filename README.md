@@ -1,5 +1,14 @@
 # feat_parlia_20250804 Status 
 
+Now it can integrate parlia engine and it is running against the testnet for the first 300k blocks.
+
+TODOs:
+1. making the parlia RPC API integrated (parlia_getSnapshot Method Not Found)
+2. After the fullnode finish syncing to the debug.tip block,  it seems trying to receiving new msg for the latest block and get new type of errors. (2025-08-04T14:18:47.433807Z  WARN engine::tree: Invalid block error on new payload invalid_hash=0xe9eecf825b6613dc80c9e37cacd7c8b9d8677e099e2dab784d7e5ce6bad3333a invalid_number=60643448 validation_err=Failed to get snapshot
+2025-08-04T14:18:47.433964Z  WARN consensus::engine: Bad block with hash invalid_ancestor=BlockWithParent { parent: 0x8d7b8315629ae3af253adc24d08c66fd48938d6f1564ba7ff5d0f1bc7b7d182e, block: NumHash { number: 60643448, hash: 0xe9eecf825b6613dc80c9e37cacd7c8b9d8677e099e2dab784d7e5ce6bad3333a } })
+3. to finish hertz_patch_manager
+
+
 ## Validation Pipeline Structure:
 ```rust
 validate_block_pre_execution_impl()

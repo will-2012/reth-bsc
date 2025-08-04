@@ -31,7 +31,7 @@ use reth_payload_primitives::{PayloadAttributesBuilder, PayloadTypes};
 use reth_primitives::BlockBody;
 use reth_trie_db::MerklePatriciaTrie;
 use std::sync::Arc;
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, Mutex};
 
 pub mod consensus;
 pub mod consensus_factory;
@@ -47,19 +47,31 @@ pub type BscNodeAddOns<N> =
     RpcAddOns<N, BscEthApiBuilder, BscEngineValidatorBuilder, BscEngineApiBuilder>;
 
 /// Type configuration for a regular BSC node.
-#[derive(Debug, Clone, Default)]
-pub struct BscNode {}
+#[derive(Debug, Clone)]
+pub struct BscNode {
+    engine_handle_rx:
+        Arc<Mutex<Option<oneshot::Receiver<BeaconConsensusEngineHandle<BscPayloadTypes>>>>>,
+}
 
 impl BscNode {
     pub fn new() -> (Self, oneshot::Sender<BeaconConsensusEngineHandle<BscPayloadTypes>>) {
-        let (tx, _rx) = oneshot::channel();
-        (Self {}, tx)
+        let (tx, rx) = oneshot::channel();
+        (Self { engine_handle_rx: Arc::new(Mutex::new(Some(rx))) }, tx)
+    }
+}
+
+impl Default for BscNode {
+    fn default() -> Self {
+        let (node, _tx) = Self::new();
+        node
     }
 }
 
 impl BscNode {
     /// Returns a [`ComponentsBuilder`] configured for a regular BSC node.
-    pub fn components<Node>() -> ComponentsBuilder<
+    pub fn components<Node>(
+        &self,
+    ) -> ComponentsBuilder<
         Node,
         EthereumPoolBuilder,
         BscPayloadServiceBuilder,
@@ -75,7 +87,7 @@ impl BscNode {
             .pool(EthereumPoolBuilder::default())
             .executor(BscExecutorBuilder::default())
             .payload(BscPayloadServiceBuilder::default())
-            .network(BscNetworkBuilder::default())
+            .network(BscNetworkBuilder::new(self.engine_handle_rx.clone()))
             .consensus(BscConsensusBuilder::default())  // 🚀 Uses persistent snapshots!
     }
 }
@@ -106,7 +118,7 @@ where
     >;
 
     fn components_builder(&self) -> Self::ComponentsBuilder {
-        Self::components()
+        self.components()
     }
 
     fn add_ons(&self) -> Self::AddOns {
