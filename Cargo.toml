@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "reth-bsc"
 path = "src/main.rs"
 
+[[bin]]
+name = "snapshot-checker"
+path = "src/bin/snapshot_checker.rs"
+
 [dependencies]
 reth = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
 reth-cli = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-8e0ff9" }
@@ -118,6 +122,8 @@ rand = "0.8"
 [target.'cfg(unix)'.dependencies]
 tikv-jemalloc-ctl = "0.6"
 tikv-jemallocator = { version = "0.6", optional = true }
+tempfile = "3.0"
+dirs = "5.0"
 libc = "0.2"
 
 [features]

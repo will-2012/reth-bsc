@@ -1,10 +1,11 @@
 use super::{ParliaHeaderValidator, SnapshotProvider, BscConsensusValidator, Snapshot, TransactionSplitter, SplitTransactions, constants::{DIFF_INTURN, DIFF_NOTURN}};
-use alloy_consensus::{Header, TxReceipt, Transaction};
+use alloy_consensus::{Header, TxReceipt, Transaction, BlockHeader};
 use reth_primitives_traits::SignerRecoverable;
 use crate::{
     node::primitives::BscBlock,
     hardforks::BscHardforks,
     BscPrimitives,
+
 };
 use reth::consensus::{Consensus, FullConsensus, ConsensusError, HeaderValidator};
 use reth_primitives::Receipt;
@@ -39,14 +40,38 @@ where
         let header_validator = Arc::new(ParliaHeaderValidator::new(snapshot_provider.clone()));
         let consensus_validator = Arc::new(BscConsensusValidator::new(chain_spec.clone()));
         
-        Self { 
+        let consensus = Self { 
             chain_spec,
             header_validator,
             consensus_validator,
             snapshot_provider,
             epoch,
             period,
-        }
+        };
+        
+        // Initialize genesis snapshot if needed
+        consensus.ensure_genesis_snapshot();
+        
+        consensus
+    }
+
+    /// Create consensus with database-backed persistent snapshots
+    pub fn with_database<DB: reth_db::database::Database + 'static>(
+        chain_spec: Arc<ChainSpec>,
+        database: DB,
+        epoch: u64,
+        period: u64,
+        cache_size: usize,
+    ) -> ParliaConsensus<ChainSpec, crate::consensus::parlia::provider::DbSnapshotProvider<DB>> {
+        let snapshot_provider = Arc::new(
+            crate::consensus::parlia::provider::DbSnapshotProvider::new(database, cache_size)
+        );
+        let consensus = ParliaConsensus::new(chain_spec, snapshot_provider, epoch, period);
+        
+        // Initialize genesis snapshot if needed
+        consensus.ensure_genesis_snapshot();
+        
+        consensus
     }
 
     /// Validate block pre-execution using Parlia rules
@@ -65,6 +90,80 @@ where
         self.validate_parlia_specific_fields(block)?;
 
         Ok(())
+    }
+
+    /// Ensure genesis snapshot exists
+    fn ensure_genesis_snapshot(&self) {
+        // Check if genesis snapshot already exists
+        if self.snapshot_provider.snapshot(0).is_some() {
+            return;
+        }
+
+        // Create genesis snapshot from chain spec
+        if let Ok(genesis_snapshot) = Self::create_genesis_snapshot(self.chain_spec.clone(), self.epoch) {
+            self.snapshot_provider.insert(genesis_snapshot);
+            tracing::info!("🎯 [BSC] Created genesis snapshot for block 0");
+        } else {
+            tracing::warn!("⚠️ [BSC] Failed to create genesis snapshot");
+        }
+    }
+
+    /// Create genesis snapshot from BSC chain specification
+    pub fn create_genesis_snapshot(chain_spec: Arc<ChainSpec>, epoch: u64) -> Result<crate::consensus::parlia::snapshot::Snapshot, ConsensusError> 
+    where
+        ChainSpec: EthChainSpec + BscHardforks + 'static,
+    {
+        let genesis_header = chain_spec.genesis_header();
+        let validators = Self::parse_genesis_validators_static(genesis_header.extra_data())?;
+        
+        if validators.is_empty() {
+            return Err(ConsensusError::Other("No validators found in genesis header".into()));
+        }
+
+        let genesis_hash = alloy_primitives::keccak256(alloy_rlp::encode(genesis_header));
+
+        let snapshot = crate::consensus::parlia::snapshot::Snapshot::new(
+            validators,
+            0, // block number
+            genesis_hash, // block hash
+            epoch, // epoch length
+            None, // no vote addresses pre-Luban
+        );
+
+        tracing::info!("🚀 [BSC] Genesis snapshot created with {} validators", snapshot.validators.len());
+        Ok(snapshot)
+    }
+
+
+
+    /// Parse genesis validators from BSC extraData (static version)
+    fn parse_genesis_validators_static(extra_data: &alloy_primitives::Bytes) -> Result<Vec<alloy_primitives::Address>, ConsensusError> {
+        const EXTRA_VANITY_LEN: usize = 32;
+        const EXTRA_SEAL_LEN: usize = 65;
+
+        if extra_data.len() <= EXTRA_VANITY_LEN + EXTRA_SEAL_LEN {
+            return Err(ConsensusError::Other("extraData too short for validator list".into()));
+        }
+
+        let validator_bytes = &extra_data[EXTRA_VANITY_LEN..extra_data.len() - EXTRA_SEAL_LEN];
+        
+        if validator_bytes.len() % 20 != 0 {
+            return Err(ConsensusError::Other("validator data length not divisible by 20".into()));
+        }
+
+        let mut validators = Vec::new();
+        for chunk in validator_bytes.chunks(20) {
+            let address = alloy_primitives::Address::from_slice(chunk);
+            validators.push(address);
+        }
+
+        tracing::debug!("📋 [BSC] Parsed {} validators from genesis extraData", validators.len());
+        Ok(validators)
+    }
+
+    /// Parse genesis validators from BSC extraData
+    fn parse_genesis_validators(&self, extra_data: &alloy_primitives::Bytes) -> Result<Vec<alloy_primitives::Address>, ConsensusError> {
+        Self::parse_genesis_validators_static(extra_data)
     }
 
     /// Validate basic block fields (transaction root, blob gas, etc.)

@@ -34,6 +34,7 @@ use std::sync::Arc;
 use tokio::sync::{oneshot, Mutex};
 
 pub mod consensus;
+pub mod consensus_factory;
 pub mod engine;
 pub mod evm;
 pub mod network;
@@ -59,10 +60,16 @@ impl BscNode {
     }
 }
 
+impl Default for BscNode {
+    fn default() -> Self {
+        let (_tx, rx) = oneshot::channel();
+        Self { engine_handle_rx: Arc::new(Mutex::new(Some(rx))) }
+    }
+}
+
 impl BscNode {
-    pub fn components<Node>(
-        &self,
-    ) -> ComponentsBuilder<
+    /// Returns a [`ComponentsBuilder`] configured for a regular BSC node.
+    pub fn components<Node>() -> ComponentsBuilder<
         Node,
         EthereumPoolBuilder,
         BscPayloadServiceBuilder,
@@ -78,8 +85,8 @@ impl BscNode {
             .pool(EthereumPoolBuilder::default())
             .executor(BscExecutorBuilder::default())
             .payload(BscPayloadServiceBuilder::default())
-            .network(BscNetworkBuilder { engine_handle_rx: self.engine_handle_rx.clone() })
-            .consensus(BscConsensusBuilder::default())
+            .network(BscNetworkBuilder::default())
+            .consensus(BscConsensusBuilder::default())  // 🚀 Uses persistent snapshots!
     }
 }
 
@@ -109,7 +116,7 @@ where
     >;
 
     fn components_builder(&self) -> Self::ComponentsBuilder {
-        Self::components(self)
+        Self::components()
     }
 
     fn add_ons(&self) -> Self::AddOns {

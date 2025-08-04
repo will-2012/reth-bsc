@@ -32,6 +32,7 @@ pub use consensus::ParliaConsensus;
 
 /// Epoch length (200 blocks on BSC main-net).
 pub const EPOCH: u64 = 200;
+// Note: CHECKPOINT_INTERVAL is already defined in snapshot.rs and re-exported
 
 // ============================================================================
 // Signer helper (rotation schedule)

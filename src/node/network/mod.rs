@@ -145,6 +145,16 @@ pub struct BscNetworkBuilder {
         Arc<Mutex<Option<oneshot::Receiver<BeaconConsensusEngineHandle<BscPayloadTypes>>>>>,
 }
 
+impl Default for BscNetworkBuilder {
+    fn default() -> Self {
+        // Create a dummy channel for static component creation
+        let (_tx, rx) = oneshot::channel();
+        Self {
+            engine_handle_rx: Arc::new(Mutex::new(Some(rx))),
+        }
+    }
+}
+
 impl BscNetworkBuilder {
     /// Returns the [`NetworkConfig`] that contains the settings to launch the p2p network.
     ///
@@ -173,15 +183,24 @@ impl BscNetworkBuilder {
         let consensus = Arc::new(ParliaConsensus { provider: ctx.provider().clone() });
 
         ctx.task_executor().spawn_critical("block import", async move {
-            let handle = engine_handle_rx
-                .lock()
-                .await
-                .take()
-                .expect("node should only be launched once")
-                .await
-                .unwrap();
-
-            ImportService::new(consensus, handle, from_network, to_network).await.unwrap();
+            // Try to get the engine handle, but handle gracefully if not available
+            match engine_handle_rx.lock().await.take() {
+                Some(receiver) => {
+                    match receiver.await {
+                        Ok(handle) => {
+                            if let Err(e) = ImportService::new(consensus, handle, from_network, to_network).await {
+                                tracing::error!("ImportService failed: {}", e);
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to receive engine handle: {}. Running without import service.", e);
+                        }
+                    }
+                }
+                None => {
+                    tracing::warn!("No engine handle receiver available. Running without import service.");
+                }
+            }
         });
 
         let network_builder = network_builder

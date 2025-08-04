@@ -4,6 +4,7 @@ pub mod consensus;
 mod evm;
 mod hardforks;
 pub mod node;
+pub mod rpc;
 pub use node::primitives::BscPrimitives;
 // Re-export the BSC-specific block types so modules can `use crate::{BscBlock, BscBlockBody, …}`
 pub use node::primitives::{BscBlock, BscBlockBody, BscBlobTransactionSidecar};
