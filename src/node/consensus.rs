@@ -1,5 +1,6 @@
 use crate::{hardforks::BscHardforks, node::BscNode, BscBlock, BscBlockBody, BscPrimitives};
 use alloy_consensus::Header;
+use alloy_primitives::B256;
 use reth::{
     api::FullNodeTypes,
     beacon_consensus::EthBeaconConsensus,
@@ -7,7 +8,6 @@ use reth::{
     consensus::{Consensus, ConsensusError, FullConsensus, HeaderValidator},
     consensus_common::validation::{
         validate_against_parent_4844, validate_against_parent_hash_number,
-        validate_against_parent_timestamp,
     },
 };
 use reth_chainspec::EthChainSpec;
@@ -62,7 +62,12 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
     ) -> Result<(), ConsensusError> {
         validate_against_parent_hash_number(header.header(), parent)?;
 
-        validate_against_parent_timestamp(header.header(), parent.header())?;
+        if calculate_millisecond_timestamp(header.header()) <= calculate_millisecond_timestamp(parent.header()) {
+            return Err(ConsensusError::TimestampIsInPast {
+                parent_timestamp: calculate_millisecond_timestamp(parent.header()),
+                timestamp: calculate_millisecond_timestamp(header.header()),
+            })
+        }
 
         // ensure that the blob gas fields for this block
         if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
@@ -126,5 +131,75 @@ impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> FullConsensus<BscP
         result: &BlockExecutionResult<Receipt>,
     ) -> Result<(), ConsensusError> {
         FullConsensus::<BscPrimitives>::validate_block_post_execution(&self.inner, block, result)
+    }
+}
+
+/// Calculate the millisecond timestamp of a block header.
+/// Refer to https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP-520.md.
+pub fn calculate_millisecond_timestamp<H: alloy_consensus::BlockHeader>(header: &H) -> u64 {
+    let seconds = header.timestamp();
+    let mix_digest = header.mix_hash().unwrap_or(B256::ZERO);
+    
+    let milliseconds = if mix_digest != B256::ZERO {
+        let bytes = mix_digest.as_slice();
+        if bytes.len() >= 8 {
+            u64::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7]])
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+    
+    let milliseconds = milliseconds % 1000;
+    
+    seconds * 1000 + milliseconds
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_consensus::Header;
+    use alloy_primitives::B256;
+
+    #[test]
+    fn test_calculate_millisecond_timestamp_without_mix_hash() {
+        // Create a header with current timestamp and zero mix_hash
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        let header = Header {
+            timestamp,
+            mix_hash: B256::ZERO,
+            ..Default::default()
+        };
+
+        let result = calculate_millisecond_timestamp(&header);
+        assert_eq!(result, timestamp * 1000);
+    }
+
+    #[test]
+    fn test_calculate_millisecond_timestamp_with_milliseconds() {
+        // Create a header with current timestamp and mix_hash containing milliseconds
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        let milliseconds = 750u64;
+        let mut mix_hash_bytes = [0u8; 32];
+        mix_hash_bytes[0..8].copy_from_slice(&milliseconds.to_be_bytes());
+        let mix_hash = B256::new(mix_hash_bytes);
+
+        let header = Header {
+            timestamp,
+            mix_hash,
+            ..Default::default()
+        };
+
+        let result = calculate_millisecond_timestamp(&header);
+        assert_eq!(result, timestamp * 1000 + milliseconds);
     }
 }
