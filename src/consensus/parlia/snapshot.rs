@@ -125,6 +125,9 @@ impl Snapshot {
         attestation: Option<VoteAttestation>,
         turn_length: Option<u8>,
         is_bohr: bool,
+        // New hardfork parameters for proper timestamp-based upgrades
+        is_lorentz_active: bool,
+        is_maxwell_active: bool,
     ) -> Option<Self>
     where
         H: alloy_consensus::BlockHeader + alloy_primitives::Sealable,
@@ -158,23 +161,15 @@ impl Snapshot {
         //  Epoch / turn-length upgrades at Lorentz & Maxwell
         // -------------------------------------------------------------------
 
-        // Update `epoch_num` / `turn_length` automatically when we cross the
-        // first block of the new epoch length. We do **not** yet check fork
-        // timestamps – this is an approximation good enough for historical
-        // sync without the full ChainConfig wired in.
-
-        if snap.epoch_num == DEFAULT_EPOCH_LENGTH
-            && block_number % LORENTZ_EPOCH_LENGTH == 0
-        {
-            snap.epoch_num = LORENTZ_EPOCH_LENGTH;
-            snap.turn_length = Some(LORENTZ_TURN_LENGTH);
-            snap.block_interval = LORENTZ_BLOCK_INTERVAL_SECS;
-        } else if snap.epoch_num == LORENTZ_EPOCH_LENGTH
-            && block_number % MAXWELL_EPOCH_LENGTH == 0
-        {
+        // Update epoch_num, turn_length, and block_interval based on active hardforks
+        if is_maxwell_active && snap.epoch_num != MAXWELL_EPOCH_LENGTH {
             snap.epoch_num = MAXWELL_EPOCH_LENGTH;
             snap.turn_length = Some(MAXWELL_TURN_LENGTH);
             snap.block_interval = MAXWELL_BLOCK_INTERVAL_SECS;
+        } else if is_lorentz_active && snap.epoch_num != LORENTZ_EPOCH_LENGTH {
+            snap.epoch_num = LORENTZ_EPOCH_LENGTH;
+            snap.turn_length = Some(LORENTZ_TURN_LENGTH);
+            snap.block_interval = LORENTZ_BLOCK_INTERVAL_SECS;
         }
 
         // Epoch change driven by new validator set / checkpoint header.
@@ -230,8 +225,13 @@ impl Snapshot {
 
     /// Validator that should propose the **next** block.
     pub fn inturn_validator(&self) -> Address {
-        let turn = u64::from(self.turn_length.unwrap_or(1));
-        self.validators[((self.block_number + 1) / turn) as usize % self.validators.len()]
+        let turn = u64::from(self.turn_length.unwrap_or(DEFAULT_TURN_LENGTH));
+        let offset = ((self.block_number + 1) / turn) as usize % self.validators.len();
+        let next_validator = self.validators[offset];
+        
+
+        
+        next_validator
     }
 
     /// Returns index in `validators` for `validator` if present.
@@ -409,6 +409,8 @@ mod tests {
             None,   // attestation
             None,   // turn_length
             false,  // is_bohr
+            false,  // is_lorentz_active
+            false,  // is_maxwell_active
         );
         
         assert!(result.is_some(), "Apply should succeed without division by zero");

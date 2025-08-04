@@ -1,38 +1,13 @@
 use alloy_primitives::{Address, Signature, TxKind, U256};
 use bytes::Bytes;
-use alloy_sol_macro::sol;
-use alloy_sol_types::SolCall;
 use alloy_consensus::TxLegacy;
 use reth_chainspec::EthChainSpec;
 use reth_primitives::{Transaction, TransactionSigned};
 
 use crate::consensus::parlia::hooks::SystemTxMaker;
-use crate::system_contracts::{SystemContract, SLASH_CONTRACT};
+use crate::system_contracts::SystemContract;
 
-impl<Spec: EthChainSpec> SystemContract<Spec> {
-    /// Build a `slash(address)` system‐transaction targeting the on-chain slash contract.
-    pub fn slash_tx(&self, spoiled: Address) -> TransactionSigned {
-        sol!(
-            function slash(address);
-        );
 
-        let input = alloy_primitives::Bytes::from(slashCall(spoiled).abi_encode());
-        let signature = Signature::new(Default::default(), Default::default(), false);
-
-        TransactionSigned::new_unhashed(
-            Transaction::Legacy(TxLegacy {
-                chain_id: None,
-                nonce: 0,
-                gas_limit: u64::MAX / 2,
-                gas_price: 0,
-                value: U256::ZERO,
-                input,
-                to: TxKind::Call(Address::from(*SLASH_CONTRACT)),
-            }),
-            signature,
-        )
-    }
-}
 
 impl<Spec: EthChainSpec> SystemTxMaker for SystemContract<Spec> {
     type Tx = TransactionSigned;

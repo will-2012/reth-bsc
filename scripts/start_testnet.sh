@@ -7,6 +7,9 @@ elif [ "$(uname)" == "Darwin" ]; then
 fi
 
 
+# Custom: Only BSC debug + general warnings
+#RUST_LOG=warn,reth_bsc::node::evm::executor=debug ./target/release/reth-bsc
+
 #tip_block=0x8b841b96cb2863e21d9b87ba086e405684b8657e2d1b9ec75d6b70bb25725684 # 10k
 #tip_block=0xd16058f981cd556bf454a4c422cb10fd5a3c7938b232be433c6ccf3f08ef506e # 100k
 #tip_block=0x32ba3474696050e50e21b53b2a29b38180ddaf92605b667ec4537cd81ac5bade # 1000k

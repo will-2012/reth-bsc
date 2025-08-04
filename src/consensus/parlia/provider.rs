@@ -285,6 +285,11 @@ where
         
         for header in headers_to_apply {
             // Simplified application - full implementation would need validator parsing
+            // Determine hardfork activation based on header timestamp
+            let header_timestamp = header.header().timestamp();
+            let is_lorentz_active = header_timestamp >= 1744097580; // Lorentz hardfork timestamp
+            let is_maxwell_active = header_timestamp >= 1748243100; // Maxwell hardfork timestamp
+            
             working_snapshot = working_snapshot.apply(
                 header.beneficiary(),
                 header.header(),
@@ -293,6 +298,8 @@ where
                 None,       // attestation
                 None,       // turn_length
                 false,      // is_bohr
+                is_lorentz_active,
+                is_maxwell_active,
             )?;
             
             // Cache intermediate snapshots at regular intervals
@@ -304,7 +311,7 @@ where
         // Cache final result
         self.base.cache.write().insert(block_number, working_snapshot.clone());
         
-        tracing::debug!("✅ [BSC] Successfully created snapshot for block {} via backward walking", block_number);
+        tracing::trace!("✅ [BSC] Successfully created snapshot for block {} via backward walking", block_number);
         Some(working_snapshot)
     }
 

@@ -61,14 +61,14 @@ fn main() -> eyre::Result<()> {
 
             tracing::info!("🚀 [BSC] CLI: SNAPSHOT DATABASE READY! Using DbSnapshotProvider with MDBX persistence");
             let snapshot_provider = Arc::new(DbSnapshotProvider::new(Arc::new(snapshot_db), 2048));
-            let consensus = ParliaConsensus::new(spec.clone(), snapshot_provider, EPOCH, 3);
+            let consensus = ParliaConsensus::new(spec.clone(), snapshot_provider, EPOCH);
             (BscEvmConfig::new(spec.clone()), consensus)
         },
         async move |builder, _| {
             // Create a simple node without the complex engine handle setup
             // The consensus was already provided in the components above
             let node = BscNode::default();
-            let NodeHandle { node, node_exit_future: exit_future } =
+            let NodeHandle { node: _, node_exit_future: exit_future } =
                 builder.node(node).launch().await?;
 
             exit_future.await

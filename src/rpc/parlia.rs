@@ -3,7 +3,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc, types::ErrorObject};
 use serde::{Deserialize, Serialize};
 
 use crate::consensus::parlia::{Snapshot, SnapshotProvider};
-use reth_provider::{BlockReader, HeaderProvider};
+
 use std::sync::Arc;
 
 /// Validator information in the snapshot (matches BSC official format)
@@ -100,28 +100,20 @@ pub trait ParliaApi {
 }
 
 /// Implementation of the Parlia snapshot RPC API
-pub struct ParliaApiImpl<P: SnapshotProvider, Provider> {
+pub struct ParliaApiImpl<P: SnapshotProvider> {
     /// Snapshot provider for accessing validator snapshots
     snapshot_provider: Arc<P>,
-    /// Blockchain provider for resolving block numbers and hashes
-    provider: Provider,
 }
 
-impl<P: SnapshotProvider, Provider> ParliaApiImpl<P, Provider> 
-where
-    Provider: BlockReader + HeaderProvider + Clone + Send + Sync + 'static,
-{
+impl<P: SnapshotProvider> ParliaApiImpl<P> {
     /// Create a new Parlia API instance
-    pub fn new(snapshot_provider: Arc<P>, provider: Provider) -> Self {
-        Self { snapshot_provider, provider }
+    pub fn new(snapshot_provider: Arc<P>) -> Self {
+        Self { snapshot_provider }
     }
 }
 
 #[async_trait::async_trait]
-impl<P: SnapshotProvider + Send + Sync + 'static, Provider> ParliaApiServer for ParliaApiImpl<P, Provider>
-where
-    Provider: BlockReader + HeaderProvider + Clone + Send + Sync + 'static,
-{
+impl<P: SnapshotProvider + Send + Sync + 'static> ParliaApiServer for ParliaApiImpl<P> {
     /// Get snapshot at a specific block (matches BSC official API.GetSnapshot)
     /// Accepts block number as hex string like "0x123132"
     async fn get_snapshot(&self, block_number: String) -> RpcResult<Option<SnapshotResult>> {
@@ -163,140 +155,11 @@ where
 mod tests {
     use super::*;
     use crate::consensus::parlia::InMemorySnapshotProvider;
-    use alloy_primitives::B256;
 
-    // Mock provider for testing
-    #[derive(Clone)]
-    struct MockProvider;
-    
-    impl BlockReader for MockProvider {
-        fn find_block_by_hash(&self, _hash: B256, _source: reth_provider::BlockSource) -> reth_provider::ProviderResult<Option<reth_primitives_traits::Block>> {
-            Ok(None)
-        }
-        
-        fn block(&self, _id: reth_provider::BlockHashOrNumber) -> reth_provider::ProviderResult<Option<reth_primitives_traits::Block>> {
-            Ok(None)
-        }
-        
-        fn pending_block(&self) -> reth_provider::ProviderResult<Option<reth_primitives_traits::SealedBlock>> {
-            Ok(None)
-        }
-        
-        fn pending_block_with_senders(&self) -> reth_provider::ProviderResult<Option<reth_primitives_traits::SealedBlockWithSenders>> {
-            Ok(None)
-        }
-        
-        fn pending_block_and_receipts(&self) -> reth_provider::ProviderResult<Option<(reth_primitives_traits::SealedBlock, Vec<reth_primitives_traits::Receipt>)>> {
-            Ok(None)
-        }
-        
-        fn ommers(&self, _id: reth_provider::BlockHashOrNumber) -> reth_provider::ProviderResult<Option<Vec<reth_primitives_traits::Header>>> {
-            Ok(None)
-        }
-        
-        fn block_body_indices(&self, _number: reth_primitives::BlockNumber) -> reth_provider::ProviderResult<Option<reth_db_api::models::StoredBlockBodyIndices>> {
-            Ok(None)
-        }
-        
-        fn block_with_senders(&self, _id: reth_provider::BlockHashOrNumber, _transaction_kind: reth_provider::TransactionVariant) -> reth_provider::ProviderResult<Option<reth_primitives_traits::BlockWithSenders>> {
-            Ok(None)
-        }
-        
-        fn sealed_block_with_senders(&self, _id: reth_provider::BlockHashOrNumber, _transaction_kind: reth_provider::TransactionVariant) -> reth_provider::ProviderResult<Option<reth_primitives_traits::SealedBlockWithSenders>> {
-            Ok(None)
-        }
-        
-        fn block_range(&self, _range: std::ops::RangeInclusive<reth_primitives::BlockNumber>) -> reth_provider::ProviderResult<Vec<reth_primitives_traits::Block>> {
-            Ok(vec![])
-        }
-        
-        fn block_with_senders_range(&self, _range: std::ops::RangeInclusive<reth_primitives::BlockNumber>) -> reth_provider::ProviderResult<Vec<reth_primitives_traits::BlockWithSenders>> {
-            Ok(vec![])
-        }
-        
-        fn sealed_block_with_senders_range(&self, _range: std::ops::RangeInclusive<reth_primitives::BlockNumber>) -> reth_provider::ProviderResult<Vec<reth_primitives_traits::SealedBlockWithSenders>> {
-            Ok(vec![])
-        }
-    }
-    
-    impl HeaderProvider for MockProvider {
-        fn header(&self, _block_hash: &B256) -> reth_provider::ProviderResult<Option<reth_primitives_traits::Header>> {
-            Ok(None)
-        }
-        
-        fn header_by_number(&self, _num: u64) -> reth_provider::ProviderResult<Option<reth_primitives_traits::Header>> {
-            Ok(None)
-        }
-        
-        fn header_by_hash_or_number(&self, _hash_or_num: reth_provider::BlockHashOrNumber) -> reth_provider::ProviderResult<Option<reth_primitives_traits::Header>> {
-            Ok(None)
-        }
-        
-        fn header_td(&self, _hash: &B256) -> reth_provider::ProviderResult<Option<alloy_primitives::U256>> {
-            Ok(None)
-        }
-        
-        fn header_td_by_number(&self, _number: reth_primitives::BlockNumber) -> reth_provider::ProviderResult<Option<alloy_primitives::U256>> {
-            Ok(None)
-        }
-        
-        fn headers_range(&self, _range: impl std::ops::RangeBounds<reth_primitives::BlockNumber>) -> reth_provider::ProviderResult<Vec<reth_primitives_traits::Header>> {
-            Ok(vec![])
-        }
-        
-        fn sealed_header(&self, _number: reth_primitives::BlockNumber) -> reth_provider::ProviderResult<Option<reth_primitives_traits::SealedHeader>> {
-            Ok(None)
-        }
-        
-        fn sealed_headers_range(&self, _range: impl std::ops::RangeBounds<reth_primitives::BlockNumber>) -> reth_provider::ProviderResult<Vec<reth_primitives_traits::SealedHeader>> {
-            Ok(vec![])
-        }
-        
-        fn sealed_headers_while(&self, _range: impl std::ops::RangeBounds<reth_primitives::BlockNumber>, _predicate: impl FnMut(&reth_primitives_traits::SealedHeader) -> bool) -> reth_provider::ProviderResult<Vec<reth_primitives_traits::SealedHeader>> {
-            Ok(vec![])
-        }
-    }
-    
-    impl reth_provider::ChainSpecProvider for MockProvider {
-        type ChainSpec = crate::chainspec::BscChainSpec;
-        
-        fn chain_spec(&self) -> std::sync::Arc<Self::ChainSpec> {
-            std::sync::Arc::new(crate::chainspec::BscChainSpec::bsc_mainnet())
-        }
-    }
-    
-    impl reth_provider::BlockHashReader for MockProvider {
-        fn block_hash(&self, _number: u64) -> reth_provider::ProviderResult<Option<B256>> {
-            Ok(None)
-        }
-        
-        fn canonical_hashes_range(&self, _start: reth_primitives::BlockNumber, _end: reth_primitives::BlockNumber) -> reth_provider::ProviderResult<Vec<B256>> {
-            Ok(vec![])
-        }
-    }
-    
-    impl reth_provider::BlockNumReader for MockProvider {
-        fn chain_info(&self) -> reth_provider::ProviderResult<reth_chainspec::ChainInfo> {
-            Ok(reth_chainspec::ChainInfo::default())
-        }
-        
-        fn best_block_number(&self) -> reth_provider::ProviderResult<reth_primitives::BlockNumber> {
-            Ok(1000) // Return a test block number
-        }
-        
-        fn last_block_number(&self) -> reth_provider::ProviderResult<reth_primitives::BlockNumber> {
-            Ok(1000)
-        }
-        
-        fn block_number(&self, _hash: B256) -> reth_provider::ProviderResult<Option<reth_primitives::BlockNumber>> {
-            Ok(None)
-        }
-    }
 
     #[tokio::test]
     async fn test_snapshot_api() {
         let snapshot_provider = Arc::new(InMemorySnapshotProvider::new(100));
-        let mock_provider = MockProvider;
         
         // Insert a test snapshot
         let mut test_snapshot = Snapshot::default();
@@ -306,7 +169,7 @@ mod tests {
         test_snapshot.turn_length = Some(1);
         snapshot_provider.insert(test_snapshot.clone());
 
-        let api = ParliaApiImpl::new(snapshot_provider, mock_provider);
+        let api = ParliaApiImpl::new(snapshot_provider);
         
         // Test snapshot retrieval with hex block number (BSC official format)
         let result = api.get_snapshot("0x64".to_string()).await.unwrap(); // 0x64 = 100

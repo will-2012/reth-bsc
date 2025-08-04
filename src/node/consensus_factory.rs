@@ -24,11 +24,10 @@ impl BscConsensusFactory {
         let consensus = ParliaConsensus::new(
             chain_spec,
             snapshot_provider,
-            EPOCH,
-            3, // 3 second block period on BSC
+            EPOCH, // BSC epoch length (200 blocks)
         );
         
-        tracing::info!("🔄 [BSC] Created Parlia consensus with InMemorySnapshotProvider (10k cache)");
+
         Arc::new(consensus)
     }
     
@@ -43,8 +42,7 @@ impl BscConsensusFactory {
         let consensus = ParliaConsensus::new(
             chain_spec,
             snapshot_provider,
-            EPOCH,
-            3, // 3 second block period on BSC
+            EPOCH, // BSC epoch length (200 blocks)
         );
         
         tracing::info!(
@@ -65,8 +63,7 @@ impl BscConsensusFactory {
         let consensus = ParliaConsensus::new(
             chain_spec,
             snapshot_provider,
-            EPOCH,
-            3, // 3 second block period on BSC
+            EPOCH, // BSC epoch length (200 blocks)
         );
         
         tracing::info!("⚙️  [BSC] Created Parlia consensus with custom snapshot provider");

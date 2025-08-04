@@ -31,7 +31,7 @@ use reth_payload_primitives::{PayloadAttributesBuilder, PayloadTypes};
 use reth_primitives::BlockBody;
 use reth_trie_db::MerklePatriciaTrie;
 use std::sync::Arc;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::oneshot;
 
 pub mod consensus;
 pub mod consensus_factory;
@@ -47,23 +47,13 @@ pub type BscNodeAddOns<N> =
     RpcAddOns<N, BscEthApiBuilder, BscEngineValidatorBuilder, BscEngineApiBuilder>;
 
 /// Type configuration for a regular BSC node.
-#[derive(Debug, Clone)]
-pub struct BscNode {
-    engine_handle_rx:
-        Arc<Mutex<Option<oneshot::Receiver<BeaconConsensusEngineHandle<BscPayloadTypes>>>>>,
-}
+#[derive(Debug, Clone, Default)]
+pub struct BscNode {}
 
 impl BscNode {
     pub fn new() -> (Self, oneshot::Sender<BeaconConsensusEngineHandle<BscPayloadTypes>>) {
-        let (tx, rx) = oneshot::channel();
-        (Self { engine_handle_rx: Arc::new(Mutex::new(Some(rx))) }, tx)
-    }
-}
-
-impl Default for BscNode {
-    fn default() -> Self {
-        let (_tx, rx) = oneshot::channel();
-        Self { engine_handle_rx: Arc::new(Mutex::new(Some(rx))) }
+        let (tx, _rx) = oneshot::channel();
+        (Self {}, tx)
     }
 }
 

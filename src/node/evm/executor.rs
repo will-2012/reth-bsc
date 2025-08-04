@@ -33,7 +33,7 @@ use revm::{
     state::Bytecode,
     Database as _, DatabaseCommit,
 };
-use tracing::{debug, warn};
+use tracing::{debug, trace, warn};
 
 pub struct BscBlockExecutor<'a, EVM, Spec, R: ReceiptBuilder>
 where
@@ -150,14 +150,14 @@ where
     ) -> Result<(), BlockExecutionError> {
         debug!("🏗️  [BSC] deploy_genesis_contracts: beneficiary={:?}, block={}", beneficiary, self.evm.block().number);
         let txs = self.system_contracts.genesis_contracts_txs();
-        debug!("🏗️  [BSC] deploy_genesis_contracts: created {} genesis txs", txs.len());
+        trace!("🏗️  [BSC] deploy_genesis_contracts: created {} genesis txs", txs.len());
 
         for (i, tx) in txs.iter().enumerate() {
-            debug!("🏗️  [BSC] deploy_genesis_contracts: executing genesis tx {}/{}: hash={:?}, to={:?}, value={}, gas_limit={}", 
+            trace!("🏗️  [BSC] deploy_genesis_contracts: executing genesis tx {}/{}: hash={:?}, to={:?}, value={}, gas_limit={}", 
                 i + 1, txs.len(), tx.hash(), tx.to(), tx.value(), tx.gas_limit());
             self.transact_system_tx(tx, beneficiary)?;
         }
-        debug!("🏗️  [BSC] deploy_genesis_contracts: completed all {} genesis txs", txs.len());
+        trace!("🏗️  [BSC] deploy_genesis_contracts: completed all {} genesis txs", txs.len());
         Ok(())
     }
 
@@ -166,7 +166,7 @@ where
         tx: &TransactionSigned,
         sender: Address,
     ) -> Result<(), BlockExecutionError> {
-        debug!("⚙️  [BSC] transact_system_tx: sender={:?}, tx_hash={:?}, to={:?}, value={}, gas_limit={}", 
+        trace!("⚙️  [BSC] transact_system_tx: sender={:?}, tx_hash={:?}, to={:?}, value={}, gas_limit={}", 
             sender, tx.hash(), tx.to(), tx.value(), tx.gas_limit());
 
         // TODO: Consensus handle reverting slashing system txs (they shouldnt be in the block)
@@ -179,7 +179,7 @@ where
             .map_err(BlockExecutionError::other)?
             .unwrap_or_default();
 
-        debug!("⚙️  [BSC] transact_system_tx: sender account balance={}, nonce={}", account.balance, account.nonce);
+        trace!("⚙️  [BSC] transact_system_tx: sender account balance={}, nonce={}", account.balance, account.nonce);
 
         let tx_env = BscTxEnv {
             base: TxEnv {
@@ -208,7 +208,7 @@ where
             is_system_transaction: true,
         };
 
-        debug!("⚙️  [BSC] transact_system_tx: TxEnv gas_price={}, gas_limit={}, is_system_transaction={}", 
+                trace!("⚙️  [BSC] transact_system_tx: TxEnv gas_price={}, gas_limit={}, is_system_transaction={}",
             tx_env.base.gas_price, tx_env.base.gas_limit, tx_env.is_system_transaction);
 
         let result_and_state = self.evm.transact(tx_env).map_err(BlockExecutionError::other)?;
@@ -217,7 +217,7 @@ where
 
         let tx = tx.clone();
         let gas_used = result.gas_used();
-        debug!("⚙️  [BSC] transact_system_tx: completed, gas_used={}, result={:?}", gas_used, result);
+        trace!("⚙️  [BSC] transact_system_tx: completed, gas_used={}, result={:?}", gas_used, result);
         self.gas_used += gas_used;
         self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
             tx: &tx,
@@ -313,7 +313,7 @@ where
             input.len() >= 4 && input[..4] == updateValidatorSetV2Call::SELECTOR;
 
         if is_update_validator_set_v2_tx {
-            debug!("🔄 [BSC] handle_update_validator_set_v2_tx: processing validator set v2 tx, hash={:?}", tx.hash());
+    
             let signer = tx.recover_signer().map_err(BlockExecutionError::other)?;
             self.transact_system_tx(tx, signer)?;
         }
@@ -323,7 +323,7 @@ where
 
     /// Distributes block rewards to the validator.
     fn distribute_block_rewards(&mut self, validator: Address) -> Result<(), BlockExecutionError> {
-        debug!("💰 [BSC] distribute_block_rewards: validator={:?}, block={}", validator, self.evm.block().number);
+        trace!("💰 [BSC] distribute_block_rewards: validator={:?}, block={}", validator, self.evm.block().number);
         
         let system_account = self
             .evm
@@ -334,12 +334,12 @@ where
         if system_account.account.is_none() ||
             system_account.account.as_ref().unwrap().info.balance == U256::ZERO
         {
-            debug!("💰 [BSC] distribute_block_rewards: no system balance to distribute");
+            trace!("💰 [BSC] distribute_block_rewards: no system balance to distribute");
             return Ok(());
         }
 
         let (mut block_reward, mut transition) = system_account.drain_balance();
-        debug!("💰 [BSC] distribute_block_rewards: drained system balance={}", block_reward);
+        trace!("💰 [BSC] distribute_block_rewards: drained system balance={}", block_reward);
         transition.info = None;
         self.evm.db_mut().apply_transition(vec![(SYSTEM_ADDRESS, transition)]);
         let balance_increment = vec![(validator, block_reward)];
@@ -357,7 +357,7 @@ where
             .unwrap_or_default()
             .balance;
 
-        debug!("💰 [BSC] distribute_block_rewards: system_reward_balance={}", system_reward_balance);
+        trace!("💰 [BSC] distribute_block_rewards: system_reward_balance={}", system_reward_balance);
 
         // Kepler introduced a max system reward limit, so we need to pay the system reward to the
         // system contract if the limit is not exceeded.
@@ -365,10 +365,10 @@ where
             system_reward_balance < U256::from(MAX_SYSTEM_REWARD)
         {
             let reward_to_system = block_reward >> SYSTEM_REWARD_PERCENT;
-            debug!("💰 [BSC] distribute_block_rewards: reward_to_system={}", reward_to_system);
+            trace!("💰 [BSC] distribute_block_rewards: reward_to_system={}", reward_to_system);
             if reward_to_system > 0 {
                 let tx = self.system_contracts.pay_system_tx(reward_to_system);
-                debug!("💰 [BSC] distribute_block_rewards: created pay_system_tx, hash={:?}, value={}", tx.hash(), tx.value());
+                trace!("💰 [BSC] distribute_block_rewards: created pay_system_tx, hash={:?}, value={}", tx.hash(), tx.value());
                 self.transact_system_tx(&tx, validator)?;
             }
 
@@ -376,7 +376,7 @@ where
         }
 
         let tx = self.system_contracts.pay_validator_tx(validator, block_reward);
-        debug!("💰 [BSC] distribute_block_rewards: created pay_validator_tx, hash={:?}, value={}", tx.hash(), tx.value());
+        trace!("💰 [BSC] distribute_block_rewards: created pay_validator_tx, hash={:?}, value={}", tx.hash(), tx.value());
         self.transact_system_tx(&tx, validator)?;
         Ok(())
     }
@@ -406,8 +406,7 @@ where
     type Evm = E;
 
     fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
-        debug!("🔧 [BSC] apply_pre_execution_changes: block={}, timestamp={}", 
-            self.evm.block().number, self.evm.block().timestamp);
+
         
         // Set state clear flag if the block is after the Spurious Dragon hardfork.
         let state_clear_flag =
@@ -418,7 +417,7 @@ where
         // TODO: (Consensus System Call Before Execution)[https://github.com/bnb-chain/reth/blob/main/crates/bsc/evm/src/execute.rs#L678]
 
         if !self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
-            debug!("🔧 [BSC] apply_pre_execution_changes: upgrading contracts (pre-Feynman)");
+
             self.upgrade_contracts()?;
         }
 
@@ -511,7 +510,7 @@ where
             .into());
         }
         
-        debug!("🔥 [BSC] execute_transaction_with_result_closure: calling EVM transact for regular tx");
+        trace!("🔥 [BSC] execute_transaction_with_result_closure: calling EVM transact for regular tx");
         let result_and_state = self
             .evm
             .transact(tx)
@@ -524,7 +523,7 @@ where
         f(&result);
 
         let gas_used = result.gas_used();
-        debug!("✅ [BSC] execute_transaction_with_result_closure: tx completed, gas_used={}, result={:?}", gas_used, result);
+        trace!("✅ [BSC] execute_transaction_with_result_closure: tx completed, gas_used={}, result={:?}", gas_used, result);
         self.gas_used += gas_used;
         self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
             tx: tx.tx(),
@@ -551,7 +550,7 @@ where
     fn finish(
         mut self,
     ) -> Result<(Self::Evm, BlockExecutionResult<R::Receipt>), BlockExecutionError> {
-        debug!("🏁 [BSC] finish: block={}, total_system_txs={}", self.evm.block().number, self.system_txs.len());
+
         
         // TODO:
         // Consensus: Verify validators
@@ -559,12 +558,12 @@ where
 
         // If first block deploy genesis contracts
         if self.evm.block().number == uint!(1U256) {
-            debug!("🏗️  [BSC] finish: deploying genesis contracts for block 1");
+
             self.deploy_genesis_contracts(self.evm.block().beneficiary)?;
         }
 
         if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
-            debug!("🔧 [BSC] finish: upgrading contracts (Feynman active)");
+
             self.upgrade_contracts()?;
         }
 
@@ -573,7 +572,7 @@ where
                 .spec
                 .is_feynman_active_at_timestamp(self.evm.block().timestamp.to::<u64>() - 100)
         {
-            debug!("🔧 [BSC] finish: initializing Feynman contracts");
+
             self.initialize_feynman_contracts(self.evm.block().beneficiary)?;
         }
 
@@ -615,30 +614,26 @@ where
             self.handle_slash_tx(tx)?;
         }
 
-        debug!("💰 [BSC] finish: distributing block rewards");
+
         // ---- post-system-tx handling ---------------------------------
         self.distribute_block_rewards(self.evm.block().beneficiary)?;
 
         if self.spec.is_plato_active_at_block(self.evm.block().number.to()) {
-            debug!("🏆 [BSC] finish: processing {} finality reward txs (Plato active)", system_txs.len());
-            for (i, tx) in system_txs.iter().enumerate() {
-                debug!("🏆 [BSC] finish: handling finality reward tx {}/{}: hash={:?}", i + 1, system_txs.len(), tx.hash());
+            for (_i, tx) in system_txs.iter().enumerate() {
                 self.handle_finality_reward_tx(tx)?;
             }
         }
 
         // TODO: add breathe check and polish it later.
         let system_txs_v2 = self.system_txs.clone();
-        debug!("🔄 [BSC] finish: processing {} validator set v2 txs", system_txs_v2.len());
-        for (i, tx) in system_txs_v2.iter().enumerate() {
-            debug!("🔄 [BSC] finish: handling validator set v2 tx {}/{}: hash={:?}", i + 1, system_txs_v2.len(), tx.hash());
+        for (_i, tx) in system_txs_v2.iter().enumerate() {
             self.handle_update_validator_set_v2_tx(tx)?;
         }
 
         // TODO:
         // Consensus: Slash validator if not in turn
 
-        debug!("🏁 [BSC] finish: completed, final_gas_used={}, total_receipts={}", self.gas_used, self.receipts.len());
+
 
         Ok((
             self.evm,

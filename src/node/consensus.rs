@@ -28,7 +28,7 @@ where
         // 🚀 ENABLING PERSISTENT MDBX SNAPSHOTS!
         // We'll extract the database through the provider factory interface
         
-        tracing::info!("🔧 [BSC] Initializing persistent MDBX snapshots...");
+
         
         // Always use persistent snapshots with on-demand creation - no fallback
         let snapshot_provider = try_create_ondemand_snapshots(ctx)
@@ -45,8 +45,7 @@ where
         let consensus = ParliaConsensus::new(
             ctx.chain_spec(), 
             snapshot_provider,
-            EPOCH,
-            3, // 3 second block period on BSC
+            EPOCH, // BSC epoch length (200 blocks)
         );
         
         Ok(Arc::new(consensus))

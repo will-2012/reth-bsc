@@ -145,7 +145,7 @@ impl<P> ParliaHeaderValidator<P> {
 }
 
 // Helper to get expected difficulty.
-fn expected_difficulty(inturn: bool) -> u64 { if inturn { 2 } else { 1 } }
+
 
 impl<P, H> HeaderValidator<H> for ParliaHeaderValidator<P>
 where
@@ -401,6 +401,11 @@ where
             parse_epoch_update(header.header(), is_luban, is_bohr)
         } else { (Vec::new(), None, None) };
 
+        // Determine hardfork activation based on header timestamp
+        let header_timestamp = header.header().timestamp();
+        let is_lorentz_active = header_timestamp >= 1744097580; // Lorentz hardfork timestamp  
+        let is_maxwell_active = header_timestamp >= 1748243100; // Maxwell hardfork timestamp
+
         if let Some(new_snap) = parent_snap.apply(
             header.beneficiary(),
             header.header(),
@@ -409,6 +414,8 @@ where
             attestation_opt,
             turn_len,
             is_bohr,
+            is_lorentz_active,
+            is_maxwell_active,
         ) {
             // Always cache the snapshot
             self.provider.insert(new_snap.clone());

@@ -1,7 +1,7 @@
 pub mod chainspec;
 pub mod cli;
 pub mod consensus;
-mod evm;
+pub mod evm;
 mod hardforks;
 pub mod node;
 pub mod rpc;

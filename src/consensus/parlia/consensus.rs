@@ -23,7 +23,6 @@ pub struct ParliaConsensus<ChainSpec, P> {
     consensus_validator: Arc<BscConsensusValidator<ChainSpec>>,
     snapshot_provider: Arc<P>,
     epoch: u64,
-    period: u64,
 }
 
 impl<ChainSpec, P> ParliaConsensus<ChainSpec, P>
@@ -35,7 +34,6 @@ where
         chain_spec: Arc<ChainSpec>,
         snapshot_provider: Arc<P>,
         epoch: u64,
-        period: u64,
     ) -> Self {
         let header_validator = Arc::new(ParliaHeaderValidator::new(snapshot_provider.clone()));
         let consensus_validator = Arc::new(BscConsensusValidator::new(chain_spec.clone()));
@@ -46,7 +44,6 @@ where
             consensus_validator,
             snapshot_provider,
             epoch,
-            period,
         };
         
         // Initialize genesis snapshot if needed
@@ -60,13 +57,12 @@ where
         chain_spec: Arc<ChainSpec>,
         database: DB,
         epoch: u64,
-        period: u64,
         cache_size: usize,
     ) -> ParliaConsensus<ChainSpec, crate::consensus::parlia::provider::DbSnapshotProvider<DB>> {
         let snapshot_provider = Arc::new(
             crate::consensus::parlia::provider::DbSnapshotProvider::new(database, cache_size)
         );
-        let consensus = ParliaConsensus::new(chain_spec, snapshot_provider, epoch, period);
+        let consensus = ParliaConsensus::new(chain_spec, snapshot_provider, epoch);
         
         // Initialize genesis snapshot if needed
         consensus.ensure_genesis_snapshot();
@@ -161,10 +157,7 @@ where
         Ok(validators)
     }
 
-    /// Parse genesis validators from BSC extraData
-    fn parse_genesis_validators(&self, extra_data: &alloy_primitives::Bytes) -> Result<Vec<alloy_primitives::Address>, ConsensusError> {
-        Self::parse_genesis_validators_static(extra_data)
-    }
+
 
     /// Validate basic block fields (transaction root, blob gas, etc.)
     fn validate_basic_block_fields(&self, block: &SealedBlock<BscBlock>) -> Result<(), ConsensusError> {
@@ -454,12 +447,24 @@ where
 
     /// Verify the difficulty based on turn-based proposing
     fn verify_difficulty(&self, header: &SealedHeader<Header>, snapshot: &Snapshot) -> Result<(), ConsensusError> {
-        let proposer = header.beneficiary;
+        // BSC uses the recovered signer from signature, not beneficiary!
+        // Recover the actual proposer from the signature
+        let proposer = self.consensus_validator.recover_proposer_from_seal(header)?;
+        
+        // Verify proposer matches coinbase (BSC requirement)
+        let coinbase = header.header().beneficiary();
+        if proposer != coinbase {
+            return Err(ConsensusError::Other(format!(
+                "Proposer mismatch: recovered={:?}, coinbase={:?}", proposer, coinbase
+            )));
+        }
+        
         let in_turn = snapshot.is_inturn(proposer);
 
         let expected_difficulty = if in_turn { DIFF_INTURN } else { DIFF_NOTURN };
 
         if header.difficulty != expected_difficulty {
+
             return Err(ConsensusError::Other(
                 format!("Invalid difficulty: expected {}, got {}", expected_difficulty, header.difficulty).into()
             ));
