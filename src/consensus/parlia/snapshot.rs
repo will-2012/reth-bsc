@@ -227,7 +227,19 @@ impl Snapshot {
     }
 
     /// Returns `true` if `proposer` is in-turn according to snapshot rules.
-    pub fn is_inturn(&self, proposer: Address) -> bool { self.inturn_validator() == proposer }
+    pub fn is_inturn(&self, proposer: Address) -> bool { 
+        let inturn_val = self.inturn_validator();
+        let is_inturn = inturn_val == proposer;
+        
+        if !is_inturn {
+            tracing::debug!(
+                "🎯 [BSC] is_inturn check: proposer=0x{:x}, inturn_validator=0x{:x}, is_inturn={}, validators={:?}",
+                proposer, inturn_val, is_inturn, self.validators
+            );
+        }
+        
+        is_inturn
+    }
 
     /// Number of blocks to look back when checking proposer history.
     pub fn miner_history_check_len(&self) -> u64 {
@@ -238,10 +250,14 @@ impl Snapshot {
     /// Validator that should propose the **next** block.
     pub fn inturn_validator(&self) -> Address {
         let turn = u64::from(self.turn_length.unwrap_or(DEFAULT_TURN_LENGTH));
-        let offset = ((self.block_number + 1) / turn) as usize % self.validators.len();
+        let next_block = self.block_number + 1;
+        let offset = (next_block / turn) as usize % self.validators.len();
         let next_validator = self.validators[offset];
         
-
+        tracing::debug!(
+            "🔢 [BSC] inturn_validator calculation: snapshot_block={}, next_block={}, turn={}, offset={}, validators_len={}, next_validator=0x{:x}",
+            self.block_number, next_block, turn, offset, self.validators.len(), next_validator
+        );
         
         next_validator
     }

@@ -100,6 +100,8 @@ where
         }
     }
 
+
+
     /// Applies system contract upgrades if the Feynman fork is not yet active.
     fn upgrade_contracts(&mut self) -> Result<(), BlockExecutionError> {
         let contracts = get_upgrade_system_contracts(
@@ -422,19 +424,27 @@ where
         }
 
         // -----------------------------------------------------------------
-        // Consensus hooks: pre-execution (rewards/slashing system-txs)
+        // reth-bsc-trail PATTERN: Get parent snapshot at start of execution
+        // This ensures we have the parent snapshot available for the entire execution
         // -----------------------------------------------------------------
         use crate::consensus::parlia::{hooks::{ParliaHooks, PreExecutionHook}, snapshot::Snapshot};
 
-        // Try to get real snapshot from global provider, fallback to placeholder
+        // Get parent snapshot at start of execution (like reth-bsc-trail does)
         let current_block_number = self.evm.block().number.to::<u64>();
         let parent_block_number = current_block_number.saturating_sub(1);
         
         let snap_for_hooks = if let Some(provider) = crate::shared::get_snapshot_provider() {
-            provider.snapshot(parent_block_number).unwrap_or_else(|| {
-                tracing::debug!("🔍 [BSC] No snapshot available for parent block {}, using placeholder for hooks", parent_block_number);
-                Snapshot::default()
-            })
+            // Get parent snapshot (like reth-bsc-trail does at start of execution)
+            match provider.snapshot(parent_block_number) {
+                Some(parent_snap) => {
+                    tracing::debug!("✅ [BSC] Got parent snapshot for block {} at start of execution (following reth-bsc-trail pattern)", parent_block_number);
+                    parent_snap
+                },
+                None => {
+                    tracing::warn!("⚠️ [BSC] Parent snapshot not available for block {} at start of execution", parent_block_number);
+                    Snapshot::default()
+                }
+            }
         } else {
             tracing::debug!("🔍 [BSC] No global snapshot provider available, using placeholder for hooks");
             Snapshot::default()
@@ -643,21 +653,112 @@ where
         // Consensus: Slash validator if not in turn
         
         // -----------------------------------------------------------------
-        // CRITICAL: Create snapshot after block execution
-        // This ensures snapshots are available even when validation is deferred during pipeline sync
-        // Note: This is a simplified approach - we'll just trigger snapshot creation
-        // The actual snapshot creation will be handled by the snapshot provider when needed
+        // reth-bsc-trail PATTERN: Create current snapshot from parent snapshot after execution
+        // Get parent snapshot at start, apply current block changes, cache current snapshot
         // -----------------------------------------------------------------
         let current_block_number = self.evm.block().number.to::<u64>();
         if let Some(provider) = crate::shared::get_snapshot_provider() {
-            // Just ensure the snapshot exists by requesting it 
-            // This will trigger creation if it doesn't exist
-            let _ = provider.snapshot(current_block_number);
-            
-            // Log only for checkpoint blocks to reduce spam
-            if current_block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
-                tracing::debug!("📦 [BSC] Triggered snapshot creation check for checkpoint block {} during execution", current_block_number);
+            // Get parent snapshot (like reth-bsc-trail does)
+            let parent_number = current_block_number.saturating_sub(1);
+            if let Some(parent_snapshot) = provider.snapshot(parent_number) {
+                // Create current snapshot by applying current block to parent snapshot (like reth-bsc-trail does)
+                // We need to create a simple header for snapshot application
+                let current_block = self.evm.block();
+                
+                // Create a minimal header for snapshot application
+                // Note: We only need the essential fields for snapshot application
+                let header = alloy_consensus::Header {
+                    parent_hash: alloy_primitives::B256::ZERO, // Not used in snapshot.apply
+                    beneficiary: current_block.beneficiary,
+                    state_root: alloy_primitives::B256::ZERO, // Not used in snapshot.apply
+                    transactions_root: alloy_primitives::B256::ZERO, // Not used in snapshot.apply
+                    receipts_root: alloy_primitives::B256::ZERO, // Not used in snapshot.apply
+                    logs_bloom: alloy_primitives::Bloom::ZERO, // Not used in snapshot.apply
+                    difficulty: current_block.difficulty,
+                    number: current_block.number.to::<u64>(),
+                    gas_limit: current_block.gas_limit,
+                    gas_used: self.gas_used, // Use actual gas used from execution
+                    timestamp: current_block.timestamp.to::<u64>(),
+                    extra_data: alloy_primitives::Bytes::new(), // Will be filled from actual block data
+                    mix_hash: alloy_primitives::B256::ZERO, // Not used in snapshot.apply
+                    nonce: alloy_primitives::B64::ZERO, // Not used in snapshot.apply
+                    base_fee_per_gas: Some(current_block.basefee),
+                    withdrawals_root: None, // Not used in snapshot.apply
+                    blob_gas_used: None, // Not used in snapshot.apply
+                    excess_blob_gas: None, // Not used in snapshot.apply
+                    parent_beacon_block_root: None, // Not used in snapshot.apply
+                    ommers_hash: alloy_primitives::B256::ZERO, // Not used in snapshot.apply
+                    requests_hash: None, // Not used in snapshot.apply
+                };
+                
+                // Check for epoch boundary and parse validator updates (exactly like reth-bsc-trail does)
+                let epoch_num = parent_snapshot.epoch_num;
+                let miner_check_len = parent_snapshot.miner_history_check_len();
+                let is_epoch_boundary = current_block_number > 0 && 
+                    current_block_number % epoch_num == miner_check_len;
+                
+                let (new_validators, vote_addrs, turn_length) = if is_epoch_boundary {
+                    // Epoch boundary detected during execution
+                    
+                    // Find the checkpoint header (miner_check_len blocks back, like reth-bsc-trail does)
+                    let checkpoint_block_number = current_block_number - miner_check_len;
+                    // Looking for validator updates in checkpoint block
+                    
+                    // Use the global snapshot provider to access header data
+                    if let Some(provider) = crate::shared::get_snapshot_provider() {
+                        // Try to get the checkpoint header from the same provider that has database access
+                        match provider.get_checkpoint_header(checkpoint_block_number) {
+                            Some(checkpoint_header) => {
+                                // Successfully fetched checkpoint header
+                                
+                                // Parse validator set from checkpoint header (like reth-bsc-trail does)
+                                let parsed = crate::consensus::parlia::validator::parse_epoch_update(&checkpoint_header, 
+                                    self.spec.is_luban_active_at_block(checkpoint_block_number),
+                                    self.spec.is_bohr_active_at_timestamp(checkpoint_header.timestamp)
+                                );
+                                
+                                // Validator set parsed from checkpoint header
+                                
+                                parsed
+                            },
+                            None => {
+                                tracing::warn!("⚠️ [BSC] Checkpoint header for block {} not found via snapshot provider", checkpoint_block_number);
+                                (Vec::new(), None, None)
+                            }
+                        }
+                    } else {
+                        tracing::error!("❌ [BSC] No global snapshot provider available for header fetching");
+                        (Vec::new(), None, None)
+                    }
+                } else {
+                    (Vec::new(), None, None)
+                };
+
+                // Apply current block to parent snapshot (like reth-bsc-trail does)
+                if let Some(current_snapshot) = parent_snapshot.apply(
+                    current_block.beneficiary, // proposer
+                    &header,
+                    new_validators, // parsed validators from checkpoint header
+                    vote_addrs, // parsed vote addresses from checkpoint header
+                    None, // TODO: parse attestation like reth-bsc-trail
+                    turn_length, // parsed turn length from checkpoint header
+                    &self.spec,
+                ) {
+                    // Cache the current snapshot immediately (like reth-bsc-trail does)
+                    provider.insert(current_snapshot.clone());
+                    
+                    // Log only for major checkpoints to reduce spam
+                    if current_block_number % (crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL * 10) == 0 {
+                        tracing::info!("📦 [BSC] Created checkpoint snapshot for block {}", current_block_number);
+                    }
+                } else {
+                    tracing::error!("❌ [BSC] Failed to apply block {} to parent snapshot", current_block_number);
+                }
+            } else {
+                tracing::warn!("⚠️ [BSC] Parent snapshot not available for block {} during execution", current_block_number);
             }
+        } else {
+            tracing::warn!("⚠️ [BSC] No snapshot provider available during execution for block {}", current_block_number);
         }
 
         Ok((

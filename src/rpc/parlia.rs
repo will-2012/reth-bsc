@@ -124,6 +124,10 @@ impl SnapshotProvider for DynSnapshotProvider {
     fn insert(&self, snapshot: crate::consensus::parlia::snapshot::Snapshot) {
         self.inner.insert(snapshot)
     }
+    
+    fn get_checkpoint_header(&self, block_number: u64) -> Option<alloy_consensus::Header> {
+        self.inner.get_checkpoint_header(block_number)
+    }
 }
 
 /// Convenience type alias for ParliaApiImpl using the wrapper
@@ -141,13 +145,13 @@ impl<P: SnapshotProvider + Send + Sync + 'static> ParliaApiServer for ParliaApiI
     /// Get snapshot at a specific block (matches BSC official API.GetSnapshot)
     /// Accepts block number as hex string like "0x123132"
     async fn get_snapshot(&self, block_number: String) -> RpcResult<Option<SnapshotResult>> {
-        tracing::info!("🔍 [BSC-RPC] parlia_getSnapshot called with block_number: '{}'", block_number);
+        // parlia_getSnapshot called
         
         // Parse hex block number (like BSC API does)
         let block_num = if block_number.starts_with("0x") {
             match u64::from_str_radix(&block_number[2..], 16) {
                 Ok(num) => {
-                    tracing::info!("🔍 [BSC-RPC] Parsed hex block number: {} -> {}", block_number, num);
+                    // Parsed hex block number
                     num
                 },
                 Err(e) => {
@@ -162,7 +166,7 @@ impl<P: SnapshotProvider + Send + Sync + 'static> ParliaApiServer for ParliaApiI
         } else {
             match block_number.parse::<u64>() {
                 Ok(num) => {
-                    tracing::info!("🔍 [BSC-RPC] Parsed decimal block number: {} -> {}", block_number, num);
+                    // Parsed decimal block number
                     num
                 },
                 Err(e) => {
@@ -176,7 +180,7 @@ impl<P: SnapshotProvider + Send + Sync + 'static> ParliaApiServer for ParliaApiI
             }
         };
         
-        tracing::info!("🔍 [BSC-RPC] Querying snapshot provider for block {}", block_num);
+        // Querying snapshot provider
         
         // Get snapshot from provider (equivalent to api.parlia.snapshot call in BSC)
         match self.snapshot_provider.snapshot(block_num) {
@@ -184,8 +188,7 @@ impl<P: SnapshotProvider + Send + Sync + 'static> ParliaApiServer for ParliaApiI
                 tracing::info!("✅ [BSC-RPC] Found snapshot for block {}: validators={}, epoch_num={}, block_hash=0x{:x}", 
                     block_num, snapshot.validators.len(), snapshot.epoch_num, snapshot.block_hash);
                 let result: SnapshotResult = snapshot.into();
-                tracing::debug!("🔍 [BSC-RPC] Snapshot result: turn_length={}, recents_count={}, validators_count={}", 
-                    result.turn_length, result.recents.len(), result.validators.len());
+                // Snapshot result prepared
                 Ok(Some(result))
             },
             None => {

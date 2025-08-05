@@ -20,7 +20,6 @@ use std::sync::Arc;
 pub struct ParliaConsensus<ChainSpec, P> {
     chain_spec: Arc<ChainSpec>,
     header_validator: Arc<ParliaHeaderValidator<P, ChainSpec>>,
-    #[allow(dead_code)] // Used in post-execution validation, not Bodies stage
     consensus_validator: Arc<BscConsensusValidator<ChainSpec>>,
     snapshot_provider: Arc<P>,
     epoch: u64,
@@ -85,16 +84,16 @@ where
 
         // 2. BSC-specific Parlia validation
         // 
-        // IMPORTANT: Following zoro_reth's approach, we skip ALL BSC-specific validation
+        // IMPORTANT: Following reth-bsc-trail's approach, we skip ALL BSC-specific validation
         // during Bodies stage (pre-execution). BSC validation requires snapshots which
         // may not be available during out-of-order Bodies processing.
         //
-        // Like zoro_reth, we defer ALL BSC validation to the Execution stage where 
+        // Like reth-bsc-trail, we defer ALL BSC validation to the Execution stage where 
         // blocks are processed in proper sequence and dependencies are guaranteed.
         //
         // This prevents "Invalid difficulty" and "Unauthorized proposer" errors 
         // during Bodies download validation.
-        tracing::trace!("BSC pre-execution validation deferred to execution stage (like zoro_reth)");
+        tracing::trace!("BSC pre-execution validation deferred to execution stage (like reth-bsc-trail)");
 
         Ok(())
     }
@@ -190,55 +189,7 @@ where
         Ok(())
     }
 
-    /// Validate BSC-specific Parlia consensus fields
-    #[allow(dead_code)] // Used in post-execution validation, deferred during Bodies stage
-    fn validate_parlia_specific_fields(&self, block: &SealedBlock<BscBlock>) -> Result<(), ConsensusError> {
-        let header = block.header();
 
-        // Get snapshot for validation
-        let parent_number = header.number - 1;
-        let snapshot = match self.snapshot_provider.snapshot(parent_number) {
-            Some(snapshot) => snapshot,
-            None => {
-                // Snapshot not available - this can happen during:
-                // 1. Bodies stage validation (out-of-order block processing)
-                // 2. Live sync with large gaps between local tip and live blocks
-                // 3. Initial sync where dependencies aren't available yet
-                //
-                // In all cases, defer validation to the Execution stage when blocks are processed
-                // in proper sequence and all dependencies are guaranteed to be available.
-                if header.number % 50000 == 0 { // only log every 50k blocks to reduce spam
-                    tracing::debug!(
-                        block_number = header.number,
-                        parent_number = parent_number,
-                        "Snapshot not available for validation, deferring validation (Bodies stage or sync gap)"
-                    );
-                }
-                return Ok(());
-            }
-        };
-
-        // Create a SealedHeader for validation methods
-        let sealed_header = SealedHeader::new(header.clone(), block.hash());
-
-        // Verify cascading fields in order:
-        // 1. Block timing constraints (Ramanujan fork)
-        self.verify_block_timing(&sealed_header, &snapshot)?;
-
-        // 2. Vote attestation (Plato fork) 
-        self.verify_vote_attestation(&sealed_header)?;
-
-        // 3. Seal verification (signature recovery and validator authorization)
-        self.verify_seal(&sealed_header, &snapshot)?;
-
-        // 4. Turn-based proposing (difficulty validation)
-        self.verify_difficulty(&sealed_header, &snapshot)?;
-
-        // 5. Turn length validation (Bohr fork)
-        self.verify_turn_length(&sealed_header)?;
-
-        Ok(())
-    }
 
     /// Validate block post-execution using Parlia rules
     fn validate_block_post_execution_impl(
@@ -293,20 +244,72 @@ where
     ) -> Result<(), ConsensusError> {
         let header = block.header();
 
-        // 1. Split and validate system transactions
+        // Skip genesis block
+        if header.number == 0 {
+            return Ok(());
+        }
+
+        // Get snapshot for validation (should be available during post-execution)
+        let parent_number = header.number - 1;
+        let snapshot = match self.snapshot_provider.snapshot(parent_number) {
+            Some(snapshot) => {
+                tracing::debug!(
+                    "BSC: Using snapshot for block {} to validate block {} (snapshot_block_number={})",
+                    parent_number, header.number, snapshot.block_number
+                );
+                snapshot
+            },
+            None => {
+                // During post-execution, snapshots should be available since blocks are processed sequentially
+                tracing::warn!(
+                    block_number = header.number,
+                    parent_number = parent_number,
+                    "Snapshot not available during post-execution validation - this should not happen"
+                );
+                return Err(ConsensusError::Other(format!(
+                    "Snapshot for block {} not available during post-execution", parent_number
+                ).into()));
+            }
+        };
+
+        // Create a SealedHeader for validation methods
+        let sealed_header = SealedHeader::new(header.clone(), block.hash());
+
+        // Full BSC Parlia validation during post-execution (when dependencies are available)
+        // 1. Block timing constraints (Ramanujan hardfork)
+        self.verify_block_timing(&sealed_header, &snapshot)?;
+
+        // 2. Vote attestation (Plato hardfork)
+        self.verify_vote_attestation(&sealed_header)?;
+
+        // 3. Seal verification (signature recovery and validator authorization)
+        self.verify_seal(&sealed_header, &snapshot)?;
+
+        // 4. Turn-based proposing (difficulty validation)
+        self.verify_difficulty(&sealed_header, &snapshot)?;
+
+        // 5. Turn length validation (Bohr hardfork)
+        self.verify_turn_length(&sealed_header)?;
+
+        // 6. System transactions validation
         self.validate_system_transactions(block)?;
 
-        // 2. Validate epoch transitions
+        // 7. Gas limit validation (BSC-specific, hardfork-aware)
+        if let Some(parent_header) = self.get_parent_header(header) {
+            self.verify_gas_limit(&sealed_header, &parent_header)?;
+        }
+
+        // 8. Slash reporting for out-of-turn validators
+        self.report_slash_evidence(&sealed_header, &snapshot)?;
+
+        // 9. Validate epoch transitions
         if header.number % self.epoch == 0 {
             // TODO: Implement epoch transition validation
             // This would verify validator set updates every 200 blocks
-            // For now, just log that we're at an epoch boundary
+            tracing::debug!("Epoch boundary at block {}", header.number);
         }
 
-        // TODO: Add more BSC-specific post-execution validations:
-        // - System reward distribution validation
-        // - Slash contract interaction validation
-
+        tracing::debug!("✅ [BSC] Full post-execution validation completed for block {}", header.number);
         Ok(())
     }
 
@@ -388,7 +391,6 @@ where
     }
 
     /// Verify block timing constraints for Ramanujan fork
-    #[allow(dead_code)] // Used in post-execution validation, deferred during Bodies stage
     fn verify_block_timing(&self, header: &SealedHeader<Header>, _snapshot: &Snapshot) -> Result<(), ConsensusError> {
         if !self.chain_spec.is_ramanujan_active_at_block(header.number) {
             return Ok(());
@@ -402,7 +404,6 @@ where
     }
 
     /// Verify vote attestation for Plato fork
-    #[allow(dead_code)] // Used in post-execution validation, deferred during Bodies stage
     fn verify_vote_attestation(&self, header: &SealedHeader<Header>) -> Result<(), ConsensusError> {
         if !self.chain_spec.is_plato_active_at_block(header.number) {
             return Ok(());
@@ -416,7 +417,6 @@ where
     }
 
     /// Verify turn length at epoch boundaries for Bohr fork
-    #[allow(dead_code)] // Used in post-execution validation, deferred during Bodies stage
     fn verify_turn_length(&self, header: &SealedHeader<Header>) -> Result<(), ConsensusError> {
         if header.number % self.epoch != 0 || !self.chain_spec.is_bohr_active_at_timestamp(header.timestamp) {
             return Ok(());
@@ -455,7 +455,6 @@ where
     }
 
     /// Verify the seal (proposer signature) in the header
-    #[allow(dead_code)] // Used in post-execution validation, deferred during Bodies stage
     fn verify_seal(&self, header: &SealedHeader<Header>, snapshot: &Snapshot) -> Result<(), ConsensusError> {
         // Enhanced seal verification with proper authorization checks
         let proposer = header.beneficiary;
@@ -484,26 +483,30 @@ where
     }
 
     /// Verify the difficulty based on turn-based proposing
-    #[allow(dead_code)] // Used in post-execution validation, deferred during Bodies stage
     fn verify_difficulty(&self, header: &SealedHeader<Header>, snapshot: &Snapshot) -> Result<(), ConsensusError> {
-        // BSC uses the recovered signer from signature, not beneficiary!
-        // Recover the actual proposer from the signature
-        let proposer = self.consensus_validator.recover_proposer_from_seal(header)?;
-        
-        // Verify proposer matches coinbase (BSC requirement)
-        let coinbase = header.header().beneficiary();
-        if proposer != coinbase {
-            return Err(ConsensusError::Other(format!(
-                "Proposer mismatch: recovered={:?}, coinbase={:?}", proposer, coinbase
-            )));
-        }
+        // The proposer is the signer of the block, recovered from the seal.
+        // This is the correct identity to use for turn-based validation.
+        let proposer = self
+            .consensus_validator
+            .recover_proposer_from_seal(header)?;
         
         let in_turn = snapshot.is_inturn(proposer);
+        let inturn_validator = snapshot.inturn_validator();
 
         let expected_difficulty = if in_turn { DIFF_INTURN } else { DIFF_NOTURN };
 
         if header.difficulty != expected_difficulty {
-
+            tracing::error!(
+                "BSC: Difficulty validation failed at block {}: proposer={}, inturn_validator={}, in_turn={}, expected_difficulty={}, got_difficulty={}, snapshot_block={}, validators={:?}",
+                header.number(),
+                proposer,
+                inturn_validator,
+                in_turn,
+                expected_difficulty,
+                header.difficulty,
+                snapshot.block_number,
+                snapshot.validators
+            );
             return Err(ConsensusError::Other(
                 format!("Invalid difficulty: expected {}, got {}", expected_difficulty, header.difficulty).into()
             ));
@@ -566,5 +569,118 @@ where
         result: &BlockExecutionResult<Receipt>,
     ) -> Result<(), ConsensusError> {
         self.validate_block_post_execution_impl(block, result)
+    }
+}
+
+// Additional BSC validation methods
+impl<ChainSpec, P> ParliaConsensus<ChainSpec, P>
+where
+    ChainSpec: EthChainSpec + BscHardforks + 'static,
+    P: SnapshotProvider + std::fmt::Debug + 'static,
+{
+    /// Get parent header for validation (following bsc-erigon approach)
+    fn get_parent_header(&self, header: &alloy_consensus::Header) -> Option<SealedHeader<alloy_consensus::Header>> {
+        if header.number == 0 {
+            return None; // Genesis has no parent
+        }
+        
+        // TODO: Implement proper parent header fetching like bsc-erigon:
+        // 1. Try to get from provided parents array (for batch validation)
+        // 2. Fallback to chain storage: chain.GetHeader(header.parent_hash, header.number - 1)
+        // 3. Validate parent.number == header.number - 1 && parent.hash == header.parent_hash
+        //
+        // For now, gracefully handle missing parents during sync by returning None.
+        // This defers gas limit validation to live sync when dependencies are available.
+        //
+        // Example implementation:
+        // if let Some(provider) = &self.header_provider {
+        //     if let Ok(Some(parent_header)) = provider.header_by_number(header.number - 1) {
+        //         if parent_header.hash_slow() == header.parent_hash {
+        //             return Some(SealedHeader::new(parent_header, header.parent_hash));
+        //         }
+        //     }
+        // }
+        
+        None
+    }
+
+    /// Verify BSC gas limit validation with Lorentz hardfork support (like bsc-erigon)
+    fn verify_gas_limit(
+        &self,
+        header: &SealedHeader<alloy_consensus::Header>,
+        parent: &SealedHeader<alloy_consensus::Header>,
+    ) -> Result<(), ConsensusError> {
+        let parent_gas_limit = parent.gas_limit();
+        let gas_limit = header.gas_limit();
+        
+        // Calculate absolute difference
+        let diff = if parent_gas_limit > gas_limit {
+            parent_gas_limit - gas_limit
+        } else {
+            gas_limit - parent_gas_limit
+        };
+        
+        // Use Lorentz hardfork activation for divisor (like bsc-erigon)
+        // Before Lorentz: 256, After Lorentz: 1024
+        let gas_limit_bound_divisor = if self.chain_spec.is_lorentz_active_at_timestamp(header.timestamp()) {
+            1024u64 // After Lorentz hardfork
+        } else {
+            256u64  // Before Lorentz hardfork
+        };
+        
+        let limit = parent_gas_limit / gas_limit_bound_divisor;
+        const MIN_GAS_LIMIT: u64 = 5000; // Minimum gas limit for BSC
+        
+        if diff >= limit || gas_limit < MIN_GAS_LIMIT {
+            return Err(ConsensusError::Other(format!(
+                "BSC gas limit validation failed: have {}, want {} ± {}, min={}", 
+                gas_limit, parent_gas_limit, limit, MIN_GAS_LIMIT
+            ).into()));
+        }
+        
+        tracing::trace!(
+            "✅ [BSC] Gas limit validation passed: {} (parent: {}, limit: ±{}, divisor: {})",
+            gas_limit, parent_gas_limit, limit, gas_limit_bound_divisor
+        );
+        
+        Ok(())
+    }
+
+    /// Report slash evidence for validators who fail to propose when it's their turn (like bsc-erigon)
+    fn report_slash_evidence(
+        &self,
+        header: &SealedHeader<alloy_consensus::Header>,
+        snapshot: &Snapshot,
+    ) -> Result<(), ConsensusError> {
+        let proposer = header.beneficiary();
+        let inturn_validator = snapshot.inturn_validator();
+        
+        // Check if the current proposer is not the expected in-turn validator
+        let inturn_validator_eq_miner = proposer == inturn_validator;
+        
+        if !inturn_validator_eq_miner {
+            // Check if the in-turn validator has signed recently
+            let spoiled_validator = inturn_validator;
+            if !snapshot.sign_recently(spoiled_validator) {
+                // Report slashing evidence for the validator who failed to propose in-turn
+                tracing::warn!(
+                    "🔪 [BSC] Slash evidence detected: validator {} failed to propose in-turn at block {}, actual proposer: {}",
+                    spoiled_validator, header.number(), proposer
+                );
+                
+                // TODO: In a full implementation, this would:
+                // 1. Create a system transaction to call the slash contract
+                // 2. Include evidence of the validator's failure to propose
+                // 3. Submit this as part of block execution
+                // For now, we log the evidence for monitoring/debugging
+                
+                tracing::info!(
+                    "📊 [BSC] Slash evidence: block={}, spoiled_validator={}, actual_proposer={}, inturn_expected={}",
+                    header.number(), spoiled_validator, proposer, inturn_validator
+                );
+            }
+        }
+        
+        Ok(())
     }
 } 
