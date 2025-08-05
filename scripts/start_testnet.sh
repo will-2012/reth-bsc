@@ -22,7 +22,7 @@ fi
 
 
 
-tip_block=0xba9cdb86dd5bbb14d395240f1429c2099d82372dda3e9d97b9e596eb042fb280 # 300k
+tip_block=0x32ba3474696050e50e21b53b2a29b38180ddaf92605b667ec4537cd81ac5bade # 1000k
 RUST_LOG=INFO ./target/release/reth-bsc node \
     --chain=bsc-testnet \
     --http --http.api="eth, net, txpool, web3, rpc" \

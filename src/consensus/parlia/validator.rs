@@ -191,23 +191,12 @@ where
         }
         // BSC Maxwell hardfork allows equal timestamps between parent and current block
         // Before Maxwell: header.timestamp() > parent.timestamp() (strict)
-        // After Maxwell: header.timestamp() >= parent.timestamp() (equal allowed)
-        let allow_equal_time = header.timestamp() >= 1751250600; // Maxwell mainnet activation
-        
-        if allow_equal_time {
-            if header.timestamp() < parent.timestamp() {
-                return Err(ConsensusError::TimestampIsInPast {
-                    parent_timestamp: parent.timestamp(),
-                    timestamp: header.timestamp(),
-                });
-            }
-        } else {
-            if header.timestamp() <= parent.timestamp() {
-                return Err(ConsensusError::TimestampIsInPast {
-                    parent_timestamp: parent.timestamp(),
-                    timestamp: header.timestamp(),
-                });
-            }
+        // After Maxwell: header.timestamp() >= parent.timestamp() (equal allowed)        
+        if header.timestamp() < parent.timestamp() {
+            return Err(ConsensusError::TimestampIsInPast {
+                parent_timestamp: parent.timestamp(),
+                timestamp: header.timestamp(),
+            });
         }
 
         // --------------------------------------------------------------------
