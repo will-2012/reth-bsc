@@ -135,9 +135,8 @@ impl<ChainSpec> ParliaHeaderValidator<ChainSpec> {
 // Helper to get expected difficulty.
 
 
-impl<P, H, ChainSpec> HeaderValidator<H> for ParliaHeaderValidator<P, ChainSpec>
+impl<H, ChainSpec> HeaderValidator<H> for ParliaHeaderValidator<ChainSpec>
 where
-    P: SnapshotProvider + std::fmt::Debug + 'static,
     H: alloy_consensus::BlockHeader + alloy_primitives::Sealable,
     ChainSpec: crate::hardforks::BscHardforks + std::fmt::Debug + Send + Sync,
 {

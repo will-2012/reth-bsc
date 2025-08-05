@@ -19,7 +19,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone)]
 pub struct ParliaConsensus<ChainSpec, P> {
     chain_spec: Arc<ChainSpec>,
-    header_validator: Arc<ParliaHeaderValidator<P, ChainSpec>>,
+    header_validator: Arc<ParliaHeaderValidator<ChainSpec>>,
     consensus_validator: Arc<BscConsensusValidator<ChainSpec>>,
     snapshot_provider: Arc<P>,
     epoch: u64,
@@ -35,7 +35,7 @@ where
         snapshot_provider: Arc<P>,
         epoch: u64,
     ) -> Self {
-        let header_validator = Arc::new(ParliaHeaderValidator::new(snapshot_provider.clone(), chain_spec.clone()));
+        let header_validator = Arc::new(ParliaHeaderValidator::new(chain_spec.clone()));
         let consensus_validator = Arc::new(BscConsensusValidator::new(chain_spec.clone()));
         
         let consensus = Self { 
