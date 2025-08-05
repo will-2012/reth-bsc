@@ -31,9 +31,9 @@ fn main() -> eyre::Result<()> {
             // Note: Consensus will be created by BscConsensusBuilder with correct datadir
             let evm_config = BscEvmConfig::new(spec.clone());
             
-            // Create a temporary consensus for CLI components
+            // Create a minimal temporary consensus for CLI components
             // This will be replaced by BscConsensusBuilder's consensus with proper database
-            use reth_bsc::consensus::parlia::provider::InMemorySnapshotProvider;
+            use reth_bsc::consensus::parlia::InMemorySnapshotProvider;
             let temp_provider = Arc::new(InMemorySnapshotProvider::new(1));
             let consensus = ParliaConsensus::new(spec, temp_provider, EPOCH);
             

@@ -185,9 +185,21 @@ where
 
         // Get snapshot for validation
         let parent_number = header.number - 1;
-        let snapshot = self.snapshot_provider
-            .snapshot(parent_number)
-            .ok_or_else(|| ConsensusError::Other("Failed to get snapshot".into()))?;
+        let snapshot = match self.snapshot_provider.snapshot(parent_number) {
+            Some(snapshot) => snapshot,
+            None => {
+                // Snapshot not available - this can happen during live sync when there's a large gap
+                // between local chain tip and live blocks. In this case, defer validation.
+                // The staged sync pipeline should continue to fill the gap instead of trying
+                // to validate live blocks without proper ancestry.
+                tracing::debug!(
+                    block_number = header.number,
+                    parent_number = parent_number,
+                    "Snapshot not available for validation, deferring validation during sync gap"
+                );
+                return Ok(());
+            }
+        };
 
         // Create a SealedHeader for validation methods
         let sealed_header = SealedHeader::new(header.clone(), block.hash());
