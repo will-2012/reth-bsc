@@ -5,6 +5,7 @@ use reth_rpc_eth_api::transaction::TryIntoTxEnv;
 use revm::{
     context::{BlockEnv, CfgEnv, TxEnv},
     context_interface::transaction::Transaction,
+    handler::SystemCallTx,
     primitives::{Address, Bytes, TxKind, B256, U256},
 };
 
@@ -135,6 +136,27 @@ impl TransactionEnv for BscTxEnv {
 
     fn set_access_list(&mut self, access_list: AccessList) {
         self.base.set_access_list(access_list);
+    }
+}
+
+impl SystemCallTx for BscTxEnv {
+    fn new_system_tx_with_caller(
+        caller: Address,
+        system_contract_address: Address,
+        data: Bytes,
+    ) -> Self {
+        let base = TxEnv::builder()
+            .caller(caller)
+            .data(data)
+            .kind(TxKind::Call(system_contract_address))
+            .gas_limit(30_000_000) // Use BSC's gas limit for system calls
+            .build()
+            .unwrap();
+
+        Self {
+            base,
+            is_system_transaction: true,
+        }
     }
 }
 

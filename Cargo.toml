@@ -2,6 +2,7 @@
 name = "reth_bsc"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 [lib]
 name = "reth_bsc"
@@ -82,6 +83,7 @@ derive_more = "0.99"
 eyre = "0.6"
 futures = "0.3"
 lazy_static = "1.4.0"
+phf = { version = "0.11", features = ["macros"] }
 once_cell = { version = "1.19", default-features = false, features = ["alloc"] }
 parity-bytes = { version = "0.1.2", default-features = false }
 parking_lot = "0.12"

@@ -9378,6 +9378,7 @@ dependencies = [
  "once_cell",
  "parity-bytes",
  "parking_lot",
+ "phf",
  "prost 0.12.6",
  "reth",
  "reth-basic-payload-builder",
