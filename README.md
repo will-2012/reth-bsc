@@ -1,152 +1,16 @@
-# feat_parlia_20250804 Status 
-
-Now it can integrate parlia engine and it is running against the testnet for the first 300k blocks.
-
-TODOs:
-1. making the parlia RPC API integrated (parlia_getSnapshot Method Not Found)
-2. After the fullnode finish syncing to the debug.tip block,  it seems trying to receiving new msg for the latest block and get new type of errors. (2025-08-04T14:18:47.433807Z  WARN engine::tree: Invalid block error on new payload invalid_hash=0xe9eecf825b6613dc80c9e37cacd7c8b9d8677e099e2dab784d7e5ce6bad3333a invalid_number=60643448 validation_err=Failed to get snapshot
-2025-08-04T14:18:47.433964Z  WARN consensus::engine: Bad block with hash invalid_ancestor=BlockWithParent { parent: 0x8d7b8315629ae3af253adc24d08c66fd48938d6f1564ba7ff5d0f1bc7b7d182e, block: NumHash { number: 60643448, hash: 0xe9eecf825b6613dc80c9e37cacd7c8b9d8677e099e2dab784d7e5ce6bad3333a } })
-3. to finish hertz_patch_manager
-
-
-## Validation Pipeline Structure:
-```rust
-validate_block_pre_execution_impl()
-├── validate_basic_block_fields()          // Standard Ethereum validation
-│   ├── transaction_root_validation()
-│   └── cancun_blob_gas_validation()
-└── validate_parlia_specific_fields()      // BSC-specific Parlia rules
-    ├── verify_block_timing()             // Ramanujan constraints
-    ├── verify_vote_attestation()         // Plato BLS signatures  
-    ├── verify_seal()                     // Enhanced proposer authorization
-    ├── verify_difficulty()               // Turn-based INTURN/NOTURN
-    └── verify_turn_length()              // Bohr epoch boundaries
-
-validate_block_post_execution_impl()
-├── validate_basic_post_execution_fields() // Standard validation
-│   ├── gas_used_verification()
-│   └── verify_receipts_and_logs()
-└── validate_parlia_post_execution_fields() // BSC-specific
-    └── epoch_transition_validation()
+# feat_parlia_20250805 Status 
+1. can run with testnet to 300000 blocks in debug.tips
+2. can have snapshot API:
 ```
-
-
-
-
-# Branch Current Status
-- It is working on EC2 for testnet. (in execution stage, 1800w)
-- It can successfully run for testnet by specifying debug.tip to 100ws
-- AI say:
-
-Below is a high-level gap analysis between
-
-• your working tree `loocapro_reth_bsc`  
-• the abandoned but complete Rust prototype `reth-bsc-trail`, and  
-• the production Go implementation in `bsc-erigon`
-
-focusing only on what is required to run a **fully-functional Parlia (PoSA) consensus** node.
-
-════════════════════════════════════════════════════════════════
-1. What is ALREADY in `loocapro_reth_bsc`
-────────────────────────────────────────────────────────────────
-✓ Basic data-structures (snapshot, vote, validator maps, constants).  
-✓ Header-level checks (`ParliaHeaderValidator`) incl.  
-  – proposer turn, seal / ECDSA recovery,  
-  – block-time & attestation checks for recent hard-forks.  
-✓ In-memory snapshot provider (`InMemorySnapshotProvider`).  
-✓ Hertz-gas patch scaffolding and hard-fork flag helpers.  
-✓ Minimal `ParliaConsensus` wrapper that forwards *header* checks.
-
-This lets a test-chain advance blocks, but **only header validity is enforced.**
-════════════════════════════════════════════════════════════════
-2. Components still MISSING (relative to `reth-bsc-trail` & `bsc-erigon`)
-────────────────────────────────────────────────────────────────
-A. Consensus Engine integration
-   • `ParliaEngine` is a stub — it does NOT implement `reth::consensus::Consensus`
-     nor is it wired into the node’s builder/pipeline.
-   • Missing `ParliaEngineBuilder` & `ParliaEngineTask` (see
-     `reth-bsc-trail/crates/bsc/engine/src/{lib.rs,task.rs}`) that spawn the
-     background seal-verification / fork-choice worker.
-
-B. Pre-/Post-execution validation & block finalisation
-   • `validate_block_pre_execution`, `validate_block_post_execution`,
-     `validate_body_against_header` are currently `Ok(())`.
-   • Logic required (all present in `reth-bsc-trail` / `bsc-erigon`):
-     – split user vs. system txs (`SlashIndicator`, `StakeHub`, etc.)  
-     – epoch checkpoints (every 200 blocks) and validator-set updates  
-     – block-reward & system-reward contracts  
-     – diffInTurn / diffNoTurn difficulty checks  
-     – slashing & BLS aggregate-signature verification paths after Luban/Maxwell.
-
-C. Snapshot persistence & pruning
-   • Only an *in-memory* provider exists.  
-   • Needed: KV-backed snapshot DB, checkpointing every 10 000 blocks and
-     LRU caches (see `bsc-erigon/consensus/parlia/parlia.go` `snapshot` helpers).
-
-D. Node / CLI plumbing
-   • No builder component that injects Parlia into the `NodeComponents`.
-   • Pipeline stages (`StageParliaExecution`, `StageParliaFinalize`) absent.
-   • CLI flags (`--consensus=parlia`, epoch/period parameters) not exposed.
-
-E. Hard-fork feature gates
-   • Helpers for Pascal, Lorentz, Maxwell exist, but
-     `ChainSpec` extensions that activate them are still TODO.
-   • Time-based fork checks (`isPrague`, `isFeynman`, …) implemented in Go
-     need Rust equivalents.
-
-F. Testing
-   • No dedicated consensus test-vectors (snapshots, fork transition cases).  
-   • Integration tests in `reth-bsc-trail/tests/` not ported.
-
-════════════════════════════════════════════════════════════════
-3. Minimum NEXT STEPS to reach a runnable full node
-────────────────────────────────────────────────────────────────
-1. Port `crates/bsc/engine` from `reth-bsc-trail`
-   • Copy `ParliaEngine`, `Task`, `Builder` and adapt module paths
-     (`reth_*` crates have drifted upstream).  
-   • Implement `Consensus` trait for `ParliaEngine`; delegate header checks
-     to existing `ParliaHeaderValidator`, add body/pre/post hooks.
-
-2. Wire the engine into the node
-   • Add a `ParliaComponent` to your node builder similar to
-     `reth-bsc-trail/crates/node/builder/src/components/parlia.rs`.  
-   • Expose `--consensus parlia` (and `epoch`, `period`) in the CLI.
-
-3. Persist snapshots
-   • Create `kv_snapshot_provider.rs` backed by `reth_db::database::DatabaseEnv`.  
-   • Maintain `recentSnaps` & `signatures` LRU caches (see lines 211-227 of
-     `bsc-erigon/consensus/parlia/parlia.go`).
-
-4. Implement block-level checks & rewards
-   • Port `verify_turn_length`, `splitTxs`, `Finalize` and validator-set update
-     logic from `bsc-erigon`.  
-   • Ensure Hertz-gas patch and hard-fork–specific rules are called from
-     `initialize()` / `finalize()`.
-
-5. Extend `ChainSpec`
-   • Add BSC fork timings & Parlia fields (`epoch`, `period`) to `reth_chainspec`.  
-   • Hook time/height-based helpers into validation paths.
-
-6. Tests
-   • Port `tests/consensus_parlia.rs` from `reth-bsc-trail`.  
-   • Add regression tests for Lorentz & Maxwell header rules.
-
-════════════════════════════════════════════════════════════════
-4. How to proceed efficiently
-────────────────────────────────────────────────────────────────
-• Start by porting the Rust code from `reth-bsc-trail` — it already follows
-  the Reth architecture, so the diff against upstream `reth` is small.  
-• Use Go reference (`bsc-erigon`) only for edge-cases not covered in Rust
-  (e.g. stake contract ABI calls, daily validator refresh logic).  
-• Keep each milestone compilable:
-  – Step-1: engine compiles & headers validated.  
-  – Step-2: pre-execution done, blocks execute.  
-  – Step-3: post-execution & rewards, node fully syncs.
-
-Implementing the six items above will close every functionality gap that
-currently prevents `loocapro_reth_bsc` from acting as a **fully-featured
-Parlia full node** on BSC mainnet/testnet.
-
+curl --location 'http://127.0.0.1:8545' \
+--header 'Content-Type: application/json' \
+--data '{
+    "jsonrpc": "2.0",
+    "method": "parlia_getSnapshot",
+    "params": ["0x493e0"],
+    "id": 3
+  }'
+```
 
 # Reth @ BSC
 
