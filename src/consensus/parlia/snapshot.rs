@@ -268,7 +268,7 @@ impl Snapshot {
 }
 
 // ---------------------------------------------------------------------------
-// DB compression helpers (same approach as zoro_reth)
+// DB compression helpers (same approach as reth-bsc-trail)
 // ---------------------------------------------------------------------------
 
 impl Compress for Snapshot {

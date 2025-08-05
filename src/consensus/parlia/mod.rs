@@ -1,6 +1,6 @@
 //! Skeleton implementation for Parlia (Proof-of-Staked-Authority) consensus.
 //!
-//! Phase-2: full data-structures ported from the abandoned `zoro_reth` project.
+//! Phase-2: full data-structures ported from the abandoned `reth-bsc-trail` project.
 //! Validation & fork-choice logic will follow in subsequent PRs.
 
 // Re-export core sub-modules so that external crates can simply do:

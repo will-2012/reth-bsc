@@ -41,7 +41,7 @@ validate_block_post_execution_impl()
 Below is a high-level gap analysis between
 
 • your working tree `loocapro_reth_bsc`  
-• the abandoned but complete Rust prototype `zoro_reth`, and  
+• the abandoned but complete Rust prototype `reth-bsc-trail`, and  
 • the production Go implementation in `bsc-erigon`
 
 focusing only on what is required to run a **fully-functional Parlia (PoSA) consensus** node.
@@ -59,19 +59,19 @@ focusing only on what is required to run a **fully-functional Parlia (PoSA) cons
 
 This lets a test-chain advance blocks, but **only header validity is enforced.**
 ════════════════════════════════════════════════════════════════
-2. Components still MISSING (relative to `zoro_reth` & `bsc-erigon`)
+2. Components still MISSING (relative to `reth-bsc-trail` & `bsc-erigon`)
 ────────────────────────────────────────────────────────────────
 A. Consensus Engine integration
    • `ParliaEngine` is a stub — it does NOT implement `reth::consensus::Consensus`
      nor is it wired into the node’s builder/pipeline.
    • Missing `ParliaEngineBuilder` & `ParliaEngineTask` (see
-     `zoro_reth/crates/bsc/engine/src/{lib.rs,task.rs}`) that spawn the
+     `reth-bsc-trail/crates/bsc/engine/src/{lib.rs,task.rs}`) that spawn the
      background seal-verification / fork-choice worker.
 
 B. Pre-/Post-execution validation & block finalisation
    • `validate_block_pre_execution`, `validate_block_post_execution`,
      `validate_body_against_header` are currently `Ok(())`.
-   • Logic required (all present in `zoro_reth` / `bsc-erigon`):
+   • Logic required (all present in `reth-bsc-trail` / `bsc-erigon`):
      – split user vs. system txs (`SlashIndicator`, `StakeHub`, etc.)  
      – epoch checkpoints (every 200 blocks) and validator-set updates  
      – block-reward & system-reward contracts  
@@ -96,12 +96,12 @@ E. Hard-fork feature gates
 
 F. Testing
    • No dedicated consensus test-vectors (snapshots, fork transition cases).  
-   • Integration tests in `zoro_reth/tests/` not ported.
+   • Integration tests in `reth-bsc-trail/tests/` not ported.
 
 ════════════════════════════════════════════════════════════════
 3. Minimum NEXT STEPS to reach a runnable full node
 ────────────────────────────────────────────────────────────────
-1. Port `crates/bsc/engine` from `zoro_reth`
+1. Port `crates/bsc/engine` from `reth-bsc-trail`
    • Copy `ParliaEngine`, `Task`, `Builder` and adapt module paths
      (`reth_*` crates have drifted upstream).  
    • Implement `Consensus` trait for `ParliaEngine`; delegate header checks
@@ -109,7 +109,7 @@ F. Testing
 
 2. Wire the engine into the node
    • Add a `ParliaComponent` to your node builder similar to
-     `zoro_reth/crates/node/builder/src/components/parlia.rs`.  
+     `reth-bsc-trail/crates/node/builder/src/components/parlia.rs`.  
    • Expose `--consensus parlia` (and `epoch`, `period`) in the CLI.
 
 3. Persist snapshots
@@ -128,13 +128,13 @@ F. Testing
    • Hook time/height-based helpers into validation paths.
 
 6. Tests
-   • Port `tests/consensus_parlia.rs` from `zoro_reth`.  
+   • Port `tests/consensus_parlia.rs` from `reth-bsc-trail`.  
    • Add regression tests for Lorentz & Maxwell header rules.
 
 ════════════════════════════════════════════════════════════════
 4. How to proceed efficiently
 ────────────────────────────────────────────────────────────────
-• Start by porting the Rust code from `zoro_reth` — it already follows
+• Start by porting the Rust code from `reth-bsc-trail` — it already follows
   the Reth architecture, so the diff against upstream `reth` is small.  
 • Use Go reference (`bsc-erigon`) only for edge-cases not covered in Rust
   (e.g. stake contract ABI calls, daily validator refresh logic).  

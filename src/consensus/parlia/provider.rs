@@ -108,7 +108,7 @@ use schnellru::{ByLength, LruMap};
 /// storage for hot epochs. The DB layer persists snapshots as CBOR blobs via the `ParliaSnapshots`
 /// table that is already defined in `db.rs`.
 /// 
-/// Enhanced to include backward walking logic like zoro_reth and bsc-erigon.
+/// Enhanced to include backward walking logic like reth-bsc-trail and bsc-erigon.
 #[derive(Debug)]
 pub struct DbSnapshotProvider<DB: Database> {
     db: DB,
@@ -222,7 +222,7 @@ impl<DB: Database + 'static> SnapshotProvider for DbSnapshotProvider<DB> {
     }
 }
 
-// Simplified version based on zoro_reth's approach - much faster and simpler
+// Simplified version based on reth-bsc-trail's approach - much faster and simpler
 impl<DB: Database + 'static, Provider> SnapshotProvider for EnhancedDbSnapshotProvider<DB, Provider> 
 where
     Provider: HeaderProvider<Header = alloy_consensus::Header> + BlockReader + Send + Sync + 'static,
@@ -335,7 +335,7 @@ where
                 headers_to_apply.push(SealedHeader::new(header.clone(), header.hash_slow()));
                 current_block = current_block.saturating_sub(1);
             } else {
-                // Header not available - fail fast like zoro_reth instead of complex retry
+                // Header not available - fail fast like reth-bsc-trail instead of complex retry
                 tracing::debug!("📋 [BSC] Header {} not available during snapshot search, deferring", current_block);
                 return None;
             }
@@ -384,4 +384,4 @@ where
 }
 
 // Old OnDemandSnapshotProvider has been replaced with EnhancedDbSnapshotProvider above
-// which follows the exact zoro_reth/bsc-erigon pattern
+// which follows the exact reth-bsc-trail/bsc-erigon pattern

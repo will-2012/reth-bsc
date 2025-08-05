@@ -87,7 +87,7 @@ where
     // Get access to the blockchain provider for header lookups
     let blockchain_provider = Arc::new(ctx.provider().clone());
     
-    // Create EnhancedDbSnapshotProvider with backward walking capability (zoro_reth/bsc-erigon style)
+    // Create EnhancedDbSnapshotProvider with backward walking capability (reth-bsc-trail/bsc-erigon style)
     let snapshot_provider = Arc::new(EnhancedDbSnapshotProvider::new(
         snapshot_db,
         2048, // Production LRU cache size
@@ -95,7 +95,7 @@ where
         ctx.chain_spec().clone(),
     ));
     
-    tracing::info!("🚀 [BSC] SIMPLIFIED SNAPSHOTS ENABLED! Using optimized checkpoint-based provider with limited backward walking (zoro_reth style). Fast sync performance with MDBX persistence.");
+    tracing::info!("🚀 [BSC] SIMPLIFIED SNAPSHOTS ENABLED! Using optimized checkpoint-based provider with limited backward walking (reth-bsc-trail style). Fast sync performance with MDBX persistence.");
     
     Ok(snapshot_provider)
 }

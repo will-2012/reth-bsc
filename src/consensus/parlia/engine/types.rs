@@ -1,6 +1,6 @@
 //! Type definitions for the Parlia engine
 //! 
-//! Ported from zoro_reth with minimal adaptations for current Reth
+//! Ported from reth-bsc-trail with minimal adaptations for current Reth
 
 use alloy_primitives::{BlockHash, BlockNumber, B256};
 use alloy_rpc_types_engine::{

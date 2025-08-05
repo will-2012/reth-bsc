@@ -1,4 +1,4 @@
-//! BSC consensus validation logic ported from zoro_reth
+//! BSC consensus validation logic ported from reth-bsc-trail
 //! 
 //! This module contains the pre-execution and post-execution validation
 //! logic that was missing from our initial implementation.
