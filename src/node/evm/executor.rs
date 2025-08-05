@@ -426,10 +426,19 @@ where
         // -----------------------------------------------------------------
         use crate::consensus::parlia::{hooks::{ParliaHooks, PreExecutionHook}, snapshot::Snapshot};
 
-        // For now we don't have snapshot wiring inside the executor yet, but the hook requires
-        // one. Use an empty default snapshot – this is sufficient for rewarding the
-        // beneficiary; over-propose slashing is already handled by `slash_pool`.
-        let snap_placeholder = Snapshot::default();
+        // Try to get real snapshot from global provider, fallback to placeholder
+        let current_block_number = self.evm.block().number.to::<u64>();
+        let parent_block_number = current_block_number.saturating_sub(1);
+        
+        let snap_for_hooks = if let Some(provider) = crate::shared::get_snapshot_provider() {
+            provider.snapshot(parent_block_number).unwrap_or_else(|| {
+                tracing::debug!("🔍 [BSC] No snapshot available for parent block {}, using placeholder for hooks", parent_block_number);
+                Snapshot::default()
+            })
+        } else {
+            tracing::debug!("🔍 [BSC] No global snapshot provider available, using placeholder for hooks");
+            Snapshot::default()
+        };
         let beneficiary = self.evm.block().beneficiary;
 
         // Assume in-turn for now; detailed check requires snapshot state which will be wired
@@ -441,7 +450,7 @@ where
         //     beneficiary, in_turn);
 
         let pre_out = (ParliaHooks, &self.system_contracts)
-            .on_pre_execution(&snap_placeholder, beneficiary, in_turn);
+            .on_pre_execution(&snap_for_hooks, beneficiary, in_turn);
 
         // DEBUG: Uncomment to trace Parlia hooks output
         // debug!("🎯 [BSC] apply_pre_execution_changes: Parlia hooks returned {} system txs, reserved_gas={}", 
@@ -632,8 +641,24 @@ where
 
         // TODO:
         // Consensus: Slash validator if not in turn
-
-
+        
+        // -----------------------------------------------------------------
+        // CRITICAL: Create snapshot after block execution
+        // This ensures snapshots are available even when validation is deferred during pipeline sync
+        // Note: This is a simplified approach - we'll just trigger snapshot creation
+        // The actual snapshot creation will be handled by the snapshot provider when needed
+        // -----------------------------------------------------------------
+        let current_block_number = self.evm.block().number.to::<u64>();
+        if let Some(provider) = crate::shared::get_snapshot_provider() {
+            // Just ensure the snapshot exists by requesting it 
+            // This will trigger creation if it doesn't exist
+            let _ = provider.snapshot(current_block_number);
+            
+            // Log only for checkpoint blocks to reduce spam
+            if current_block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
+                tracing::debug!("📦 [BSC] Triggered snapshot creation check for checkpoint block {} during execution", current_block_number);
+            }
+        }
 
         Ok((
             self.evm,
@@ -654,4 +679,5 @@ where
     fn evm(&self) -> &Self::Evm {
         &self.evm
     }
+
 }

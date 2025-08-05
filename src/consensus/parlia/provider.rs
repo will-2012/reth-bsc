@@ -222,7 +222,7 @@ impl<DB: Database + 'static> SnapshotProvider for DbSnapshotProvider<DB> {
     }
 }
 
-// Enhanced version with backward walking (zoro_reth/bsc-erigon style)
+// Simplified version based on zoro_reth's approach - much faster and simpler
 impl<DB: Database + 'static, Provider> SnapshotProvider for EnhancedDbSnapshotProvider<DB, Provider> 
 where
     Provider: HeaderProvider<Header = alloy_consensus::Header> + BlockReader + Send + Sync + 'static,
@@ -236,21 +236,66 @@ where
             }
         }
 
-        // 2. Check database for exact match or checkpoint
+        // 2. Check database for exact match
         if let Some(snap) = self.base.load_from_db(block_number) {
             self.base.cache.write().insert(block_number, snap.clone());
             return Some(snap);
         }
 
-        // 3. zoro_reth/bsc-erigon style: Backward walking logic
-        let header_provider = &self.header_provider;
-        let chain_spec = &self.chain_spec;
+        // 3. Smart gap detection (Headers vs Bodies stage aware): 
+        // During Headers stage (initial sync), headers are downloaded from high->low, so large gaps are normal
+        // During Bodies/Execution stage, we want to defer validation for large gaps
         
-        // Start backward walk to find base snapshot
-        
+        // Only apply aggressive gap detection during Bodies/Execution stage, not Headers stage
+        // Heuristic: If block_number > 100k and we have no cached snapshots, we're likely in Headers stage
+        if block_number > 1000 { // Only for non-genesis blocks
+            let latest_cached_block = {
+                let cache_guard = self.base.cache.read();
+                cache_guard.iter().next_back().map(|(block_num, _)| *block_num)
+            };
+            
+            // If we have cached snapshots and there's a reasonable gap, apply smart deferral
+            if let Some(latest_block) = latest_cached_block {
+                let gap_size = block_number.saturating_sub(latest_block);
+                
+                // Only defer for very large gaps during Bodies stage (when we have cached snapshots)
+                // This avoids interfering with Headers stage which processes high->low
+                if gap_size > 10000 && latest_block > 1000 {
+                    // Much less frequent logging - only every 100k blocks
+                    if block_number % 100000 == 0 {
+                        tracing::trace!("📈 [BSC] Large gap detected during Bodies/Execution stage: {} blocks, deferring validation", gap_size);
+                    }
+                    return None;
+                }
+            }
+            
+            // Much more conservative sequential check - only for very close to checkpoints
+            if self.base.load_from_db(block_number - 1).is_none() {
+                let checkpoint_distance = block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL;
+                if checkpoint_distance > 100 { // Much less aggressive (100 vs 32) 
+                    // Rare logging
+                    if block_number % 50000 == 0 {
+                        tracing::trace!("📈 [BSC] Sequential gap detected for block {} ({} blocks from checkpoint), deferring validation", 
+                            block_number, checkpoint_distance);
+                    }
+                    return None;
+                }
+            }
+        }
+
+        // 4. On-demand snapshot creation from stored headers (post-sync)
+        // If blocks are already synced but snapshots missing, create from stored data
         let mut current_block = block_number;
         let mut headers_to_apply = Vec::new();
+        let mut search_limit = 1024; // Reasonable limit for post-sync snapshot creation
+
         let base_snapshot = loop {
+            if search_limit == 0 {
+                tracing::debug!("🔍 [BSC] Snapshot search limit reached for block {}, deferring", block_number);
+                return None;
+            }
+            search_limit -= 1;
+
             // Check cache for current block
             {
                 let mut guard = self.base.cache.write();
@@ -259,8 +304,8 @@ where
                 }
             }
 
-            // Check database at checkpoint intervals (1024)
-            if current_block % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
+            // Check database at checkpoint intervals (1024) or exact match
+            if current_block % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 || current_block == block_number {
                 if let Some(snap) = self.base.load_from_db(current_block) {
                     self.base.cache.write().insert(current_block, snap.clone());
                     break snap;
@@ -269,12 +314,9 @@ where
 
             // Genesis handling - create genesis snapshot
             if current_block == 0 {
-                tracing::info!("🚀 [BSC] Creating genesis snapshot for backward walking");
-                let _genesis_header = header_provider.header_by_number(0).ok()??;
-                
-                // Use ParliaConsensus to create genesis snapshot
+                tracing::info!("🚀 [BSC] Creating genesis snapshot");
                 if let Ok(genesis_snap) = crate::consensus::parlia::ParliaConsensus::<BscChainSpec, DbSnapshotProvider<DB>>::create_genesis_snapshot(
-                    chain_spec.clone(),
+                    self.chain_spec.clone(),
                     crate::consensus::parlia::EPOCH
                 ) {
                     self.base.cache.write().insert(0, genesis_snap.clone());
@@ -283,30 +325,28 @@ where
                     }
                     break genesis_snap;
                 } else {
-                    tracing::error!("❌ [BSC] Failed to create genesis snapshot");
+                    tracing::warn!("⚠️ [BSC] Failed to create genesis snapshot");
                     return None;
                 }
             }
 
-            // Collect header for forward application
-            if let Ok(Some(header)) = header_provider.header_by_number(current_block) {
+            // Collect header for forward application - but fail fast if not available
+            if let Ok(Some(header)) = self.header_provider.header_by_number(current_block) {
                 headers_to_apply.push(SealedHeader::new(header.clone(), header.hash_slow()));
                 current_block = current_block.saturating_sub(1);
             } else {
-                // Header not available yet during sync - will be created later (removed noisy debug log)
-                // During initial sync, headers may not be stored in database yet
-                // Return None to signal that snapshot creation should be retried later
+                // Header not available - fail fast like zoro_reth instead of complex retry
+                tracing::debug!("📋 [BSC] Header {} not available during snapshot search, deferring", current_block);
                 return None;
             }
         };
 
-        // 4. Apply headers forward (reverse order since we collected backwards)
+        // 5. Apply headers forward (much simpler than our previous implementation)
         headers_to_apply.reverse();
         let mut working_snapshot = base_snapshot;
         
         for header in headers_to_apply {
-            // Simplified application - full implementation would need validator parsing
-            // Determine hardfork activation based on header timestamp
+            // Simplified application - same as before but no complex caching
             let header_timestamp = header.header().timestamp();
             let is_lorentz_active = header_timestamp >= 1744097580; // Lorentz hardfork timestamp
             let is_maxwell_active = header_timestamp >= 1748243100; // Maxwell hardfork timestamp
@@ -322,17 +362,19 @@ where
                 is_lorentz_active,
                 is_maxwell_active,
             )?;
-            
-            // Cache intermediate snapshots at regular intervals
-            if working_snapshot.block_number % 1000 == 0 {
-                self.base.cache.write().insert(working_snapshot.block_number, working_snapshot.clone());
-            }
         }
 
-        // Cache final result
+        // Cache final result only
         self.base.cache.write().insert(block_number, working_snapshot.clone());
         
-        tracing::trace!("✅ [BSC] Successfully created snapshot for block {} via backward walking", block_number);
+        // Also persist if this is a checkpoint for future retrieval
+        if working_snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
+            tracing::info!("📦 [BSC] Created and caching checkpoint snapshot for block {} (post-sync on-demand)", working_snapshot.block_number);
+            // Insert will persist to MDBX via DbSnapshotProvider
+            self.base.insert(working_snapshot.clone());
+        }
+        
+        tracing::trace!("✅ [BSC] Created snapshot for block {} (on-demand from stored headers)", block_number);
         Some(working_snapshot)
     }
 

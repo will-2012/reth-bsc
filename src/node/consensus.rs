@@ -95,7 +95,7 @@ where
         ctx.chain_spec().clone(),
     ));
     
-    tracing::info!("🚀 [BSC] ENHANCED SNAPSHOTS ENABLED! Using EnhancedDbSnapshotProvider with zoro_reth/bsc-erigon style backward walking, MDBX persistence, LRU cache, and automatic snapshot creation. Snapshots will persist across node restarts and be created on-demand for missing blocks.");
+    tracing::info!("🚀 [BSC] SIMPLIFIED SNAPSHOTS ENABLED! Using optimized checkpoint-based provider with limited backward walking (zoro_reth style). Fast sync performance with MDBX persistence.");
     
     Ok(snapshot_provider)
 }

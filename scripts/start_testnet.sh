@@ -11,16 +11,19 @@ fi
 #RUST_LOG=warn,reth_bsc::node::evm::executor=debug ./target/release/reth-bsc
 
 #tip_block=0x8b841b96cb2863e21d9b87ba086e405684b8657e2d1b9ec75d6b70bb25725684 # 10k
-#tip_block=0xd16058f981cd556bf454a4c422cb10fd5a3c7938b232be433c6ccf3f08ef506e # 100k
-#tip_block=0x32ba3474696050e50e21b53b2a29b38180ddaf92605b667ec4537cd81ac5bade # 1000k
+# tip_block=0xd16058f981cd556bf454a4c422cb10fd5a3c7938b232be433c6ccf3f08ef506e # 100k
+# tip_block=0xba9cdb86dd5bbb14d395240f1429c2099d82372dda3e9d97b9e596eb042fb280 # 300k
 
+# 
+# tip_block=0x2c64b38b7a25ddcb7636b81dbefbabd191c128e29acca82b4a7ff7cbe5f2f934 # 30k
+# tip_block=0x32ba3474696050e50e21b53b2a29b38180ddaf92605b667ec4537cd81ac5bade # 1000k
 
 #tip_block=0xa63e13e2c00f22120498a51ef66683e5f892112aa1bd5d8e6f8f82a54b43bafa # 20k
 
 
 
-tip_block=0x2c64b38b7a25ddcb7636b81dbefbabd191c128e29acca82b4a7ff7cbe5f2f934 # 30k
-RUST_LOG=DEBUG ./target/release/reth-bsc node \
+tip_block=0xba9cdb86dd5bbb14d395240f1429c2099d82372dda3e9d97b9e596eb042fb280 # 300k
+RUST_LOG=INFO ./target/release/reth-bsc node \
     --chain=bsc-testnet \
     --http --http.api="eth, net, txpool, web3, rpc" \
     --datadir=./target/data_dir/bsc-testnet/data_dir \

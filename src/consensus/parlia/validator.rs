@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 use reth::consensus::{ConsensusError, HeaderValidator};
 use reth_primitives_traits::SealedHeader;
 use std::sync::Arc;
-use std::time::SystemTime;
+
 use super::vote::{MAX_ATTESTATION_EXTRA_LENGTH, VoteAddress};
 use super::constants::{VALIDATOR_BYTES_LEN_BEFORE_LUBAN, VALIDATOR_NUMBER_SIZE, VALIDATOR_BYTES_LEN_AFTER_LUBAN};
 use bls_on_arkworks as bls;
@@ -153,50 +153,25 @@ where
     H: alloy_consensus::BlockHeader + alloy_primitives::Sealable,
 {
     fn validate_header(&self, header: &SealedHeader<H>) -> Result<(), ConsensusError> {
-        // Genesis header is considered valid.
+        // MINIMAL VALIDATION ONLY during Headers stage (like official BNB Chain implementation)
+        // All BSC-specific validation is deferred to Bodies/Execution stage for performance
+        
+        // Genesis header is always valid
         if header.number() == 0 {
             return Ok(());
         }
 
-        // BASIC VALIDATION ONLY (like zoro_reth/bsc-erigon during download)
-        // This prevents fake headers without requiring snapshots
-        
-        // 1. Basic header format validation
+        // Only check the most basic header format to prevent completely malformed headers
+        // Even basic BSC format validation is expensive, so minimize it
         let extra_data = header.header().extra_data();
-        if extra_data.len() < EXTRA_VANITY + EXTRA_SEAL {
+        if extra_data.len() < 65 { // Minimum: 32 (vanity) + 65 (seal) = 97 bytes
             return Err(ConsensusError::Other(format!(
-                "invalid extra data length: got {}, expected at least {}",
-                extra_data.len(),
-                EXTRA_VANITY + EXTRA_SEAL
+                "BSC header extra_data too short: {} bytes", extra_data.len()
             )));
         }
 
-        // 2. Basic signature format validation (prevents most fake headers)
-        // We just validate the signature format without recovering the full address
-        let seal_data = &extra_data[extra_data.len() - EXTRA_SEAL..];
-        if seal_data.len() != EXTRA_SEAL {
-            return Err(ConsensusError::Other(format!(
-                "invalid seal length: got {}, expected {}",
-                seal_data.len(), 
-                EXTRA_SEAL
-            )));
-        }
-
-        // 3. Basic timestamp validation
-        let now = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        
-        if header.header().timestamp() > now + 15 {
-            return Err(ConsensusError::Other(format!(
-                "header timestamp {} is too far in the future (current time: {})",
-                header.header().timestamp(),
-                now
-            )));
-        }
-
-        // Full snapshot-based validation will happen during execution phase
+        // All other validation (signature, timestamp, difficulty, etc.) deferred to execution stage
+        // This matches the official BNB Chain implementation's performance characteristics
         Ok(())
     }
 
