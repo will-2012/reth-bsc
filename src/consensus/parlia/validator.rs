@@ -15,7 +15,7 @@ use super::slash_pool;
 // Helper: parse epoch update (validator set & turn-length) from a header.
 // Returns (validators, vote_addresses (if any), turn_length)
 // ---------------------------------------------------------------------------
-fn parse_epoch_update<H>(
+pub fn parse_epoch_update<H>(
     header: &H,
     is_luban: bool,
     is_bohr: bool,
@@ -112,45 +112,48 @@ pub trait SnapshotProvider: Send + Sync {
 /// 2. Difficulty must be 2 when the miner is in-turn, 1 otherwise.
 /// Further seal and vote checks will be added in later milestones.
 #[derive(Debug, Clone)]
-pub struct ParliaHeaderValidator<P> {
+pub struct ParliaHeaderValidator<P, ChainSpec> {
     provider: Arc<P>,
     /// Activation block number for the Ramanujan hardfork (network-dependent).
     ramanujan_activation_block: u64,
+    /// Chain specification for hardfork detection
+    chain_spec: Arc<ChainSpec>,
 }
 
-impl<P> ParliaHeaderValidator<P> {
+impl<P, ChainSpec> ParliaHeaderValidator<P, ChainSpec> {
     /// Create from chain spec that implements `BscHardforks`.
     #[allow(dead_code)]
-    pub fn from_chain_spec<Spec>(provider: Arc<P>, spec: &Spec) -> Self
+    pub fn from_chain_spec(provider: Arc<P>, spec: Arc<ChainSpec>) -> Self
     where
-        Spec: crate::hardforks::BscHardforks,
+        ChainSpec: crate::hardforks::BscHardforks,
     {
         // The chain-spec gives the *first* block where Ramanujan is active.
         let act_block = match spec.bsc_fork_activation(crate::hardforks::bsc::BscHardfork::Ramanujan) {
             reth_chainspec::ForkCondition::Block(b) => b,
             _ => 13_082_191,
         };
-        Self { provider, ramanujan_activation_block: act_block }
+        Self { provider, ramanujan_activation_block: act_block, chain_spec: spec }
     }
     /// Create a validator that assumes main-net Ramanujan activation (block 13_082_191).
     /// Most unit-tests rely on this default.
-    pub fn new(provider: Arc<P>) -> Self {
-        Self { provider, ramanujan_activation_block: 13_082_191 }
+    pub fn new(provider: Arc<P>, chain_spec: Arc<ChainSpec>) -> Self {
+        Self { provider, ramanujan_activation_block: 13_082_191, chain_spec }
     }
 
     /// Create a validator with a custom Ramanujan activation block (e.g. test-net 1_010_000).
-    pub fn with_ramanujan_activation(provider: Arc<P>, activation_block: u64) -> Self {
-        Self { provider, ramanujan_activation_block: activation_block }
+    pub fn with_ramanujan_activation(provider: Arc<P>, activation_block: u64, chain_spec: Arc<ChainSpec>) -> Self {
+        Self { provider, ramanujan_activation_block: activation_block, chain_spec }
     }
 }
 
 // Helper to get expected difficulty.
 
 
-impl<P, H> HeaderValidator<H> for ParliaHeaderValidator<P>
+impl<P, H, ChainSpec> HeaderValidator<H> for ParliaHeaderValidator<P, ChainSpec>
 where
     P: SnapshotProvider + std::fmt::Debug + 'static,
     H: alloy_consensus::BlockHeader + alloy_primitives::Sealable,
+    ChainSpec: crate::hardforks::BscHardforks + std::fmt::Debug + Send + Sync,
 {
     fn validate_header(&self, header: &SealedHeader<H>) -> Result<(), ConsensusError> {
         // MINIMAL VALIDATION ONLY during Headers stage (like official BNB Chain implementation)
@@ -365,11 +368,7 @@ where
             parse_epoch_update(header.header(), is_luban, is_bohr)
         } else { (Vec::new(), None, None) };
 
-        // Determine hardfork activation based on header timestamp
-        let header_timestamp = header.header().timestamp();
-        let is_lorentz_active = header_timestamp >= 1744097580; // Lorentz hardfork timestamp  
-        let is_maxwell_active = header_timestamp >= 1748243100; // Maxwell hardfork timestamp
-
+        // Apply header to snapshot (now determines hardfork activation internally)
         if let Some(new_snap) = parent_snap.apply(
             header.beneficiary(),
             header.header(),
@@ -377,9 +376,7 @@ where
             vote_addrs,
             attestation_opt,
             turn_len,
-            is_bohr,
-            is_lorentz_active,
-            is_maxwell_active,
+            &*self.chain_spec,
         ) {
             // Always cache the snapshot
             self.provider.insert(new_snap.clone());

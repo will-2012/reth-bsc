@@ -116,7 +116,7 @@ impl Snapshot {
 
     /// Apply `next_header` (proposed by `validator`) plus any epoch changes to produce a new snapshot.
     #[allow(clippy::too_many_arguments)]
-    pub fn apply<H>(
+    pub fn apply<H, ChainSpec>(
         &self,
         validator: Address,
         next_header: &H,
@@ -124,13 +124,11 @@ impl Snapshot {
         vote_addrs: Option<Vec<VoteAddress>>, // for epoch switch
         attestation: Option<VoteAttestation>,
         turn_length: Option<u8>,
-        is_bohr: bool,
-        // New hardfork parameters for proper timestamp-based upgrades
-        is_lorentz_active: bool,
-        is_maxwell_active: bool,
+        chain_spec: &ChainSpec,
     ) -> Option<Self>
     where
         H: alloy_consensus::BlockHeader + alloy_primitives::Sealable,
+        ChainSpec: crate::hardforks::BscHardforks,
     {
         let block_number = next_header.number();
         if self.block_number + 1 != block_number {
@@ -158,18 +156,32 @@ impl Snapshot {
         snap.recent_proposers.insert(block_number, validator);
 
         // -------------------------------------------------------------------
-        //  Epoch / turn-length upgrades at Lorentz & Maxwell
+        //  Epoch / turn-length upgrades at Lorentz & Maxwell (following bsc-erigon approach)
         // -------------------------------------------------------------------
 
-        // Update epoch_num, turn_length, and block_interval based on active hardforks
-        if is_maxwell_active && snap.epoch_num != MAXWELL_EPOCH_LENGTH {
-            snap.epoch_num = MAXWELL_EPOCH_LENGTH;
-            snap.turn_length = Some(MAXWELL_TURN_LENGTH);
+        // Determine hardfork activation using chain spec (like bsc-erigon)
+        let header_timestamp = next_header.timestamp();
+        let is_bohr = chain_spec.is_bohr_active_at_timestamp(header_timestamp);
+        let is_lorentz_active = chain_spec.is_lorentz_active_at_timestamp(header_timestamp);
+        let is_maxwell_active = chain_spec.is_maxwell_active_at_timestamp(header_timestamp);
+
+        // Update block interval based on hardforks (like bsc-erigon)
+        if is_maxwell_active {
             snap.block_interval = MAXWELL_BLOCK_INTERVAL_SECS;
-        } else if is_lorentz_active && snap.epoch_num != LORENTZ_EPOCH_LENGTH {
+        } else if is_lorentz_active {
+            snap.block_interval = LORENTZ_BLOCK_INTERVAL_SECS;
+        }
+
+        // Update epoch_num and turn_length based on active hardforks
+        let next_block_number = block_number + 1;
+        if snap.epoch_num == DEFAULT_EPOCH_LENGTH && is_lorentz_active && next_block_number % LORENTZ_EPOCH_LENGTH == 0 {
+            // Like bsc-erigon: prevent incorrect block usage for validator parsing after Lorentz
             snap.epoch_num = LORENTZ_EPOCH_LENGTH;
             snap.turn_length = Some(LORENTZ_TURN_LENGTH);
-            snap.block_interval = LORENTZ_BLOCK_INTERVAL_SECS;
+        }
+        if snap.epoch_num == LORENTZ_EPOCH_LENGTH && is_maxwell_active && next_block_number % MAXWELL_EPOCH_LENGTH == 0 {
+            snap.epoch_num = MAXWELL_EPOCH_LENGTH;
+            snap.turn_length = Some(MAXWELL_TURN_LENGTH);
         }
 
         // Epoch change driven by new validator set / checkpoint header.
@@ -400,6 +412,10 @@ mod tests {
             extra_data: alloy_primitives::Bytes::new(),
         };
         
+        // Create a mock chain spec for testing
+        use crate::chainspec::BscChainSpec;
+        let chain_spec = BscChainSpec::bsc_testnet();
+        
         // This should not panic due to division by zero
         let result = snapshot.apply(
             validators[0],
@@ -408,9 +424,7 @@ mod tests {
             None,   // vote_addrs
             None,   // attestation
             None,   // turn_length
-            false,  // is_bohr
-            false,  // is_lorentz_active
-            false,  // is_maxwell_active
+            &chain_spec,
         );
         
         assert!(result.is_some(), "Apply should succeed without division by zero");

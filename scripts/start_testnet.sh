@@ -17,12 +17,14 @@ fi
 # 
 # tip_block=0x2c64b38b7a25ddcb7636b81dbefbabd191c128e29acca82b4a7ff7cbe5f2f934 # 30k
 # tip_block=0x32ba3474696050e50e21b53b2a29b38180ddaf92605b667ec4537cd81ac5bade # 1000k
+# tip_block=0x9bd5a954c1f9c9f5d035d016cc35eb6376ae4dc4fb6ee44a139b432e170687be # 5000k
+
 
 #tip_block=0xa63e13e2c00f22120498a51ef66683e5f892112aa1bd5d8e6f8f82a54b43bafa # 20k
 
 
 
-tip_block=0x32ba3474696050e50e21b53b2a29b38180ddaf92605b667ec4537cd81ac5bade # 1000k
+tip_block=0xd16058f981cd556bf454a4c422cb10fd5a3c7938b232be433c6ccf3f08ef506e # 100k
 RUST_LOG=INFO ./target/release/reth-bsc node \
     --chain=bsc-testnet \
     --http --http.api="eth, net, txpool, web3, rpc" \

@@ -4,11 +4,8 @@ use parking_lot::RwLock;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use reth_provider::{HeaderProvider, BlockReader};
-use alloy_consensus::BlockHeader;
-
 use crate::chainspec::BscChainSpec;
-
-use reth_primitives::SealedHeader;
+use crate::hardforks::BscHardforks;
 
 
 /// Trait for creating snapshots on-demand when parent snapshots are missing
@@ -228,153 +225,115 @@ where
     Provider: HeaderProvider<Header = alloy_consensus::Header> + BlockReader + Send + Sync + 'static,
 {
     fn snapshot(&self, block_number: u64) -> Option<Snapshot> {
-        // 1. Check cache first (fast path)
+        // Early return for cached snapshots to avoid expensive computation
         {
-            let mut guard = self.base.cache.write();
-            if let Some(snap) = guard.get(&block_number) {
-                return Some(snap.clone());
+            let mut cache_guard = self.base.cache.write();
+            if let Some(cached_snap) = cache_guard.get(&block_number) {
+                tracing::trace!("✅ [BSC] Cache hit for snapshot block {}", block_number);
+                return Some(cached_snap.clone());
             }
         }
 
-        // 2. Check database for exact match
-        if let Some(snap) = self.base.load_from_db(block_number) {
-            self.base.cache.write().insert(block_number, snap.clone());
-            return Some(snap);
-        }
-
-        // 3. Smart gap detection (Headers vs Bodies stage aware): 
-        // During Headers stage (initial sync), headers are downloaded from high->low, so large gaps are normal
-        // During Bodies/Execution stage, we want to defer validation for large gaps
-        
-        // Only apply aggressive gap detection during Bodies/Execution stage, not Headers stage
-        // Heuristic: If block_number > 100k and we have no cached snapshots, we're likely in Headers stage
-        if block_number > 1000 { // Only for non-genesis blocks
-            let latest_cached_block = {
-                let cache_guard = self.base.cache.read();
-                cache_guard.iter().next_back().map(|(block_num, _)| *block_num)
-            };
-            
-            // If we have cached snapshots and there's a reasonable gap, apply smart deferral
-            if let Some(latest_block) = latest_cached_block {
-                let gap_size = block_number.saturating_sub(latest_block);
-                
-                // Only defer for very large gaps during Bodies stage (when we have cached snapshots)
-                // This avoids interfering with Headers stage which processes high->low
-                if gap_size > 10000 && latest_block > 1000 {
-                    // Much less frequent logging - only every 100k blocks
-                    if block_number % 100000 == 0 {
-                        tracing::trace!("📈 [BSC] Large gap detected during Bodies/Execution stage: {} blocks, deferring validation", gap_size);
-                    }
-                    return None;
-                }
-            }
-            
-            // Much more conservative sequential check - only for very close to checkpoints
-            if self.base.load_from_db(block_number - 1).is_none() {
-                let checkpoint_distance = block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL;
-                if checkpoint_distance > 100 { // Much less aggressive (100 vs 32) 
-                    // Rare logging
-                    if block_number % 50000 == 0 {
-                        tracing::trace!("📈 [BSC] Sequential gap detected for block {} ({} blocks from checkpoint), deferring validation", 
-                            block_number, checkpoint_distance);
-                    }
-                    return None;
-                }
-            }
-        }
-
-        // 4. On-demand snapshot creation from stored headers (post-sync)
-        // If blocks are already synced but snapshots missing, create from stored data
+        // simple backward walking + proper epoch updates
         let mut current_block = block_number;
         let mut headers_to_apply = Vec::new();
-        let mut search_limit = 1024; // Reasonable limit for post-sync snapshot creation
 
+        // 1. Backward walking loop 
         let base_snapshot = loop {
-            if search_limit == 0 {
-                tracing::debug!("🔍 [BSC] Snapshot search limit reached for block {}, deferring", block_number);
-                return None;
-            }
-            search_limit -= 1;
-
-            // Check cache for current block
+            // Check cache first (need write lock for LRU get operation)
             {
-                let mut guard = self.base.cache.write();
-                if let Some(snap) = guard.get(&current_block) {
+                let mut cache_guard = self.base.cache.write();
+                if let Some(snap) = cache_guard.get(&current_block) {
                     break snap.clone();
                 }
             }
 
-            // Check database at checkpoint intervals (1024) or exact match
-            if current_block % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 || current_block == block_number {
+            // Check database at checkpoint intervals (every 1024 blocks)
+            if current_block % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
                 if let Some(snap) = self.base.load_from_db(current_block) {
                     self.base.cache.write().insert(current_block, snap.clone());
                     break snap;
                 }
             }
 
-            // Genesis handling - create genesis snapshot
+            // Genesis handling - create genesis snapshot 
             if current_block == 0 {
-                tracing::info!("🚀 [BSC] Creating genesis snapshot");
+                tracing::debug!("🚀 [BSC] Creating genesis snapshot for backward walking");
                 if let Ok(genesis_snap) = crate::consensus::parlia::ParliaConsensus::<BscChainSpec, DbSnapshotProvider<DB>>::create_genesis_snapshot(
                     self.chain_spec.clone(),
                     crate::consensus::parlia::EPOCH
                 ) {
                     self.base.cache.write().insert(0, genesis_snap.clone());
-                    if current_block == 0 {
-                        return Some(genesis_snap);
-                    }
                     break genesis_snap;
                 } else {
-                    tracing::warn!("⚠️ [BSC] Failed to create genesis snapshot");
+                    tracing::error!("❌ [BSC] Failed to create genesis snapshot");
                     return None;
                 }
             }
 
-            // Collect header for forward application - but fail fast if not available
-            if let Ok(Some(header)) = self.header_provider.header_by_number(current_block) {
-                headers_to_apply.push(SealedHeader::new(header.clone(), header.hash_slow()));
-                current_block = current_block.saturating_sub(1);
-            } else {
-                // Header not available - fail fast like reth-bsc-trail instead of complex retry
-                tracing::debug!("📋 [BSC] Header {} not available during snapshot search, deferring", current_block);
-                return None;
-            }
+                            // Collect header for forward application - fail if not available 
+                if let Ok(Some(header)) = self.header_provider.header_by_number(current_block) {
+                    headers_to_apply.push(header);
+                    current_block = current_block.saturating_sub(1);
+                } else {
+                    // Header not available - this is common during Bodies stage validation
+                    // where headers might not be available in dependency order.
+                    // Fail gracefully to defer validation to Execution stage.
+                    if block_number % 100000 == 0 { // only log every 100k blocks to reduce spam
+                        tracing::debug!("🔄 [BSC] Header {} not available for snapshot creation (block {}), deferring to execution stage", current_block, block_number);
+                    }
+                    return None;
+                }
         };
 
-        // 5. Apply headers forward (much simpler than our previous implementation)
+        // 2. Apply headers forward with epoch updates 
         headers_to_apply.reverse();
         let mut working_snapshot = base_snapshot;
-        
+
         for header in headers_to_apply {
-            // Simplified application - same as before but no complex caching
-            let header_timestamp = header.header().timestamp();
-            let is_lorentz_active = header_timestamp >= 1744097580; // Lorentz hardfork timestamp
-            let is_maxwell_active = header_timestamp >= 1748243100; // Maxwell hardfork timestamp
-            
-            working_snapshot = working_snapshot.apply(
-                header.beneficiary(),
-                header.header(),
-                Vec::new(), // new_validators
-                None,       // vote_addrs  
-                None,       // attestation
-                None,       // turn_length
-                false,      // is_bohr
-                is_lorentz_active,
-                is_maxwell_active,
-            )?;
+            // Check for epoch boundary 
+            let (new_validators, vote_addrs, turn_length) = if header.number > 0 &&
+                header.number % working_snapshot.epoch_num == 0 // This is the epoch boundary check
+            {
+                // Parse validator set from epoch header 
+                super::validator::parse_epoch_update(&header, 
+                    self.chain_spec.is_luban_active_at_block(header.number),
+                    self.chain_spec.is_bohr_active_at_timestamp(header.timestamp)
+                )
+            } else {
+                (Vec::new(), None, None)
+            };
+
+            // Apply header to snapshot (now determines hardfork activation internally)
+            working_snapshot = match working_snapshot.apply(
+                header.beneficiary,
+                &header,
+                new_validators,
+                vote_addrs,
+                None, // TODO: Parse attestation from header like reth-bsc-trail for vote tracking
+                turn_length,
+                &*self.chain_spec,
+            ) {
+                Some(snap) => snap,
+                None => {
+                    if header.number % 100000 == 0 { // only log every 100k blocks to reduce spam
+                        tracing::debug!("🔄 [BSC] Failed to apply header {} to snapshot during Bodies stage", header.number);
+                    }
+                    return None;
+                }
+            };
+
+            // Cache intermediate snapshots (like reth-bsc-trail)
+            self.base.cache.write().insert(working_snapshot.block_number, working_snapshot.clone());
+
+            // Persist checkpoint snapshots to database (like reth-bsc-trail)
+            if working_snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
+                tracing::info!("📦 [BSC] Persisting checkpoint snapshot for block {}", working_snapshot.block_number);
+                self.base.insert(working_snapshot.clone());
+            }
         }
 
-        // Cache final result only
-        self.base.cache.write().insert(block_number, working_snapshot.clone());
-        
-        // Also persist if this is a checkpoint for future retrieval
-        if working_snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
-            tracing::info!("📦 [BSC] Created and caching checkpoint snapshot for block {} (post-sync on-demand)", working_snapshot.block_number);
-            // Insert will persist to MDBX via DbSnapshotProvider
-            self.base.insert(working_snapshot.clone());
-        }
-        
-        tracing::trace!("✅ [BSC] Created snapshot for block {} (on-demand from stored headers)", block_number);
+        tracing::debug!("✅ [BSC] Created snapshot for block {} via reth-bsc-trail-style backward walking", block_number);
         Some(working_snapshot)
     }
 
@@ -382,6 +341,3 @@ where
         self.base.insert(snapshot);
     }
 }
-
-// Old OnDemandSnapshotProvider has been replaced with EnhancedDbSnapshotProvider above
-// which follows the exact reth-bsc-trail/bsc-erigon pattern
