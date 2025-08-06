@@ -17,7 +17,7 @@ use revm::{
         result::{EVMError, HaltReason, ResultAndState},
         BlockEnv,
     },
-    Context, ExecuteEvm, InspectEvm, Inspector,
+    Context, ExecuteEvm, InspectEvm, Inspector, SystemCallEvm,
 };
 
 mod assembler;
@@ -81,15 +81,13 @@ where
 
     fn transact_system_call(
         &mut self,
-        _caller: Address,
-        _contract: Address,
-        _data: Bytes,
+        caller: Address,
+        contract: Address,
+        data: Bytes,
     ) -> Result<ResultAndState<Self::HaltReason>, Self::Error> {
-        unimplemented!()
-    }
-
-    fn db_mut(&mut self) -> &mut Self::DB {
-        &mut self.journaled_state.database
+        let result = self.inner.transact_system_call_with_caller(caller, contract, data)?;
+        let state = self.finalize();
+        Ok(ResultAndState::new(result, state))
     }
 
     fn finish(self) -> (Self::DB, EvmEnv<Self::Spec>) {
@@ -102,20 +100,16 @@ where
         self.inspect = enabled;
     }
 
-    fn precompiles_mut(&mut self) -> &mut Self::Precompiles {
-        &mut self.inner.precompiles
+    fn components(&self) -> (&Self::DB, &Self::Inspector, &Self::Precompiles) {
+        (&self.journaled_state.database, &self.inner.inspector, &self.inner.precompiles)
     }
 
-    fn inspector_mut(&mut self) -> &mut Self::Inspector {
-        &mut self.inner.inspector
-    }
-
-    fn precompiles(&self) -> &Self::Precompiles {
-        &self.inner.precompiles
-    }
-
-    fn inspector(&self) -> &Self::Inspector {
-        &self.inner.inspector
+    fn components_mut(&mut self) -> (&mut Self::DB, &mut Self::Inspector, &mut Self::Precompiles) {
+        (
+            &mut self.inner.ctx.journaled_state.database,
+            &mut self.inner.inspector,
+            &mut self.inner.precompiles,
+        )
     }
 }
 
@@ -127,7 +121,7 @@ pub struct BscExecutorBuilder;
 impl<Node> ExecutorBuilder<Node> for BscExecutorBuilder
 where
     Node: FullNodeTypes,
-    Node::Types: NodeTypes<Primitives = crate::node::primitives::BscPrimitives, ChainSpec = crate::chainspec::BscChainSpec, Payload = crate::node::rpc::engine_api::payload::BscPayloadTypes, StateCommitment = reth_trie_db::MerklePatriciaTrie, Storage = crate::node::storage::BscStorage>,
+    Node::Types: NodeTypes<Primitives = crate::node::primitives::BscPrimitives, ChainSpec = crate::chainspec::BscChainSpec, Payload = crate::node::engine_api::payload::BscPayloadTypes, StateCommitment = reth_trie_db::MerklePatriciaTrie, Storage = crate::node::storage::BscStorage>,
 {
     type EVM = BscEvmConfig;
 

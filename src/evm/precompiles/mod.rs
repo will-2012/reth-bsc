@@ -2,14 +2,11 @@
 
 use crate::hardforks::bsc::BscHardfork;
 use cfg_if::cfg_if;
-use once_cell::{race::OnceBox, sync::Lazy};
+use once_cell::race::OnceBox;
 use revm::{
     context::Cfg,
-    context_interface::ContextTr,
-    handler::{EthPrecompiles, PrecompileProvider},
-    interpreter::{InputsImpl, InterpreterResult},
+    handler::EthPrecompiles,
     precompile::{bls12_381, kzg_point_evaluation, modexp, secp256r1, Precompiles},
-    primitives::{hardfork::SpecId, Address},
 };
 use std::boxed::Box;
 
@@ -32,8 +29,12 @@ impl BscPrecompiles {
     /// Create a new precompile provider with the given bsc spec.
     #[inline]
     pub fn new(spec: BscHardfork) -> Self {
-        let precompiles = if spec >= BscHardfork::Haber {
+        let precompiles = if spec >= BscHardfork::Pascal {
+            pascal()
+        } else if spec >= BscHardfork::Haber {
             haber()
+        } else if spec >= BscHardfork::Cancun {
+            cancun()
         } else if spec >= BscHardfork::Feynman {
             feynman()
         } else if spec >= BscHardfork::Hertz {
@@ -157,50 +158,38 @@ pub fn feynman() -> &'static Precompiles {
     })
 }
 
-/// Returns precompiles for Haber spec.
-pub fn haber() -> &'static Precompiles {
+/// Returns precompiles for Cancun spec.
+pub fn cancun() -> &'static Precompiles {
     static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
     INSTANCE.get_or_init(|| {
         let mut precompiles = feynman().clone();
-        precompiles.extend([kzg_point_evaluation::POINT_EVALUATION, secp256r1::P256VERIFY]);
-
+        precompiles.extend([kzg_point_evaluation::POINT_EVALUATION]);
         Box::new(precompiles)
     })
 }
 
-impl<CTX> PrecompileProvider<CTX> for BscPrecompiles
-where
-    CTX: ContextTr<Cfg: Cfg<Spec = BscHardfork>>,
-{
-    type Output = InterpreterResult;
+/// Returns precompiles for Haber spec.
+pub fn haber() -> &'static Precompiles {
+    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = cancun().clone();
+        precompiles.extend([secp256r1::P256VERIFY]);
+        Box::new(precompiles)
+    })
+}
 
-    #[inline]
-    fn set_spec(&mut self, spec: <CTX::Cfg as Cfg>::Spec) -> bool {
-        *self = Self::new(spec);
-        true
-    }
-
-    #[inline]
-    fn run(
-        &mut self,
-        context: &mut CTX,
-        address: &Address,
-        inputs: &InputsImpl,
-        is_static: bool,
-        gas_limit: u64,
-    ) -> Result<Option<Self::Output>, String> {
-        self.inner.run(context, address, inputs, is_static, gas_limit)
-    }
-
-    #[inline]
-    fn warm_addresses(&self) -> Box<impl Iterator<Item = Address>> {
-        self.inner.warm_addresses()
-    }
-
-    #[inline]
-    fn contains(&self, address: &Address) -> bool {
-        self.inner.contains(address)
-    }
+/// Returns precompiles for Pascal spec.
+pub fn pascal() -> &'static Precompiles {
+    static INSTANCE: OnceBox<Precompiles> = OnceBox::new();
+    INSTANCE.get_or_init(|| {
+        let mut precompiles = haber().clone();
+        let precompiles = {
+            let mut precompiles = precompiles;
+            precompiles.extend(bls12_381::precompiles());
+            precompiles
+        };
+        Box::new(precompiles)
+    })
 }
 
 impl Default for BscPrecompiles {

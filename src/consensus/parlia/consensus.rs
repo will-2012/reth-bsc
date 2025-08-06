@@ -182,7 +182,7 @@ where
         }
 
         // EIP-4844: Blob gas validation for Cancun fork
-        if self.chain_spec.is_cancun_active_at_timestamp(block.timestamp) {
+        if BscHardforks::is_cancun_active_at_timestamp(self.chain_spec.as_ref(), block.timestamp) {
             self.validate_cancun_blob_gas(block)?;
         }
 

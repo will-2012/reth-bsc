@@ -237,9 +237,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-evm"
-version = "0.14.0"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef2d6e0448bfd057a4438226b3d2fd547a0530fa4226217dfb1682d09f108bd4"
+checksum = "4042e855163839443cba91147fb7737c4aba02df4767cb322b0e8cea5a77642c"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -351,9 +351,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-op-evm"
-version = "0.14.0"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98354b9c3d50de701a63693d5b6a37e468a93b970b2224f934dd745c727ef998"
+checksum = "e8c0bc6a883d3198c43c4018aa952448a303dec265439fa1c2e7c4397beeb289"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -929,9 +929,9 @@ dependencies = [
 
 [[package]]
 name = "anstream"
-version = "0.6.19"
+version = "0.6.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "301af1932e46185686725e0fad2f8f2aa7da69dd70bf6ecc44d6b703844a3933"
+checksum = "3ae563653d1938f79b1ab1b5e668c87c76a9930414574a6583a7b7e11a8e6192"
 dependencies = [
  "anstyle",
  "anstyle-parse",
@@ -959,22 +959,22 @@ dependencies = [
 
 [[package]]
 name = "anstyle-query"
-version = "1.1.3"
+version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c8bdeb6047d8983be085bab0ba1472e6dc604e7041dbf6fcd5e71523014fae9"
+checksum = "9e231f6134f61b71076a3eab506c379d4f36122f2af15a9ff04415ea4c3339e2"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
 name = "anstyle-wincon"
-version = "3.0.9"
+version = "3.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "403f75924867bb1033c59fbf0797484329750cfbe3c4325cd33127941fabc882"
+checksum = "3e0633414522a32ffaac8ac6cc8f748e090c5717661fddeea04219e2344f5f2a"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4244,7 +4244,7 @@ dependencies = [
  "potential_utf",
  "yoke 0.8.0",
  "zerofrom",
- "zerovec 0.11.2",
+ "zerovec 0.11.4",
 ]
 
 [[package]]
@@ -4257,7 +4257,7 @@ dependencies = [
  "litemap 0.8.0",
  "tinystr 0.8.1",
  "writeable 0.6.1",
- "zerovec 0.11.2",
+ "zerovec 0.11.4",
 ]
 
 [[package]]
@@ -4323,7 +4323,7 @@ dependencies = [
  "icu_properties 2.0.1",
  "icu_provider 2.0.0",
  "smallvec",
- "zerovec 0.11.2",
+ "zerovec 0.11.4",
 ]
 
 [[package]]
@@ -4366,7 +4366,7 @@ dependencies = [
  "icu_provider 2.0.0",
  "potential_utf",
  "zerotrie",
- "zerovec 0.11.2",
+ "zerovec 0.11.4",
 ]
 
 [[package]]
@@ -4412,7 +4412,7 @@ dependencies = [
  "yoke 0.8.0",
  "zerofrom",
  "zerotrie",
- "zerovec 0.11.2",
+ "zerovec 0.11.4",
 ]
 
 [[package]]
@@ -6177,7 +6177,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5a7c30837279ca13e7c867e9e40053bc68740f988cb07f7ca6df43cc734b585"
 dependencies = [
- "zerovec 0.11.2",
+ "zerovec 0.11.4",
 ]
 
 [[package]]
@@ -6911,8 +6911,8 @@ checksum = "95325155c684b1c89f7765e30bc1c42e4a6da51ca513615660cb8a62ef9a88e3"
 
 [[package]]
 name = "reth"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-rpc-types",
  "aquamarine",
@@ -6957,8 +6957,8 @@ dependencies = [
 
 [[package]]
 name = "reth-basic-payload-builder"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6981,8 +6981,8 @@ dependencies = [
 
 [[package]]
 name = "reth-chain-state"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7012,8 +7012,8 @@ dependencies = [
 
 [[package]]
 name = "reth-chainspec"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -7032,8 +7032,8 @@ dependencies = [
 
 [[package]]
 name = "reth-cli"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-genesis",
  "clap",
@@ -7046,8 +7046,8 @@ dependencies = [
 
 [[package]]
 name = "reth-cli-commands"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "ahash",
  "alloy-chains",
@@ -7126,8 +7126,8 @@ dependencies = [
 
 [[package]]
 name = "reth-cli-runner"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "reth-tasks",
  "tokio",
@@ -7136,8 +7136,8 @@ dependencies = [
 
 [[package]]
 name = "reth-cli-util"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -7154,8 +7154,8 @@ dependencies = [
 
 [[package]]
 name = "reth-codecs"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7174,8 +7174,8 @@ dependencies = [
 
 [[package]]
 name = "reth-codecs-derive"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "convert_case 0.7.1",
  "proc-macro2",
@@ -7185,8 +7185,8 @@ dependencies = [
 
 [[package]]
 name = "reth-config"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "eyre",
  "humantime-serde",
@@ -7200,8 +7200,8 @@ dependencies = [
 
 [[package]]
 name = "reth-consensus"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -7213,21 +7213,20 @@ dependencies = [
 
 [[package]]
 name = "reth-consensus-common"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "reth-chainspec",
  "reth-consensus",
  "reth-primitives-traits",
- "tracing",
 ]
 
 [[package]]
 name = "reth-consensus-debug-client"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7251,8 +7250,8 @@ dependencies = [
 
 [[package]]
 name = "reth-db"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "derive_more 2.0.1",
@@ -7277,8 +7276,8 @@ dependencies = [
 
 [[package]]
 name = "reth-db-api"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",
@@ -7305,8 +7304,8 @@ dependencies = [
 
 [[package]]
 name = "reth-db-common"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",
@@ -7334,8 +7333,8 @@ dependencies = [
 
 [[package]]
 name = "reth-db-models"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -7349,8 +7348,8 @@ dependencies = [
 
 [[package]]
 name = "reth-discv4"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -7375,8 +7374,8 @@ dependencies = [
 
 [[package]]
 name = "reth-discv5"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -7399,8 +7398,8 @@ dependencies = [
 
 [[package]]
 name = "reth-dns-discovery"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "data-encoding",
@@ -7423,8 +7422,8 @@ dependencies = [
 
 [[package]]
 name = "reth-downloaders"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7458,8 +7457,8 @@ dependencies = [
 
 [[package]]
 name = "reth-e2e-test-utils"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7516,8 +7515,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ecies"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "aes",
  "alloy-primitives",
@@ -7547,8 +7546,8 @@ dependencies = [
 
 [[package]]
 name = "reth-engine-local"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -7569,8 +7568,8 @@ dependencies = [
 
 [[package]]
 name = "reth-engine-primitives"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7594,8 +7593,8 @@ dependencies = [
 
 [[package]]
 name = "reth-engine-service"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "futures",
  "pin-project",
@@ -7617,8 +7616,8 @@ dependencies = [
 
 [[package]]
 name = "reth-engine-tree"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7670,8 +7669,8 @@ dependencies = [
 
 [[package]]
 name = "reth-engine-util"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-rpc-types-engine",
@@ -7697,8 +7696,8 @@ dependencies = [
 
 [[package]]
 name = "reth-era"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7713,8 +7712,8 @@ dependencies = [
 
 [[package]]
 name = "reth-era-downloader"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "bytes 1.10.1",
@@ -7728,8 +7727,8 @@ dependencies = [
 
 [[package]]
 name = "reth-era-utils"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -7752,8 +7751,8 @@ dependencies = [
 
 [[package]]
 name = "reth-errors"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "reth-consensus",
  "reth-execution-errors",
@@ -7763,8 +7762,8 @@ dependencies = [
 
 [[package]]
 name = "reth-eth-wire"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-chains",
  "alloy-primitives",
@@ -7792,8 +7791,8 @@ dependencies = [
 
 [[package]]
 name = "reth-eth-wire-types"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -7816,8 +7815,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-cli"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "clap",
@@ -7838,8 +7837,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-consensus"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7854,8 +7853,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-engine-primitives"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -7872,8 +7871,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-forks"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eip2124",
  "alloy-hardforks",
@@ -7886,8 +7885,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-payload-builder"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7913,8 +7912,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-primitives"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7931,8 +7930,8 @@ dependencies = [
 
 [[package]]
 name = "reth-etl"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "rayon",
  "reth-db-api",
@@ -7941,8 +7940,8 @@ dependencies = [
 
 [[package]]
 name = "reth-evm"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7964,8 +7963,8 @@ dependencies = [
 
 [[package]]
 name = "reth-evm-ethereum"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -7984,8 +7983,8 @@ dependencies = [
 
 [[package]]
 name = "reth-execution-errors"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-evm",
  "alloy-primitives",
@@ -7997,8 +7996,8 @@ dependencies = [
 
 [[package]]
 name = "reth-execution-types"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8016,8 +8015,8 @@ dependencies = [
 
 [[package]]
 name = "reth-exex"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8054,8 +8053,8 @@ dependencies = [
 
 [[package]]
 name = "reth-exex-types"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -8068,8 +8067,8 @@ dependencies = [
 
 [[package]]
 name = "reth-fs-util"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "serde",
  "serde_json",
@@ -8078,8 +8077,8 @@ dependencies = [
 
 [[package]]
 name = "reth-invalid-block-hooks"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -8106,8 +8105,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ipc"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "bytes 1.10.1",
  "futures",
@@ -8126,8 +8125,8 @@ dependencies = [
 
 [[package]]
 name = "reth-libmdbx"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "bitflags 2.9.1",
  "byteorder",
@@ -8143,8 +8142,8 @@ dependencies = [
 
 [[package]]
 name = "reth-mdbx-sys"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "bindgen",
  "cc",
@@ -8152,8 +8151,8 @@ dependencies = [
 
 [[package]]
 name = "reth-metrics"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "futures",
  "metrics",
@@ -8164,16 +8163,16 @@ dependencies = [
 
 [[package]]
 name = "reth-net-banlist"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
 ]
 
 [[package]]
 name = "reth-net-nat"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "futures-util",
  "if-addrs",
@@ -8186,8 +8185,8 @@ dependencies = [
 
 [[package]]
 name = "reth-network"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8241,11 +8240,13 @@ dependencies = [
 
 [[package]]
 name = "reth-network-api"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
+ "alloy-consensus",
  "alloy-primitives",
  "alloy-rpc-types-admin",
+ "alloy-rpc-types-eth",
  "auto_impl",
  "derive_more 2.0.1",
  "enr",
@@ -8264,8 +8265,8 @@ dependencies = [
 
 [[package]]
 name = "reth-network-p2p"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8287,8 +8288,8 @@ dependencies = [
 
 [[package]]
 name = "reth-network-peers"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -8302,8 +8303,8 @@ dependencies = [
 
 [[package]]
 name = "reth-network-types"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eip2124",
  "humantime-serde",
@@ -8316,8 +8317,8 @@ dependencies = [
 
 [[package]]
 name = "reth-nippy-jar"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "anyhow",
  "bincode",
@@ -8333,8 +8334,8 @@ dependencies = [
 
 [[package]]
 name = "reth-node-api"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-rpc-types-engine",
  "eyre",
@@ -8357,8 +8358,8 @@ dependencies = [
 
 [[package]]
 name = "reth-node-builder"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8396,6 +8397,7 @@ dependencies = [
  "reth-network-p2p",
  "reth-node-api",
  "reth-node-core",
+ "reth-node-ethstats",
  "reth-node-events",
  "reth-node-metrics",
  "reth-payload-builder",
@@ -8422,8 +8424,8 @@ dependencies = [
 
 [[package]]
 name = "reth-node-core"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8474,15 +8476,15 @@ dependencies = [
 
 [[package]]
 name = "reth-node-ethereum"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eips",
+ "alloy-network",
  "alloy-rpc-types-engine",
  "alloy-rpc-types-eth",
  "eyre",
  "reth-chainspec",
- "reth-consensus",
  "reth-engine-local",
  "reth-engine-primitives",
  "reth-ethereum-consensus",
@@ -8501,6 +8503,7 @@ dependencies = [
  "reth-rpc",
  "reth-rpc-api",
  "reth-rpc-builder",
+ "reth-rpc-eth-api",
  "reth-rpc-eth-types",
  "reth-rpc-server-types",
  "reth-tracing",
@@ -8510,9 +8513,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "reth-node-ethstats"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
+dependencies = [
+ "alloy-consensus",
+ "alloy-primitives",
+ "chrono",
+ "futures-util",
+ "reth-chain-state",
+ "reth-network-api",
+ "reth-primitives-traits",
+ "reth-storage-api",
+ "reth-transaction-pool",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-stream",
+ "tokio-tungstenite",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "reth-node-events"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8535,8 +8562,8 @@ dependencies = [
 
 [[package]]
 name = "reth-node-metrics"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "eyre",
  "http 1.3.1",
@@ -8556,8 +8583,8 @@ dependencies = [
 
 [[package]]
 name = "reth-node-types"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "reth-chainspec",
  "reth-db-api",
@@ -8569,8 +8596,8 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-chainspec"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -8579,6 +8606,7 @@ dependencies = [
  "alloy-hardforks",
  "alloy-primitives",
  "derive_more 2.0.1",
+ "op-alloy-consensus",
  "op-alloy-rpc-types",
  "reth-chainspec",
  "reth-ethereum-forks",
@@ -8591,18 +8619,18 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-consensus"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-primitives",
  "alloy-trie",
- "op-alloy-consensus",
  "reth-chainspec",
  "reth-consensus",
  "reth-consensus-common",
  "reth-execution-types",
+ "reth-optimism-chainspec",
  "reth-optimism-forks",
  "reth-optimism-primitives",
  "reth-primitives-traits",
@@ -8616,8 +8644,8 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-evm"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8641,8 +8669,8 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-forks"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-op-hardforks",
  "alloy-primitives",
@@ -8652,8 +8680,8 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-payload-builder"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8691,8 +8719,8 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-primitives"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8711,8 +8739,8 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-rpc"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8737,12 +8765,10 @@ dependencies = [
  "op-alloy-rpc-types",
  "op-alloy-rpc-types-engine",
  "op-revm",
- "parking_lot",
  "reqwest 0.12.22",
  "reth-chainspec",
  "reth-evm",
  "reth-metrics",
- "reth-network-api",
  "reth-node-api",
  "reth-node-builder",
  "reth-optimism-evm",
@@ -8770,8 +8796,8 @@ dependencies = [
 
 [[package]]
 name = "reth-optimism-txpool"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8806,8 +8832,8 @@ dependencies = [
 
 [[package]]
 name = "reth-payload-builder"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -8827,8 +8853,8 @@ dependencies = [
 
 [[package]]
 name = "reth-payload-builder-primitives"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "pin-project",
  "reth-payload-primitives",
@@ -8839,8 +8865,8 @@ dependencies = [
 
 [[package]]
 name = "reth-payload-primitives"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -8858,8 +8884,8 @@ dependencies = [
 
 [[package]]
 name = "reth-payload-util"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -8868,8 +8894,8 @@ dependencies = [
 
 [[package]]
 name = "reth-payload-validator"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-rpc-types-engine",
@@ -8878,8 +8904,8 @@ dependencies = [
 
 [[package]]
 name = "reth-primitives"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "c-kzg",
@@ -8892,8 +8918,8 @@ dependencies = [
 
 [[package]]
 name = "reth-primitives-traits"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8925,8 +8951,8 @@ dependencies = [
 
 [[package]]
 name = "reth-provider"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8970,8 +8996,8 @@ dependencies = [
 
 [[package]]
 name = "reth-prune"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -8998,8 +9024,8 @@ dependencies = [
 
 [[package]]
 name = "reth-prune-types"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "arbitrary",
@@ -9012,8 +9038,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ress-protocol"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -9031,8 +9057,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ress-provider"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -9058,8 +9084,8 @@ dependencies = [
 
 [[package]]
 name = "reth-revm"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "reth-primitives-traits",
@@ -9071,8 +9097,8 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-dyn-abi",
@@ -9100,6 +9126,7 @@ dependencies = [
  "http 1.3.1",
  "http-body 1.0.1",
  "hyper 1.6.0",
+ "itertools 0.14.0",
  "jsonrpsee",
  "jsonrpsee-types",
  "jsonwebtoken",
@@ -9110,7 +9137,6 @@ dependencies = [
  "reth-consensus",
  "reth-engine-primitives",
  "reth-errors",
- "reth-ethereum-primitives",
  "reth-evm",
  "reth-evm-ethereum",
  "reth-execution-types",
@@ -9147,8 +9173,8 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-api"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eips",
  "alloy-genesis",
@@ -9175,8 +9201,8 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-builder"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-network",
  "alloy-provider",
@@ -9213,18 +9239,21 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-convert"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-json-rpc",
  "alloy-network",
  "alloy-primitives",
  "alloy-rpc-types-eth",
+ "alloy-signer",
  "jsonrpsee-types",
  "op-alloy-consensus",
+ "op-alloy-network",
  "op-alloy-rpc-types",
  "op-revm",
+ "reth-ethereum-primitives",
  "reth-evm",
  "reth-optimism-primitives",
  "reth-primitives-traits",
@@ -9235,8 +9264,8 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-engine-api"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -9265,8 +9294,8 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-eth-api"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-dyn-abi",
@@ -9292,7 +9321,6 @@ dependencies = [
  "reth-evm",
  "reth-network-api",
  "reth-node-api",
- "reth-payload-builder",
  "reth-primitives-traits",
  "reth-revm",
  "reth-rpc-convert",
@@ -9310,12 +9338,13 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-eth-types"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
  "alloy-evm",
+ "alloy-network",
  "alloy-primitives",
  "alloy-rpc-types-eth",
  "alloy-sol-types",
@@ -9353,8 +9382,8 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-layer"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-rpc-types-engine",
  "http 1.3.1",
@@ -9367,8 +9396,8 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-server-types"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -9383,8 +9412,8 @@ dependencies = [
 
 [[package]]
 name = "reth-stages"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9433,8 +9462,8 @@ dependencies = [
 
 [[package]]
 name = "reth-stages-api"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -9460,8 +9489,8 @@ dependencies = [
 
 [[package]]
 name = "reth-stages-types"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "arbitrary",
@@ -9474,8 +9503,8 @@ dependencies = [
 
 [[package]]
 name = "reth-static-file"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "parking_lot",
@@ -9494,8 +9523,8 @@ dependencies = [
 
 [[package]]
 name = "reth-static-file-types"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "clap",
@@ -9506,8 +9535,8 @@ dependencies = [
 
 [[package]]
 name = "reth-storage-api"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9530,8 +9559,8 @@ dependencies = [
 
 [[package]]
 name = "reth-storage-errors"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -9546,8 +9575,8 @@ dependencies = [
 
 [[package]]
 name = "reth-tasks"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "auto_impl",
  "dyn-clone",
@@ -9564,8 +9593,8 @@ dependencies = [
 
 [[package]]
 name = "reth-testing-utils"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9580,8 +9609,8 @@ dependencies = [
 
 [[package]]
 name = "reth-tokio-util"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "tokio",
  "tokio-stream",
@@ -9590,8 +9619,8 @@ dependencies = [
 
 [[package]]
 name = "reth-tracing"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "clap",
  "eyre",
@@ -9605,8 +9634,8 @@ dependencies = [
 
 [[package]]
 name = "reth-transaction-pool"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9644,8 +9673,8 @@ dependencies = [
 
 [[package]]
 name = "reth-trie"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -9669,8 +9698,8 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-common"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-consensus",
  "alloy-primitives",
@@ -9695,8 +9724,8 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-db"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "reth-db-api",
@@ -9708,8 +9737,8 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-parallel"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -9733,14 +9762,15 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-sparse"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "alloy-trie",
  "auto_impl",
  "metrics",
+ "rayon",
  "reth-execution-errors",
  "reth-metrics",
  "reth-primitives-traits",
@@ -9751,8 +9781,8 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-sparse-parallel"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
@@ -9767,8 +9797,8 @@ dependencies = [
 
 [[package]]
 name = "reth-zstd-compressors"
-version = "1.5.1"
-source = "git+https://github.com/clydemeng/reth.git?branch=parlia-8e0ff9#53d035615db61059e4d71744ca52cb0e81de5182"
+version = "1.6.0"
+source = "git+https://github.com/clydemeng/reth.git?branch=parlia-6487f0b#f3555b169037072383086eb2ff07bca79a196dfb"
 dependencies = [
  "zstd",
 ]
@@ -9815,6 +9845,7 @@ dependencies = [
  "once_cell",
  "parity-bytes",
  "parking_lot",
+ "phf",
  "prost 0.12.6",
  "rand 0.8.5",
  "reth",
@@ -10020,9 +10051,9 @@ dependencies = [
 
 [[package]]
 name = "revm-inspectors"
-version = "0.26.5"
+version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7b99a2332cf8eed9e9a22fffbf76dfadc99d2c45de6ae6431a1eb9f657dd97a"
+checksum = "aad27cab355b0aa905d0744f3222e716b40ad48b32276ac4b0a615f2c3364c97"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-eth",
@@ -10253,9 +10284,9 @@ dependencies = [
 
 [[package]]
 name = "ruint"
-version = "1.15.0"
+version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11256b5fe8c68f56ac6f39ef0720e592f33d2367a4782740d9c9142e889c7fb4"
+checksum = "9ecb38f82477f20c5c3d62ef52d7c4e536e38ea9b73fb570a20c5cae0e14bcf6"
 dependencies = [
  "alloy-rlp",
  "arbitrary",
@@ -11556,7 +11587,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d4f6d1145dcb577acf783d4e601bc1d76a13337bb54e6233add580b07344c8b"
 dependencies = [
  "displaydoc",
- "zerovec 0.11.2",
+ "zerovec 0.11.4",
 ]
 
 [[package]]
@@ -11646,6 +11677,7 @@ dependencies = [
  "futures-util",
  "log",
  "rustls 0.23.31",
+ "rustls-native-certs 0.8.1",
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.26.2",
@@ -13183,9 +13215,9 @@ dependencies = [
 
 [[package]]
 name = "zerovec"
-version = "0.11.2"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a05eb080e015ba39cc9e23bbe5e7fb04d5fb040350f99f34e338d5fdd294428"
+checksum = "e7aa2bd55086f1ab526693ecbe444205da57e25f4489879da80635a46d90e73b"
 dependencies = [
  "yoke 0.8.0",
  "zerofrom",

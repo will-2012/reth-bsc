@@ -1,14 +1,11 @@
 use crate::{
     chainspec::BscChainSpec,
     node::{
-        primitives::BscPrimitives,
-        rpc::{
-            engine_api::{
-                builder::BscEngineApiBuilder, payload::BscPayloadTypes,
-                validator::BscEngineValidatorBuilder,
-            },
-            BscEthApiBuilder,
+        engine_api::{
+            builder::BscEngineApiBuilder, payload::BscPayloadTypes,
+            validator::BscEngineValidatorBuilder,
         },
+        primitives::BscPrimitives,
         storage::BscStorage,
     },
     BscBlock, BscBlockBody,
@@ -19,14 +16,11 @@ use evm::BscExecutorBuilder;
 use network::BscNetworkBuilder;
 use reth::{
     api::{FullNodeComponents, FullNodeTypes, NodeTypes},
-    builder::{
-        components::ComponentsBuilder, rpc::RpcAddOns, DebugNode, Node, NodeAdapter,
-        NodeComponentsBuilder,
-    },
+    builder::{components::ComponentsBuilder, rpc::RpcAddOns, DebugNode, Node, NodeAdapter},
 };
 use reth_engine_local::LocalPayloadAttributesBuilder;
 use reth_engine_primitives::BeaconConsensusEngineHandle;
-use reth_node_ethereum::node::EthereumPoolBuilder;
+use reth_node_ethereum::{node::EthereumPoolBuilder, EthereumEthApiBuilder};
 use reth_payload_primitives::{PayloadAttributesBuilder, PayloadTypes};
 use reth_primitives::BlockBody;
 use reth_trie_db::MerklePatriciaTrie;
@@ -36,15 +30,15 @@ use tokio::sync::{oneshot, Mutex};
 pub mod consensus;
 pub mod consensus_factory;
 pub mod engine;
+pub mod engine_api;
 pub mod evm;
 pub mod network;
 pub mod primitives;
-pub mod rpc;
 pub mod storage;
 
 /// Bsc addons configuring RPC types
 pub type BscNodeAddOns<N> =
-    RpcAddOns<N, BscEthApiBuilder, BscEngineValidatorBuilder, BscEngineApiBuilder>;
+    RpcAddOns<N, EthereumEthApiBuilder, BscEngineValidatorBuilder, BscEngineApiBuilder>;
 
 /// Type configuration for a regular BSC node.
 #[derive(Debug, Clone)]
@@ -113,9 +107,7 @@ where
         BscConsensusBuilder,
     >;
 
-    type AddOns = BscNodeAddOns<
-        NodeAdapter<N, <Self::ComponentsBuilder as NodeComponentsBuilder<N>>::Components>,
-    >;
+    type AddOns = BscNodeAddOns<NodeAdapter<N>>;
 
     fn components_builder(&self) -> Self::ComponentsBuilder {
         self.components()

@@ -46,6 +46,8 @@ hardfork!(
         Feynman,
         /// BSC `FeynmanFix` hardfork
         FeynmanFix,
+        /// BSC `Cancun` hardfork
+        Cancun,
         /// BSC `Haber` hardfork
         Haber,
         /// BSC `HaberFix` hardfork
@@ -65,139 +67,6 @@ hardfork!(
 );
 
 impl BscHardfork {
-    /// Retrieves the activation block for the specified hardfork on the given chain.
-    pub fn activation_block<H: Hardfork>(self, fork: H, chain: Chain) -> Option<u64> {
-        if chain == Chain::bsc_mainnet() {
-            return Self::bsc_mainnet_activation_block(fork)
-        }
-        if chain == Chain::bsc_testnet() {
-            return Self::bsc_testnet_activation_block(fork)
-        }
-
-        None
-    }
-
-    /// Retrieves the activation timestamp for the specified hardfork on the given chain.
-    pub fn activation_timestamp<H: Hardfork>(self, fork: H, chain: Chain) -> Option<u64> {
-        if chain == Chain::bsc_mainnet() {
-            return Self::bsc_mainnet_activation_timestamp(fork)
-        }
-        if chain == Chain::bsc_testnet() {
-            return Self::bsc_testnet_activation_timestamp(fork)
-        }
-
-        None
-    }
-
-    /// Retrieves the activation block for the specified hardfork on the BSC mainnet.
-    pub fn bsc_mainnet_activation_block<H: Hardfork>(fork: H) -> Option<u64> {
-        match_hardfork(
-            fork,
-            |fork| match fork {
-                EthereumHardfork::Frontier |
-                EthereumHardfork::Homestead |
-                EthereumHardfork::Tangerine |
-                EthereumHardfork::SpuriousDragon |
-                EthereumHardfork::Byzantium |
-                EthereumHardfork::Constantinople |
-                EthereumHardfork::Petersburg |
-                EthereumHardfork::Istanbul |
-                EthereumHardfork::MuirGlacier => Some(0),
-                EthereumHardfork::Berlin | EthereumHardfork::London => Some(31302048),
-                _ => None,
-            },
-            |fork| match fork {
-                Self::Ramanujan | Self::Niels => Some(0),
-                Self::MirrorSync => Some(5184000),
-                Self::Bruno => Some(13082000),
-                Self::Euler => Some(18907621),
-                Self::Nano => Some(21962149),
-                Self::Moran => Some(22107423),
-                Self::Gibbs => Some(23846001),
-                Self::Planck => Some(27281024),
-                Self::Luban => Some(29020050),
-                Self::Plato => Some(30720096),
-                Self::Hertz => Some(31302048),
-                Self::HertzFix => Some(34140700),
-                _ => None,
-            },
-        )
-    }
-
-    /// Retrieves the activation block for the specified hardfork on the BSC testnet.
-    pub fn bsc_testnet_activation_block<H: Hardfork>(fork: H) -> Option<u64> {
-        match_hardfork(
-            fork,
-            |fork| match fork {
-                EthereumHardfork::Frontier |
-                EthereumHardfork::Homestead |
-                EthereumHardfork::Tangerine |
-                EthereumHardfork::SpuriousDragon |
-                EthereumHardfork::Byzantium |
-                EthereumHardfork::Constantinople |
-                EthereumHardfork::Petersburg |
-                EthereumHardfork::Istanbul |
-                EthereumHardfork::MuirGlacier => Some(0),
-                EthereumHardfork::Berlin | EthereumHardfork::London => Some(31103030),
-                _ => None,
-            },
-            |fork| match fork {
-                Self::Ramanujan => Some(1010000),
-                Self::Niels => Some(1014369),
-                Self::MirrorSync => Some(5582500),
-                Self::Bruno => Some(13837000),
-                Self::Euler => Some(19203503),
-                Self::Gibbs => Some(22800220),
-                Self::Nano => Some(23482428),
-                Self::Moran => Some(23603940),
-                Self::Planck => Some(28196022),
-                Self::Luban => Some(29295050),
-                Self::Plato => Some(29861024),
-                Self::Hertz => Some(31103030),
-                Self::HertzFix => Some(35682300),
-                _ => None,
-            },
-        )
-    }
-
-    /// Retrieves the activation timestamp for the specified hardfork on the BSC mainnet.
-    pub fn bsc_mainnet_activation_timestamp<H: Hardfork>(fork: H) -> Option<u64> {
-        match_hardfork(
-            fork,
-            |fork| match fork {
-                EthereumHardfork::Shanghai => Some(1705996800),
-                EthereumHardfork::Cancun => Some(1718863500),
-                _ => None,
-            },
-            |fork| match fork {
-                Self::Kepler => Some(1705996800),
-                Self::Feynman | Self::FeynmanFix => Some(1713419340),
-                Self::Haber => Some(1718863500),
-                _ => None,
-            },
-        )
-    }
-
-    /// Retrieves the activation timestamp for the specified hardfork on the BSC testnet.
-    pub fn bsc_testnet_activation_timestamp<H: Hardfork>(fork: H) -> Option<u64> {
-        match_hardfork(
-            fork,
-            |fork| match fork {
-                EthereumHardfork::Shanghai => Some(1702972800),
-                EthereumHardfork::Cancun => Some(1713330442),
-                _ => None,
-            },
-            |fork| match fork {
-                Self::Kepler => Some(1702972800),
-                Self::Feynman => Some(1710136800),
-                Self::FeynmanFix => Some(1711342800),
-                Self::Haber => Some(1716962820),
-                Self::HaberFix => Some(1719986788),
-                _ => None,
-            },
-        )
-    }
-
     /// Bsc mainnet list of hardforks.
     pub fn bsc_mainnet() -> ChainHardforks {
         ChainHardforks::new(vec![
@@ -230,8 +99,9 @@ impl BscHardfork {
             (Self::Feynman.boxed(), ForkCondition::Timestamp(1713419340)), /* 2024-04-18 05:49:00 AM UTC */
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1713419340)), /* 2024-04-18 05:49:00 AM UTC */
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC */
-            (Self::Haber.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC - deployed with Cancun */
-            (Self::Tycho.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC - Tycho hardfork with blob transactions (deployed with Haber) */
+            (Self::Cancun.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC */
+            (Self::Haber.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC */
+            (Self::Tycho.boxed(), ForkCondition::Timestamp(1718863500)), /* 2024-06-20 06:05:00 AM UTC - Tycho hardfork with blob transactions */
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1727316120)), /* 2024-09-26 02:02:00 AM UTC */
             (Self::Bohr.boxed(), ForkCondition::Timestamp(1727317200)),     /* 2024-09-26
                                                                              * 02:20:00
@@ -276,6 +146,7 @@ impl BscHardfork {
             (Self::Feynman.boxed(), ForkCondition::Timestamp(1710136800)),
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1711342800)),
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1713330442)),
+            (Self::Cancun.boxed(), ForkCondition::Timestamp(1713330442)),
             (Self::Haber.boxed(), ForkCondition::Timestamp(1716962820)),
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1719986788)),
             (Self::Bohr.boxed(), ForkCondition::Timestamp(1724116996)),
@@ -319,6 +190,7 @@ impl BscHardfork {
             (Self::Feynman.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::FeynmanFix.boxed(), ForkCondition::Timestamp(1722442622)),
             (EthereumHardfork::Cancun.boxed(), ForkCondition::Timestamp(1722442622)),
+            (Self::Cancun.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::Haber.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::HaberFix.boxed(), ForkCondition::Timestamp(1722442622)),
             (Self::Bohr.boxed(), ForkCondition::Timestamp(1722444422)),
@@ -359,13 +231,12 @@ impl From<BscHardfork> for SpecId {
             BscHardfork::Kepler | BscHardfork::Feynman | BscHardfork::FeynmanFix => {
                 SpecId::SHANGHAI
             }
+            BscHardfork::Cancun |
             BscHardfork::Haber |
             BscHardfork::HaberFix |
             BscHardfork::Bohr |
-            BscHardfork::Tycho |
-            BscHardfork::Pascal |
-            BscHardfork::Lorentz |
-            BscHardfork::Maxwell => SpecId::CANCUN,
+            BscHardfork::Tycho => SpecId::CANCUN,
+            BscHardfork::Pascal | BscHardfork::Lorentz | BscHardfork::Maxwell => SpecId::PRAGUE,
         }
     }
 }
@@ -374,16 +245,6 @@ impl From<BscHardfork> for SpecId {
 mod tests {
     use super::*;
     use crate::chainspec::{bsc::bsc_mainnet, bsc_chapel::bsc_testnet};
-
-    #[test]
-    fn test_match_hardfork() {
-        assert_eq!(BscHardfork::bsc_mainnet_activation_block(EthereumHardfork::Cancun), None);
-        assert_eq!(
-            BscHardfork::bsc_mainnet_activation_timestamp(EthereumHardfork::Cancun),
-            Some(1718863500)
-        );
-        assert_eq!(BscHardfork::bsc_mainnet_activation_timestamp(BscHardfork::HaberFix), None);
-    }
 
     #[test]
     fn test_hardfork_activation_order_differences() {
@@ -400,7 +261,7 @@ mod tests {
 
         // Test mainnet chain spec
         let mainnet_spec = crate::chainspec::BscChainSpec::from(bsc_mainnet());
-        
+
         // Test blocks around the critical transition points
         // Block 23846000: Should be Moran (before Gibbs activation)
         assert_eq!(
@@ -444,7 +305,7 @@ mod tests {
 
         // Test testnet chain spec
         let testnet_spec = crate::chainspec::BscChainSpec::from(bsc_testnet());
-        
+
         // Test blocks around the critical transition points for testnet
         // Block 23603939: Should be Nano (before Moran activation)
         assert_eq!(

@@ -1,9 +1,9 @@
 #![allow(clippy::owned_cow)]
 use crate::{
     node::{
+        engine_api::payload::BscPayloadTypes,
         network::block_import::{handle::ImportHandle, BscBlockImport},
         primitives::{BscBlobTransactionSidecar, BscPrimitives},
-        rpc::engine_api::payload::BscPayloadTypes,
         BscNode,
     },
     BscBlock,

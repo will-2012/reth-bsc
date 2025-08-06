@@ -1,8 +1,7 @@
 #![allow(missing_docs)]
 //! Credits to <https://github.com/bnb-chain/reth/blob/main/crates/bsc/primitives/src/system_contracts/mod.rs>
 use crate::{
-    chainspec::bsc::bsc_mainnet,
-    chainspec::bsc_chapel::bsc_testnet,
+    chainspec::{bsc::bsc_mainnet, bsc_chapel::bsc_testnet},
     hardforks::{bsc::BscHardfork, BscHardforks},
 };
 use abi::{STAKE_HUB_ABI, VALIDATOR_SET_ABI};
@@ -20,6 +19,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 mod abi;
+mod embedded_contracts;
 
 pub(crate) struct SystemContract<Spec: EthChainSpec> {
     /// The validator contract abi
@@ -330,20 +330,15 @@ fn read_all_system_contracts(
         let parent_dir = hardfork_to_dir_name(&hardfork).unwrap();
         let mut inner_map = HashMap::new();
         for c in &all_contracts {
-            let file_path = format!("src/system_contracts/{}/{}/{}", parent_dir, dir, c.name);
-            let contract_path = std::path::Path::new(&file_path);
-            if !contract_path.exists() {
-                continue;
+            // Use embedded contracts instead of reading from files
+            let key = format!("{}_{}_{}", parent_dir, dir, c.name);
+            if let Some(hex_data) = embedded_contracts::EMBEDDED_CONTRACTS.get(&key) {
+                let bytes = match hex::decode(hex_data) {
+                    Ok(bytes) => bytes,
+                    Err(_) => continue, // skip if hex decode fails
+                };
+                inner_map.insert(c.address, Some(Bytecode::new_raw(bytes.into())));
             }
-            let body = match std::fs::read_to_string(contract_path) {
-                Ok(body) => body.trim().to_string(),
-                Err(_) => continue, // skip if file can't be read
-            };
-            let bytes = match hex::decode(&body) {
-                Ok(bytes) => bytes,
-                Err(_) => continue, // skip if hex decode fails
-            };
-            inner_map.insert(c.address, Some(Bytecode::new_raw(bytes.into())));
         }
         outer_map.insert(hardfork.name().to_string(), inner_map);
     }
@@ -386,8 +381,8 @@ where
 {
     let mut m = HashMap::new();
     for (fork, condition) in spec.forks_iter() {
-        if condition.transitions_at_block(block_number)
-            || condition.transitions_at_timestamp(block_time, parent_block_time)
+        if condition.transitions_at_block(block_number) ||
+            condition.transitions_at_timestamp(block_time, parent_block_time)
         {
             if let Ok(contracts) = get_system_contract_codes(spec, fork.name()) {
                 for (address, v) in &contracts {

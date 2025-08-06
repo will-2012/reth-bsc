@@ -25,8 +25,13 @@ This project aims to bring Reth's high-performance Ethereum client capabilities 
 This is a **Work in Progress** project that requires community contributions to achieve the following goals:
 
 - [ ] Historical Sync
-- [ ] BSC Pectra Support
+- ✅ BSC Pectra Support
 - [ ] Live Sync
+
+### Sync Status (as of August 5, 2025)
+
+- **BSC Mainnet**: Synced to block 42,159,275 and still syncing 🔄 (11TB disk usage)
+- **BSC Testnet**: Synced to the tip ✅ (780GB disk usage)
 
 ## Getting Started
 

@@ -55,8 +55,6 @@ where
     }
 }
 
-
-
 /// Attempts to create on-demand snapshots using a separate database instance
 /// and access to the blockchain provider for header lookups
 /// 
