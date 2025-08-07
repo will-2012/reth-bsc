@@ -228,6 +228,7 @@ impl<DB: Database + 'static> SnapshotProvider for DbSnapshotProvider<DB> {
 
         // slow path: DB scan
         let snap = self.load_from_db(block_number)?;
+        // todo: check if the snapshot is valid
         self.cache.write().insert(block_number, snap.clone());
         Some(snap)
     }
@@ -260,6 +261,7 @@ where
     Provider: HeaderProvider<Header = alloy_consensus::Header> + BlockReader + Send + Sync + 'static,
 {
     fn snapshot(&self, block_number: u64) -> Option<Snapshot> {
+        tracing::info!("🔍 [BSC] try get snapshot for block {}", block_number);
         // Early return for cached snapshots to avoid expensive computation
         {
             let mut cache_guard = self.base.cache.write();
@@ -332,6 +334,8 @@ where
                 }
         };
 
+        tracing::info!("🔍 [BSC] want_block_number: {:?}, actual_block: {:?}, need_to_apply_block_len: {:?}", block_number, current_block, headers_to_apply.len());
+
         // 2. Apply headers forward with epoch updates 
         headers_to_apply.reverse();
         let mut working_snapshot = base_snapshot;
@@ -392,11 +396,13 @@ where
             };
 
             // Cache intermediate snapshots (like reth-bsc-trail)
+            tracing::info!("🔍 [BSC] after apply header {}, block_number: {}", header.number, working_snapshot.block_number);
             self.base.cache.write().insert(working_snapshot.block_number, working_snapshot.clone());
 
             // Persist checkpoint snapshots to database (like reth-bsc-trail)
             if working_snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
                 // Persisting checkpoint snapshot
+                tracing::info!("🔍 [BSC] persist checkpoint snapshot, block_number: {}", working_snapshot.block_number);
                 self.base.insert(working_snapshot.clone());
             }
         }
