@@ -296,7 +296,10 @@ impl Snapshot {
     pub fn sign_recently_by_counts(&self, validator: Address, counts: &HashMap<Address, u8>) -> bool {
         if let Some(&times) = counts.get(&validator) {
             let allowed = u64::from(self.turn_length.unwrap_or(1));
-            if u64::from(times) >= allowed { return true; }
+            if u64::from(times) >= allowed { 
+                tracing::warn!("🔍 snap-debug [BSC] validator over-proposed, validator: {:?}, times: {:?}, allowed: {:?}", validator, times, allowed);
+                return true; 
+            }
         }
         false
     }
