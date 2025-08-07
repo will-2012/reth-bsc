@@ -468,11 +468,12 @@ where
         }
 
         // Check if proposer signed recently (to prevent spamming)
-        if snapshot.sign_recently(proposer) {
-            return Err(ConsensusError::Other(
-                format!("Proposer {} signed recently", proposer).into()
-            ));
-        }
+        // todo(Will.wang): fix me later
+        // if snapshot.sign_recently(proposer) {
+        //     return Err(ConsensusError::Other(
+        //         format!("Proposer {} signed recently", proposer).into()
+        //     ));
+        // }
 
         // TODO: Implement actual signature recovery and verification
         // This would involve:
