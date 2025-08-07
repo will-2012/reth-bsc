@@ -175,6 +175,8 @@ impl<DB: Database> DbSnapshotProvider<DB> {
                 tracing::debug!("✅ [BSC] Found exact snapshot for block {} in DB (snapshot_block={})", block_number, decoded.block_number);
                 return Some(decoded);
             }
+        } else {
+            return None;
         }
         
         tracing::debug!("🔍 [BSC] No exact snapshot for block {}, searching for fallback...", block_number);
