@@ -177,14 +177,18 @@ impl Snapshot {
 
         // Update epoch_num and turn_length based on active hardforks
         let next_block_number = block_number + 1;
+        tracing::info!("🔍 snap-debug [BSC] next_block_number: {:?}, is_lorentz_active: {:?}, is_maxwell_active: {:?}, snap.epoch_num: {:?}", 
+        next_block_number, is_lorentz_active, is_maxwell_active, snap.epoch_num);
         if snap.epoch_num == DEFAULT_EPOCH_LENGTH && is_lorentz_active && next_block_number % LORENTZ_EPOCH_LENGTH == 0 {
             // Like bsc-erigon: prevent incorrect block usage for validator parsing after Lorentz
             snap.epoch_num = LORENTZ_EPOCH_LENGTH;
             snap.turn_length = Some(LORENTZ_TURN_LENGTH);
+            tracing::info!("🔍 snap-debug [BSC] enable Lorentz epoch_num: {:?}, turn_length: {:?}, next_block_number: {:?}", snap.epoch_num, snap.turn_length, next_block_number);
         }
         if snap.epoch_num == LORENTZ_EPOCH_LENGTH && is_maxwell_active && next_block_number % MAXWELL_EPOCH_LENGTH == 0 {
             snap.epoch_num = MAXWELL_EPOCH_LENGTH;
             snap.turn_length = Some(MAXWELL_TURN_LENGTH);
+            tracing::info!("🔍 snap-debug [BSC] enable Maxwell epoch_num: {:?}, turn_length: {:?}, next_block_number: {:?}", snap.epoch_num, snap.turn_length, next_block_number);
         }
 
         // Epoch change driven by new validator set / checkpoint header.
