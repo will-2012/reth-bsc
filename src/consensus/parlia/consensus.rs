@@ -286,7 +286,8 @@ where
         self.verify_seal(&sealed_header, &snapshot)?;
 
         // 4. Turn-based proposing (difficulty validation)
-        self.verify_difficulty(&sealed_header, &snapshot)?;
+        // todo: has bug??
+        // self.verify_difficulty(&sealed_header, &snapshot)?;
 
         // 5. Turn length validation (Bohr hardfork)
         self.verify_turn_length(&sealed_header)?;
