@@ -132,6 +132,7 @@ impl Snapshot {
     {
         let block_number = next_header.number();
         if self.block_number + 1 != block_number {
+            tracing::warn!("🔍 snap-debug [BSC] non-continuous block, self.block_number: {:?}, block_number: {:?}", self.block_number, block_number);
             return None; // non-continuous block
         }
 
@@ -148,9 +149,11 @@ impl Snapshot {
 
         // Validate proposer belongs to validator set and hasn't over-proposed.
         if !snap.validators.contains(&validator) {
+            tracing::warn!("🔍 snap-debug [BSC] validator not in validator set, validator: {:?}, validators: {:?}, block_number: {:?}", validator, snap.validators, block_number);
             return None;
         }
         if snap.sign_recently(validator) {
+            tracing::warn!("🔍 snap-debug [BSC] validator over-proposed, validator: {:?}, block_number: {:?}", validator, block_number);
             return None;
         }
         snap.recent_proposers.insert(block_number, validator);

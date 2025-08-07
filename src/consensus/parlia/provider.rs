@@ -261,7 +261,7 @@ where
     Provider: HeaderProvider<Header = alloy_consensus::Header> + BlockReader + Send + Sync + 'static,
 {
     fn snapshot(&self, block_number: u64) -> Option<Snapshot> {
-        tracing::info!("🔍 [BSC] try get snapshot for block {}", block_number);
+        tracing::info!("🔍 snap-debug [BSC] try get snapshot for block {}", block_number);
         // Early return for cached snapshots to avoid expensive computation
         {
             let mut cache_guard = self.base.cache.write();
@@ -334,7 +334,7 @@ where
                 }
         };
 
-        tracing::info!("🔍 [BSC] want_block_number: {:?}, actual_block: {:?}, need_to_apply_block_len: {:?}", block_number, current_block, headers_to_apply.len());
+        tracing::info!("🔍 snap-debug [BSC] want_block_number: {:?}, actual_block: {:?}, need_to_apply_block_len: {:?}", block_number, current_block, headers_to_apply.len());
 
         // 2. Apply headers forward with epoch updates 
         headers_to_apply.reverse();
@@ -391,18 +391,19 @@ where
                     if header.number % 100000 == 0 { // only log every 100k blocks to reduce spam
                         tracing::debug!("🔄 [BSC] Failed to apply header {} to snapshot during Bodies stage", header.number);
                     }
+                    tracing::warn!("🔍 snap-debug [BSC] failed to apply header {} to snapshot during Bodies stage", header.number);
                     return None;
                 }
             };
 
             // Cache intermediate snapshots (like reth-bsc-trail)
-            tracing::info!("🔍 [BSC] after apply header {}, block_number: {}", header.number, working_snapshot.block_number);
+            tracing::info!("🔍 snap-debug [BSC] after apply header {}, block_number: {}", header.number, working_snapshot.block_number);
             self.base.cache.write().insert(working_snapshot.block_number, working_snapshot.clone());
 
             // Persist checkpoint snapshots to database (like reth-bsc-trail)
             if working_snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
                 // Persisting checkpoint snapshot
-                tracing::info!("🔍 [BSC] persist checkpoint snapshot, block_number: {}", working_snapshot.block_number);
+                tracing::info!("🔍 snap-debug [BSC] persist checkpoint snapshot, block_number: {}", working_snapshot.block_number);
                 self.base.insert(working_snapshot.clone());
             }
         }
