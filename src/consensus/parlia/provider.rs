@@ -330,6 +330,8 @@ where
                 }
         };
 
+        tracing::info!("🔍 snap-debug [BSC] base_snapshot: {:?}, block_number: {:?}, headers_to_apply_len: {:?}", base_snapshot, block_number, headers_to_apply.len());
+
         // 2. Apply headers forward with epoch updates 
         headers_to_apply.reverse();
         let mut working_snapshot = base_snapshot;
@@ -385,6 +387,7 @@ where
                     if header.number % 100000 == 0 { // only log every 100k blocks to reduce spam
                         tracing::debug!("🔄 [BSC] Failed to apply header {} to snapshot during Bodies stage", header.number);
                     }
+                    tracing::warn!("🔍 snap-debug [BSC] failed to apply header {} to snapshot during Bodies stage", header.number);
                     return None;
                 }
             };
@@ -396,6 +399,7 @@ where
             if working_snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
                 // Persisting checkpoint snapshot
                 self.base.insert(working_snapshot.clone());
+                tracing::info!("🔍 snap-debug [BSC] persist checkpoint snapshot, block_number: {}", working_snapshot.block_number);
             }
         }
 
