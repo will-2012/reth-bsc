@@ -177,8 +177,8 @@ impl Snapshot {
 
         // Update epoch_num and turn_length based on active hardforks
         let next_block_number = block_number + 1;
-        tracing::info!("🔍 snap-debug [BSC] next_block_number: {:?}, is_lorentz_active: {:?}, is_maxwell_active: {:?}, snap.epoch_num: {:?}", 
-        next_block_number, is_lorentz_active, is_maxwell_active, snap.epoch_num);
+        tracing::info!("🔍 snap-debug [BSC] next_block_number: {:?}, is_lorentz_active: {:?}, is_maxwell_active: {:?}, snap.epoch_num: {:?}, snap.turn_length: {:?}", 
+        next_block_number, is_lorentz_active, is_maxwell_active, snap.epoch_num, snap.turn_length);
         if snap.epoch_num == DEFAULT_EPOCH_LENGTH && is_lorentz_active && next_block_number % LORENTZ_EPOCH_LENGTH == 0 {
             // Like bsc-erigon: prevent incorrect block usage for validator parsing after Lorentz
             snap.epoch_num = LORENTZ_EPOCH_LENGTH;
