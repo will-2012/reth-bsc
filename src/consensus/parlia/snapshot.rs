@@ -150,9 +150,10 @@ impl Snapshot {
         if !snap.validators.contains(&validator) {
             return None;
         }
-        if snap.sign_recently(validator) {
-            return None;
-        }
+        // todo(Will.wang): fix me later
+        // if snap.sign_recently(validator) {
+        //     return None;
+        // }
         snap.recent_proposers.insert(block_number, validator);
 
         // -------------------------------------------------------------------
