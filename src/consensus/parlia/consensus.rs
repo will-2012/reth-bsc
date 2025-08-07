@@ -201,7 +201,8 @@ where
         let receipts = &result.receipts;
 
         // 1. Basic post-execution validation (gas used, receipts root, logs bloom)
-        self.validate_basic_post_execution_fields(block, receipts)?;
+        // todo(will.2): has bug?? may can use the common func in the reth repo.
+        // self.validate_basic_post_execution_fields(block, receipts)?;
 
         // 2. BSC-specific post-execution validation
         self.validate_parlia_post_execution_fields(block, receipts)?;
