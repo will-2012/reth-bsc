@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use super::vote::{VoteAddress, VoteAttestation, VoteData};
+use super::attestation::parse_vote_attestation_from_header;
 use alloy_primitives::{Address, BlockNumber, B256};
 use serde::{Deserialize, Serialize};
 use reth_db::table::{Compress, Decompress};
@@ -146,6 +147,10 @@ impl Snapshot {
         if block_number >= limit {
             snap.recent_proposers.remove(&(block_number - limit));
         }
+        let version_limit = self.version_history_check_len();
+        if block_number >= version_limit {
+            snap.recent_proposers.remove(&(block_number - version_limit));
+        }
 
         // Validate proposer belongs to validator set and hasn't over-proposed.
         if !snap.validators.contains(&validator) {
@@ -191,6 +196,18 @@ impl Snapshot {
             tracing::info!("🔍 snap-debug [BSC] enable Maxwell epoch_num: {:?}, turn_length: {:?}, next_block_number: {:?}", snap.epoch_num, snap.turn_length, next_block_number);
         }
 
+        if is_maxwell_active {
+            let latest_finalized_block_number = snap.get_finalized_number();
+			// BEP-524: Clear entries up to the latest finalized block
+			let blocks_to_remove: Vec<u64> = snap.recent_proposers.keys()
+				.filter(|&&block_number| block_number <= latest_finalized_block_number)
+				.copied()
+				.collect();
+			for block_number in blocks_to_remove {
+				snap.recent_proposers.remove(&block_number);
+			}
+        }
+
         // Epoch change driven by new validator set / checkpoint header.
         let epoch_key = u64::MAX - block_number / snap.epoch_num;
         if !new_validators.is_empty() && (!is_bohr || !snap.recent_proposers.contains_key(&epoch_key)) {
@@ -228,7 +245,15 @@ impl Snapshot {
             snap.validators_map = validators_map;
         }
 
-        if let Some(att) = attestation { snap.vote_data = att.data; }
+        // Parse vote attestation from header
+        let parsed_attestation = parse_vote_attestation_from_header(
+            next_header,
+            snap.epoch_num,
+            chain_spec.is_luban_active_at_block(block_number),
+            chain_spec.is_bohr_active_at_timestamp(header_timestamp)
+        );
+
+        if let Some(att) = parsed_attestation { snap.vote_data = att.data; }
 
         Some(snap)
     }
@@ -252,6 +277,10 @@ impl Snapshot {
     pub fn miner_history_check_len(&self) -> u64 {
         let turn = u64::from(self.turn_length.unwrap_or(1));
         (self.validators.len() / 2 + 1) as u64 * turn - 1
+    }
+
+    pub fn version_history_check_len(&self) -> u64 {
+        self.validators.len() as u64 * u64::from(self.turn_length.unwrap_or(DEFAULT_TURN_LENGTH))
     }
 
     /// Validator that should propose the **next** block.
@@ -302,6 +331,13 @@ impl Snapshot {
             }
         }
         false
+    }
+
+    pub fn get_finalized_number(&self) -> BlockNumber {
+        if self.vote_data.source_number > 0 {
+            return self.vote_data.source_number;
+        }
+        0
     }
 }
 
@@ -439,8 +475,8 @@ mod tests {
         };
         
         // Create a mock chain spec for testing
-        use crate::chainspec::BscChainSpec;
-        let chain_spec = BscChainSpec::bsc_testnet();
+        use crate::chainspec::{bsc_testnet, BscChainSpec};
+        let chain_spec = BscChainSpec::from(bsc_testnet());
         
         // This should not panic due to division by zero
         let result = snapshot.apply(
