@@ -789,13 +789,21 @@ where
                     (Vec::new(), None, None)
                 };
 
+                // Parse attestation from header for vote tracking
+                let attestation = crate::consensus::parlia::attestation::parse_vote_attestation_from_header(
+                    &header,
+                    parent_snapshot.epoch_num,
+                    self.spec.is_luban_active_at_block(current_block_number),
+                    self.spec.is_bohr_active_at_timestamp(header.timestamp)
+                );
+
                 // Apply current block to parent snapshot (like reth-bsc-trail does)
                 if let Some(current_snapshot) = parent_snapshot.apply(
                     current_block.beneficiary, // proposer
                     &header,
                     new_validators, // parsed validators from checkpoint header
                     vote_addrs, // parsed vote addresses from checkpoint header
-                    None, // TODO: parse attestation like reth-bsc-trail
+                    attestation, // parsed attestation from header
                     turn_length, // parsed turn length from checkpoint header
                     &self.spec,
                 ) {
