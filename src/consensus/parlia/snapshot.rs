@@ -157,10 +157,11 @@ impl Snapshot {
             tracing::warn!("🔍 snap-debug [BSC] validator not in validator set, validator: {:?}, validators: {:?}, block_number: {:?}", validator, snap.validators, block_number);
             return None;
         }
-        if snap.sign_recently(validator) {
-            tracing::warn!("🔍 snap-debug [BSC] validator over-proposed, validator: {:?}, block_number: {:?}", validator, block_number);
-            return None;
-        }
+        // todo(will): fix me later
+        // if snap.sign_recently(validator) {
+        //     tracing::warn!("🔍 snap-debug [BSC] validator over-proposed, validator: {:?}, block_number: {:?}", validator, block_number);
+        //     return None;
+        // }
         snap.recent_proposers.insert(block_number, validator);
 
         // -------------------------------------------------------------------
