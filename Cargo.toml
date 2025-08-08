@@ -16,6 +16,8 @@ path = "src/main.rs"
 name = "snapshot-checker"
 path = "src/bin/snapshot_checker.rs"
 
+
+
 [dependencies]
 reth = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-6487f0b" }
 reth-cli = { git = "https://github.com/clydemeng/reth.git", branch = "parlia-6487f0b" }
