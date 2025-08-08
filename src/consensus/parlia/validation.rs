@@ -5,7 +5,7 @@
 
 use super::snapshot::Snapshot;
 use crate::hardforks::BscHardforks;
-use alloy_primitives::{Address, B256, U256};
+use alloy_primitives::{Address, B256, U256, Bytes};
 use alloy_consensus::BlockHeader;
 use reth::consensus::ConsensusError;
 use reth_chainspec::EthChainSpec;
@@ -161,8 +161,14 @@ where
         let signature = RecoverableSignature::from_compact(&sig[..64], recovery_id)
             .map_err(|_| ConsensusError::Other("Invalid signature format".into()))?;
 
-        // Compute seal hash and recover public key
-        let seal_hash = self.calculate_seal_hash(header);
+        // Build a temporary header with extra_data trimmed (remove 65-byte seal)
+        let mut sig_hash_header = header.header().clone();
+        let extra_no_seal = &header.extra_data()[..header.extra_data().len() - EXTRA_SEAL];
+        sig_hash_header.extra_data = Bytes::copy_from_slice(extra_no_seal);
+
+
+        // Compute seal hash (equivalent to geth's types.SealHash) and recover public key
+        let seal_hash = super::util::hash_with_chain_id(&sig_hash_header, self.chain_spec.chain().id());
         let message = Message::from_digest_slice(seal_hash.as_slice())
             .map_err(|_| ConsensusError::Other("Failed to create message".into()))?;
 
