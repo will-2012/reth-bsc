@@ -498,7 +498,7 @@ where
 
         if header.difficulty != expected_difficulty {
             tracing::error!(
-                "BSC: Difficulty validation failed at block {}: proposer={}, inturn_validator={}, in_turn={}, expected_difficulty={}, got_difficulty={}, snapshot_block={}, validators={:?}",
+                "BSC: Difficulty validation failed at block {}: proposer={}, inturn_validator={}, in_turn={}, expected_difficulty={}, got_difficulty={}, snapshot_block={}, validators={:?}, header={:?}",
                 header.number(),
                 proposer,
                 inturn_validator,
@@ -506,7 +506,8 @@ where
                 expected_difficulty,
                 header.difficulty,
                 snapshot.block_number,
-                snapshot.validators
+                snapshot.validators,
+                header
             );
             return Err(ConsensusError::Other(
                 format!("Invalid difficulty: expected {}, got {}", expected_difficulty, header.difficulty).into()
