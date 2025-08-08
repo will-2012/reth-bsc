@@ -12,6 +12,7 @@ use reth_chainspec::EthChainSpec;
 use reth_primitives_traits::SealedHeader;
 use std::collections::HashMap;
 use std::sync::Arc;
+use crate::consensus::parlia::util::hash_with_chain_id;
 
 /// BSC consensus validator that implements the missing pre/post execution logic
 #[derive(Debug, Clone)]
@@ -180,51 +181,14 @@ where
         Ok(address)
     }
     
-    /// Calculate seal hash for BSC headers (using SealContent struct like double_sign precompile)
+    /// Calculate seal hash for BSC headers.
+    ///
+    /// This matches the hash used for ECDSA seal verification: the keccak256 of the
+    /// header fields (excluding the 65-byte seal) plus the chain id.
     fn calculate_seal_hash(&self, header: &SealedHeader) -> alloy_primitives::B256 {
-        use alloy_primitives::keccak256;
-        
-        // Use the same approach as the double_sign precompile
-        const EXTRA_SEAL: usize = 65;
-        
-        let chain_id = self.chain_spec.chain().id();
-        let extra_data = &header.extra_data();
-        
-        // Extract extra data without the seal
-        let extra_without_seal = if extra_data.len() >= EXTRA_SEAL {
-            &extra_data[..extra_data.len() - EXTRA_SEAL]
-        } else {
-            extra_data
-        };
-        
-        // Create SealContent exactly like double_sign precompile
-        
-        let seal_content = crate::evm::precompiles::double_sign::SealContent {
-            chain_id,
-            parent_hash: header.parent_hash().0,
-            uncle_hash: header.ommers_hash().0,
-            coinbase: header.beneficiary().0 .0,
-            root: header.state_root().0,
-            tx_hash: header.transactions_root().0,
-            receipt_hash: header.receipts_root().0,
-            bloom: header.logs_bloom().0 .0,
-            difficulty: header.difficulty().clone(),
-            number: header.number(),
-            gas_limit: header.gas_limit(),
-            gas_used: header.gas_used(),
-            time: header.timestamp(),
-            extra: alloy_primitives::Bytes::from(extra_without_seal.to_vec()),
-            mix_digest: header.mix_hash().unwrap_or_default().0,
-            nonce: header.nonce().unwrap_or_default().0,
-        };
-        
-        // Use automatic RLP encoding like double_sign precompile
-        let encoded = alloy_rlp::encode(seal_content);
-        let result = keccak256(&encoded);
-        
-
-        
-        result
+        // Use the shared util to compute the hash with chain id. Note that the util function
+        // expects an `alloy_primitives::Header`, so we pass the inner header via `header.header()`.
+        super::util::hash_with_chain_id(header.header(), self.chain_spec.chain().id())
     }
 }
 
