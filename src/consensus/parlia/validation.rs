@@ -12,6 +12,9 @@ use reth_chainspec::EthChainSpec;
 use reth_primitives_traits::SealedHeader;
 use std::collections::HashMap;
 use std::sync::Arc;
+use super::constants::{EXTRA_SEAL, EXTRA_VANITY};
+use alloy_primitives::keccak256;
+use secp256k1::{ecdsa::{RecoverableSignature, RecoveryId}, Message, SECP256K1};
 
 /// BSC consensus validator that implements the missing pre/post execution logic
 #[derive(Debug, Clone)]
@@ -140,91 +143,54 @@ where
     /// Recover proposer address from header seal (ECDSA signature recovery)
     /// Following bsc-erigon's approach exactly
     pub fn recover_proposer_from_seal(&self, header: &SealedHeader) -> Result<Address, ConsensusError> {
-        use secp256k1::{ecdsa::{RecoverableSignature, RecoveryId}, Message, SECP256K1};
-        
-        // Extract seal from extra data (last 65 bytes) - matching bsc-erigon extraSeal
-        let extra_data = &header.extra_data();
-        if extra_data.len() < 65 {
+        let extra = header.extra_data();
+
+        if extra.len() < EXTRA_VANITY + EXTRA_SEAL {
             return Err(ConsensusError::Other("Invalid seal: extra data too short".into()));
         }
-        
-        let signature = &extra_data[extra_data.len() - 65..];
-        
-        // Create the seal hash for signature verification (matching bsc-erigon's SealHash)
-        let seal_hash = self.calculate_seal_hash(header);
-        let message = Message::from_digest(seal_hash.0);
-        
-        // Parse signature: 64 bytes + 1 recovery byte
-        let sig_bytes = &signature[..64];
-        let recovery_id = signature[64];
-        
-        // Handle recovery ID (bsc-erigon compatible)
-        let recovery_id = RecoveryId::from_i32(recovery_id as i32)
-            .map_err(|_| ConsensusError::Other("Invalid recovery ID".into()))?;
-            
-        let recoverable_sig = RecoverableSignature::from_compact(sig_bytes, recovery_id)
-            .map_err(|_| ConsensusError::Other("Invalid signature format".into()))?;
-        
-        // Recover public key and derive address (matching bsc-erigon's crypto.Keccak256)
-        let public_key = SECP256K1.recover_ecdsa(&message, &recoverable_sig)
-            .map_err(|_| ConsensusError::Other("Failed to recover public key".into()))?;
-            
-        // Convert to address: keccak256(pubkey[1:])[12:]
-        use alloy_primitives::keccak256;
-        let public_key_bytes = public_key.serialize_uncompressed();
-        let hash = keccak256(&public_key_bytes[1..]); // Skip 0x04 prefix
-        let address = Address::from_slice(&hash[12..]);
-        
 
-        
-        Ok(address)
+        let sig_offset = extra.len() - EXTRA_SEAL;
+        let sig = &extra[sig_offset..];
+
+        // Recovery id is the last byte
+        let rec_id = sig[64] as i32;
+        let recovery_id = RecoveryId::from_i32(rec_id)
+            .map_err(|_| ConsensusError::Other("Invalid recovery ID".into()))?;
+
+        // First 64 bytes are the compact signature (r||s)
+        let signature = RecoverableSignature::from_compact(&sig[..64], recovery_id)
+            .map_err(|_| ConsensusError::Other("Invalid signature format".into()))?;
+
+        // Build a temporary header with extra_data trimmed (remove 65-byte seal)
+        // let mut sig_hash_header = header.header().clone();
+        // let extra_no_seal = &header.extra_data()[..header.extra_data().len() - EXTRA_SEAL];
+        // sig_hash_header.extra_data = Bytes::copy_from_slice(extra_no_seal);
+
+
+        // Compute seal hash (equivalent to geth's types.SealHash) and recover public key
+        let seal_hash = super::util::hash_with_chain_id(&header, self.chain_spec.chain().id());
+        let message = Message::from_digest_slice(seal_hash.as_slice())
+            .map_err(|_| ConsensusError::Other("Failed to create message".into()))?;
+
+        let public = SECP256K1
+            .recover_ecdsa(&message, &signature)
+            .map_err(|_| ConsensusError::Other("Failed to recover public key".into()))?;
+
+        // Address = keccak256(pubkey[1:])[12:]
+        let hash = keccak256(&public.serialize_uncompressed()[1..]);
+        let proposer = Address::from_slice(&hash[12..]);
+
+        Ok(proposer)
     }
     
-    /// Calculate seal hash for BSC headers (using SealContent struct like double_sign precompile)
+    /// Calculate seal hash for BSC headers.
+    ///
+    /// This matches the hash used for ECDSA seal verification: the keccak256 of the
+    /// header fields (excluding the 65-byte seal) plus the chain id.
     fn calculate_seal_hash(&self, header: &SealedHeader) -> alloy_primitives::B256 {
-        use alloy_primitives::keccak256;
-        
-        // Use the same approach as the double_sign precompile
-        const EXTRA_SEAL: usize = 65;
-        
-        let chain_id = self.chain_spec.chain().id();
-        let extra_data = &header.extra_data();
-        
-        // Extract extra data without the seal
-        let extra_without_seal = if extra_data.len() >= EXTRA_SEAL {
-            &extra_data[..extra_data.len() - EXTRA_SEAL]
-        } else {
-            extra_data
-        };
-        
-        // Create SealContent exactly like double_sign precompile
-        
-        let seal_content = crate::evm::precompiles::double_sign::SealContent {
-            chain_id,
-            parent_hash: header.parent_hash().0,
-            uncle_hash: header.ommers_hash().0,
-            coinbase: header.beneficiary().0 .0,
-            root: header.state_root().0,
-            tx_hash: header.transactions_root().0,
-            receipt_hash: header.receipts_root().0,
-            bloom: header.logs_bloom().0 .0,
-            difficulty: header.difficulty().clone(),
-            number: header.number(),
-            gas_limit: header.gas_limit(),
-            gas_used: header.gas_used(),
-            time: header.timestamp(),
-            extra: alloy_primitives::Bytes::from(extra_without_seal.to_vec()),
-            mix_digest: header.mix_hash().unwrap_or_default().0,
-            nonce: header.nonce().unwrap_or_default().0,
-        };
-        
-        // Use automatic RLP encoding like double_sign precompile
-        let encoded = alloy_rlp::encode(seal_content);
-        let result = keccak256(&encoded);
-        
-
-        
-        result
+        // Use the shared util to compute the hash with chain id. Note that the util function
+        // expects an `alloy_primitives::Header`, so we pass the inner header via `header.header()`.
+        super::util::hash_with_chain_id(header.header(), self.chain_spec.chain().id())
     }
 }
 

@@ -286,8 +286,7 @@ where
         self.verify_seal(&sealed_header, &snapshot)?;
 
         // 4. Turn-based proposing (difficulty validation)
-        // todo(Will.wang): has bug?? may can use the common func in the reth repo.
-        // self.verify_difficulty(&sealed_header, &snapshot)?;
+        self.verify_difficulty(&sealed_header, &snapshot)?;
 
         // 5. Turn length validation (Bohr hardfork)
         self.verify_turn_length(&sealed_header)?;
@@ -499,7 +498,7 @@ where
 
         if header.difficulty != expected_difficulty {
             tracing::error!(
-                "BSC: Difficulty validation failed at block {}: proposer={}, inturn_validator={}, in_turn={}, expected_difficulty={}, got_difficulty={}, snapshot_block={}, validators={:?}",
+                "BSC: Difficulty validation failed at block {}: proposer={}, inturn_validator={}, in_turn={}, expected_difficulty={}, got_difficulty={}, snapshot_block={}, validators={:?}, header={:?}",
                 header.number(),
                 proposer,
                 inturn_validator,
@@ -507,7 +506,8 @@ where
                 expected_difficulty,
                 header.difficulty,
                 snapshot.block_number,
-                snapshot.validators
+                snapshot.validators,
+                header
             );
             return Err(ConsensusError::Other(
                 format!("Invalid difficulty: expected {}, got {}", expected_difficulty, header.difficulty).into()
