@@ -12,7 +12,9 @@ use reth_chainspec::EthChainSpec;
 use reth_primitives_traits::SealedHeader;
 use std::collections::HashMap;
 use std::sync::Arc;
-use crate::consensus::parlia::util::hash_with_chain_id;
+use super::constants::{EXTRA_SEAL, EXTRA_VANITY};
+use alloy_primitives::keccak256;
+use secp256k1::{ecdsa::{RecoverableSignature, RecoveryId}, Message, SECP256K1};
 
 /// BSC consensus validator that implements the missing pre/post execution logic
 #[derive(Debug, Clone)]
@@ -141,44 +143,38 @@ where
     /// Recover proposer address from header seal (ECDSA signature recovery)
     /// Following bsc-erigon's approach exactly
     pub fn recover_proposer_from_seal(&self, header: &SealedHeader) -> Result<Address, ConsensusError> {
-        use secp256k1::{ecdsa::{RecoverableSignature, RecoveryId}, Message, SECP256K1};
-        
-        // Extract seal from extra data (last 65 bytes) - matching bsc-erigon extraSeal
-        let extra_data = &header.extra_data();
-        if extra_data.len() < 65 {
+        let extra = header.extra_data();
+
+        if extra.len() < EXTRA_VANITY + EXTRA_SEAL {
             return Err(ConsensusError::Other("Invalid seal: extra data too short".into()));
         }
-        
-        let signature = &extra_data[extra_data.len() - 65..];
-        
-        // Create the seal hash for signature verification (matching bsc-erigon's SealHash)
-        let seal_hash = self.calculate_seal_hash(header);
-        let message = Message::from_digest(seal_hash.0);
-        
-        // Parse signature: 64 bytes + 1 recovery byte
-        let sig_bytes = &signature[..64];
-        let recovery_id = signature[64];
-        
-        // Handle recovery ID (bsc-erigon compatible)
-        let recovery_id = RecoveryId::from_i32(recovery_id as i32)
-            .map_err(|_| ConsensusError::Other("Invalid recovery ID".into()))?;
-            
-        let recoverable_sig = RecoverableSignature::from_compact(sig_bytes, recovery_id)
-            .map_err(|_| ConsensusError::Other("Invalid signature format".into()))?;
-        
-        // Recover public key and derive address (matching bsc-erigon's crypto.Keccak256)
-        let public_key = SECP256K1.recover_ecdsa(&message, &recoverable_sig)
-            .map_err(|_| ConsensusError::Other("Failed to recover public key".into()))?;
-            
-        // Convert to address: keccak256(pubkey[1:])[12:]
-        use alloy_primitives::keccak256;
-        let public_key_bytes = public_key.serialize_uncompressed();
-        let hash = keccak256(&public_key_bytes[1..]); // Skip 0x04 prefix
-        let address = Address::from_slice(&hash[12..]);
-        
 
-        
-        Ok(address)
+        let sig_offset = extra.len() - EXTRA_SEAL;
+        let sig = &extra[sig_offset..];
+
+        // Recovery id is the last byte
+        let rec_id = sig[64] as i32;
+        let recovery_id = RecoveryId::from_i32(rec_id)
+            .map_err(|_| ConsensusError::Other("Invalid recovery ID".into()))?;
+
+        // First 64 bytes are the compact signature (r||s)
+        let signature = RecoverableSignature::from_compact(&sig[..64], recovery_id)
+            .map_err(|_| ConsensusError::Other("Invalid signature format".into()))?;
+
+        // Compute seal hash and recover public key
+        let seal_hash = self.calculate_seal_hash(header);
+        let message = Message::from_digest_slice(seal_hash.as_slice())
+            .map_err(|_| ConsensusError::Other("Failed to create message".into()))?;
+
+        let public = SECP256K1
+            .recover_ecdsa(&message, &signature)
+            .map_err(|_| ConsensusError::Other("Failed to recover public key".into()))?;
+
+        // Address = keccak256(pubkey[1:])[12:]
+        let hash = keccak256(&public.serialize_uncompressed()[1..]);
+        let proposer = Address::from_slice(&hash[12..]);
+
+        Ok(proposer)
     }
     
     /// Calculate seal hash for BSC headers.
