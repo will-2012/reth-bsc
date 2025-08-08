@@ -25,11 +25,9 @@ pub const LORENTZ_TURN_LENGTH: u8 = 8;
 pub const MAXWELL_EPOCH_LENGTH: u64 = 1000;
 pub const MAXWELL_TURN_LENGTH: u8 = 16;
 
-// Approximate block intervals converted to seconds (BSC headers store
-// timestamps in seconds precision).
 pub const DEFAULT_BLOCK_INTERVAL: u64 = 3000;   // 3000 ms
-pub const LORENTZ_BLOCK_INTERVAL: u64 = 1500;   // 1500 ms (ceil)
-pub const MAXWELL_BLOCK_INTERVAL: u64 = 750;   //  750 ms (ceil)
+pub const LORENTZ_BLOCK_INTERVAL: u64 = 1500;   // 1500 ms
+pub const MAXWELL_BLOCK_INTERVAL: u64 = 750;   //  750 ms
 
 /// `ValidatorInfo` holds metadata for a validator at a given epoch.
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
