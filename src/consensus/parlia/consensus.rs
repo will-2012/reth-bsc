@@ -286,8 +286,7 @@ where
         self.verify_seal(&sealed_header, &snapshot)?;
 
         // 4. Turn-based proposing (difficulty validation)
-        // todo(Will.wang): has bug?? may can use the common func in the reth repo.
-        // self.verify_difficulty(&sealed_header, &snapshot)?;
+        self.verify_difficulty(&sealed_header, &snapshot)?;
 
         // 5. Turn length validation (Bohr hardfork)
         self.verify_turn_length(&sealed_header)?;
