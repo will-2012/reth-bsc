@@ -155,11 +155,13 @@ impl Snapshot {
         let is_bohr = chain_spec.is_bohr_active_at_timestamp(header_timestamp);
         if is_bohr {
             if snap.sign_recently(validator) {
+                tracing::warn!("🔍 snap-debug [BSC] after bohr, validator over-proposed, validator: {:?}, block_number: {:?}", validator, block_number);
                 return None;
             }
         } else {
             for (_, &v) in &snap.recent_proposers {
                 if v == validator {
+                    tracing::warn!("🔍 snap-debug [BSC] before bohr, validator over-proposed, validator: {:?}, block_number: {:?}", validator, block_number);
                     return None;
                 }
             }
