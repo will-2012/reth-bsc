@@ -49,15 +49,16 @@ pub fn encode_header_with_chain_id(header: &Header, out: &mut dyn BufMut, chain_
     Encodable::encode(&header.mix_hash, out);
     Encodable::encode(&header.nonce, out);
 
-    if header.parent_beacon_block_root.is_some() &&
-        header.parent_beacon_block_root.unwrap() == B256::default()
-    {
-        Encodable::encode(&U256::from(header.base_fee_per_gas.unwrap()), out);
-        Encodable::encode(&header.withdrawals_root.unwrap(), out);
-        Encodable::encode(&header.blob_gas_used.unwrap(), out);
-        Encodable::encode(&header.excess_blob_gas.unwrap(), out);
-        Encodable::encode(&header.parent_beacon_block_root.unwrap(), out);
-    }
+    // if header.parent_beacon_block_root.is_some() &&
+    //     header.parent_beacon_block_root.unwrap() == B256::default()
+    // {
+    //     Encodable::encode(&U256::from(header.base_fee_per_gas.unwrap()), out);
+    //     Encodable::encode(&header.withdrawals_root.unwrap(), out);
+    //     Encodable::encode(&header.blob_gas_used.unwrap(), out);
+    //     Encodable::encode(&header.excess_blob_gas.unwrap(), out);
+    //     Encodable::encode(&header.parent_beacon_block_root.unwrap(), out);
+    // }
+
 }
 
 fn rlp_header(header: &Header, chain_id: u64) -> alloy_rlp::Header {
