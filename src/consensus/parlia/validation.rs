@@ -5,7 +5,7 @@
 
 use super::snapshot::Snapshot;
 use crate::hardforks::BscHardforks;
-use alloy_primitives::{Address, B256, U256, Bytes};
+use alloy_primitives::{Address, B256, U256};
 use alloy_consensus::BlockHeader;
 use reth::consensus::ConsensusError;
 use reth_chainspec::EthChainSpec;

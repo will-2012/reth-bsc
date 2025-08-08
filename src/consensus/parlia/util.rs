@@ -7,7 +7,7 @@ use alloy_primitives::{
 use alloy_rlp::Encodable;
 use reth_primitives::Header;
 
-use super::constants::EXTRA_SEAL as EXTRA_SEAL_LEN;
+
 
 const SECONDS_PER_DAY: u64 = 86400; // 24 * 60 * 60
 
@@ -45,7 +45,9 @@ pub fn encode_header_with_chain_id(header: &Header, out: &mut dyn BufMut, chain_
     Encodable::encode(&header.gas_limit, out);
     Encodable::encode(&header.gas_used, out);
     Encodable::encode(&header.timestamp, out);
-    Encodable::encode(&header.extra_data[..header.extra_data.len() - EXTRA_SEAL_LEN], out); // will panic if extra_data is less than EXTRA_SEAL_LEN
+    // BSC Parlia only uses the first 32 bytes (vanity) of extra_data for seal hash
+    // This matches the Go implementation: header.Extra[:extraVanity]
+    Encodable::encode(&header.extra_data[..32.min(header.extra_data.len())], out);
     Encodable::encode(&header.mix_hash, out);
     Encodable::encode(&header.nonce, out);
 
@@ -78,20 +80,20 @@ fn rlp_header(header: &Header, chain_id: u64) -> alloy_rlp::Header {
     rlp_head.payload_length += header.gas_limit.length(); // gas_limit
     rlp_head.payload_length += header.gas_used.length(); // gas_used
     rlp_head.payload_length += header.timestamp.length(); // timestamp
-    rlp_head.payload_length +=
-        &header.extra_data[..header.extra_data.len() - EXTRA_SEAL_LEN].length(); // extra_data
+    // BSC Parlia only uses the first 32 bytes (vanity) of extra_data for seal hash
+    rlp_head.payload_length += &header.extra_data[..32.min(header.extra_data.len())].length(); // extra_data (vanity only)
     rlp_head.payload_length += header.mix_hash.length(); // mix_hash
     rlp_head.payload_length += header.nonce.length(); // nonce
 
-    if header.parent_beacon_block_root.is_some() &&
-        header.parent_beacon_block_root.unwrap() == B256::default()
-    {
-        rlp_head.payload_length += U256::from(header.base_fee_per_gas.unwrap()).length();
-        rlp_head.payload_length += header.withdrawals_root.unwrap().length();
-        rlp_head.payload_length += header.blob_gas_used.unwrap().length();
-        rlp_head.payload_length += header.excess_blob_gas.unwrap().length();
-        rlp_head.payload_length += header.parent_beacon_block_root.unwrap().length();
-    }
+    // if header.parent_beacon_block_root.is_some() &&
+    //     header.parent_beacon_block_root.unwrap() == B256::default()
+    // {
+    //     rlp_head.payload_length += U256::from(header.base_fee_per_gas.unwrap()).length();
+    //     rlp_head.payload_length += header.withdrawals_root.unwrap().length();
+    //     rlp_head.payload_length += header.blob_gas_used.unwrap().length();
+    //     rlp_head.payload_length += header.excess_blob_gas.unwrap().length();
+    //     rlp_head.payload_length += header.parent_beacon_block_root.unwrap().length();
+    // }
     rlp_head
 }
 
