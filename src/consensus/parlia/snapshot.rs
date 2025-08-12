@@ -153,13 +153,13 @@ impl Snapshot {
         let is_bohr = chain_spec.is_bohr_active_at_timestamp(header_timestamp);
         if is_bohr {
             if snap.sign_recently(validator) {
-                tracing::warn!("failed to apply block due to validator over-proposed, validator: {:?}, block_number: {:?}", validator, block_number);
+                tracing::warn!("Failed to apply block due to over-proposed, validator: {:?}, block_number: {:?}", validator, block_number);
                 return None;
             }
         } else {
             for (_, &v) in &snap.recent_proposers {
                 if v == validator {
-                    tracing::warn!("failed to apply block due to validator over-proposed, validator: {:?}, block_number: {:?}", validator, block_number);
+                    tracing::warn!("Failed to apply block due to over-proposed, validator: {:?}, block_number: {:?}", validator, block_number);
                     return None;
                 }
             }
@@ -235,9 +235,6 @@ impl Snapshot {
             snap.validators = new_validators;
             snap.validators_map = validators_map;
         }
-
-        //if let Some(att) = attestation { snap.vote_data = att.data; }
-
         Some(snap)
     }
 
@@ -249,7 +246,7 @@ impl Snapshot {
             let target_number = att.data.target_number;
             let target_hash = att.data.target_hash;
             if target_number+1 != header.number() || target_hash != header.parent_hash() {
-                tracing::warn!("failed to update attestation, target_number: {:?}, target_hash: {:?}, header_number: {:?}, header_parent_hash: {:?}", target_number, target_hash, header.number(), header.parent_hash());
+                tracing::warn!("Failed to update attestation, target_number: {:?}, target_hash: {:?}, header_number: {:?}, header_parent_hash: {:?}", target_number, target_hash, header.number(), header.parent_hash());
                 return;
             }
             if att.data.source_number+1 != att.data.target_number {
@@ -325,7 +322,7 @@ impl Snapshot {
         if let Some(&times) = counts.get(&validator) {
             let allowed = u64::from(self.turn_length.unwrap_or(1));
             if u64::from(times) >= allowed { 
-                tracing::warn!("recently signed, validator: {:?}, block_number: {:?}, times: {:?}, allowed: {:?}", validator, self.block_number, times, allowed);
+                tracing::warn!("Recently signed, validator: {:?}, block_number: {:?}, times: {:?}, allowed: {:?}", validator, self.block_number, times, allowed);
                 return true; 
             }
         }
