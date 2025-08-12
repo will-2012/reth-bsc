@@ -16,7 +16,7 @@ pub(crate) const DOUBLE_SIGN_EVIDENCE_VALIDATION: PrecompileWithAddress =
 const EXTRA_SEAL_LENGTH: usize = 65;
 
 /// Double sign evidence with two different headers.
-#[derive(Debug, RlpDecodable, PartialEq)]
+#[derive(Debug, RlpDecodable, RlpEncodable, PartialEq)]
 pub(crate) struct DoubleSignEvidence {
     pub(crate) chain_id: ChainId,
     pub(crate) header_bytes1: Bytes,
@@ -24,7 +24,7 @@ pub(crate) struct DoubleSignEvidence {
 }
 
 /// Header of a block.
-#[derive(Debug, RlpDecodable, PartialEq)]
+#[derive(Debug, RlpDecodable, RlpEncodable, PartialEq, Clone)]
 pub(crate) struct Header {
     pub(crate) parent_hash: [u8; 32],
     pub(crate) uncle_hash: [u8; 32],
@@ -94,23 +94,23 @@ fn double_sign_evidence_validation_run(input: &[u8], gas_limit: u64) -> Precompi
 
     // basic check
     if header1.number.to_be_bytes().len() > 32 || header2.number.to_be_bytes().len() > 32 {
-        return revert()
+        return Err(BscPrecompileError::DoubleSignInvalidEvidence.into());
     }
     if header1.number != header2.number {
-        return revert()
+        return Err(BscPrecompileError::DoubleSignInvalidEvidence.into());
     }
     if header1.parent_hash.cmp(&header2.parent_hash) != Ordering::Equal {
-        return revert()
+        return Err(BscPrecompileError::DoubleSignInvalidEvidence.into());
     }
 
-    if header1.extra.len() < EXTRA_SEAL_LENGTH || header1.extra.len() < EXTRA_SEAL_LENGTH {
-        return revert()
+    if header1.extra.len() < EXTRA_SEAL_LENGTH || header2.extra.len() < EXTRA_SEAL_LENGTH {
+        return Err(BscPrecompileError::DoubleSignInvalidEvidence.into());
     }
 
     let sig1 = &header1.extra[header1.extra.len() - EXTRA_SEAL_LENGTH..];
     let sig2 = &header2.extra[header2.extra.len() - EXTRA_SEAL_LENGTH..];
     if sig1.eq(sig2) {
-        return revert()
+        return Err(BscPrecompileError::DoubleSignInvalidEvidence.into());
     }
 
     // check signature
@@ -118,7 +118,7 @@ fn double_sign_evidence_validation_run(input: &[u8], gas_limit: u64) -> Precompi
     let msg_hash2 = seal_hash(&header2, evidence.chain_id);
 
     if msg_hash1.eq(&msg_hash2) {
-        return revert()
+        return Err(BscPrecompileError::DoubleSignInvalidEvidence.into());
     }
 
     let recid1 = sig1[64];
@@ -130,7 +130,7 @@ fn double_sign_evidence_validation_run(input: &[u8], gas_limit: u64) -> Precompi
     let Ok(addr2) = secp256k1::ecrecover(sig2, recid2, &msg_hash2) else { return revert() };
 
     if !addr1.eq(&addr2) {
-        return revert()
+        return Err(BscPrecompileError::DoubleSignInvalidEvidence.into());
     }
 
     let mut res = [0; 52];
@@ -181,6 +181,53 @@ mod tests {
 
         let res = hex::encode(res.bytes);
         assert_eq!(res, "15d34aaf54267db7d7c367839aaf71a00a2c6a650000000000000000000000000000000000000000000000000000000000000cdf")
+    }
+
+    #[test]
+    fn test_double_sign_evidence_validation_invalid_header_number_length() {
+        // Create a header with number that has more than 32 bytes
+        let mut header1 = Header {
+            parent_hash: [0u8; 32],
+            uncle_hash: [0u8; 32],
+            coinbase: [0u8; 20],
+            root: [0u8; 32],
+            tx_hash: [0u8; 32],
+            receipt_hash: [0u8; 32],
+            bloom: [0u8; 256],
+            difficulty: U256::from(1),
+            number: BlockNumber::MAX, // This will create a very large number
+            gas_limit: 1000000,
+            gas_used: 0,
+            time: 0,
+            extra: Bytes::from(vec![0u8; 97]), // 97 = EXTRA_VANITY(32) + EXTRA_SEAL(65)
+            mix_digest: [0u8; 32],
+            nonce: [0u8; 8],
+        };
+
+        let header2 = header1.clone();
+
+        // Encode headers
+        let header_bytes1 = alloy_rlp::encode(header1);
+        let header_bytes2 = alloy_rlp::encode(header2);
+
+        // Create evidence
+        let evidence = DoubleSignEvidence {
+            chain_id: 1,
+            header_bytes1: Bytes::from(header_bytes1),
+            header_bytes2: Bytes::from(header_bytes2),
+        };
+
+        // Encode evidence
+        let input = alloy_rlp::encode(evidence);
+
+        // Run validation
+        let result = double_sign_evidence_validation_run(&input, 10_000);
+
+        // Should return DoubleSignInvalidEvidence error
+        assert!(matches!(
+            result,
+            Err(PrecompileError::Other(s)) if s == "double sign invalid evidence"
+        ));
     }
 
     #[test]
