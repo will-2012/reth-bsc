@@ -64,7 +64,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{address, b256, Bytes};
+    use alloy_primitives::Bytes;
 
     // Mock header for testing
     struct MockHeader {

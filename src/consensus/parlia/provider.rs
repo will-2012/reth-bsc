@@ -110,12 +110,12 @@ impl<DB: Database> DbSnapshotProvider<DB> {
         if let Ok(Some(raw_blob)) = tx.get::<crate::consensus::parlia::db::ParliaSnapshots>(block_number) {
             let raw = &raw_blob.0;
             if let Ok(decoded) = Snapshot::decompress(raw) {
-                tracing::debug!("✅ [BSC] Found exact snapshot for block {} in DB (snapshot_block={})", block_number, decoded.block_number);
+                tracing::debug!("Succeed to find snapshot for block {} from DB (snapshot_block={})", block_number, decoded.block_number);
                 return Some(decoded);
             }
         }
         
-        tracing::debug!("🔍 [BSC] No exact snapshot for block {}, searching for fallback...", block_number);
+        tracing::debug!("Failed to find snapshot for block {}, searching for fallback...", block_number);
         
         // If exact snapshot not found, look for the most recent snapshot before this block
         let mut cursor = tx
@@ -129,25 +129,24 @@ impl<DB: Database> DbSnapshotProvider<DB> {
             let raw = &raw_blob.0;
             if let Ok(decoded) = Snapshot::decompress(raw) {
                 found_count += 1;
-                tracing::debug!("🔍 [BSC] Found snapshot in DB: block {} -> snapshot_block {}", db_block_num, decoded.block_number);
+                tracing::trace!("Scan snapshot in DB, block {} -> snapshot_block {}", db_block_num, decoded.block_number);
                 last = Some(decoded);
             }
         }
         
         if let Some(ref snap) = last {
-            tracing::debug!("✅ [BSC] Selected fallback snapshot for block {} at block {} in DB (searched {} snapshots)", block_number, snap.block_number, found_count);
+            tracing::debug!("Succeed to find fallback snapshot for block {} at block {} in DB (searched {} snapshots)", block_number, snap.block_number, found_count);
         } else {
-            tracing::debug!("❌ [BSC] No fallback snapshot found for block {} in DB", block_number);
+            tracing::debug!("Failed to find snapshot for block {} from DB", block_number);
         }
         last
     }
 
     fn persist_to_db(&self, snap: &Snapshot) -> Result<(), DatabaseError> {
-        tracing::debug!("💾 [BSC] Starting DB persist for snapshot block {}", snap.block_number);
         let tx = self.db.tx_mut()?;
         tx.put::<crate::consensus::parlia::db::ParliaSnapshots>(snap.block_number, ParliaSnapshotBlob(snap.clone().compress()))?;
         tx.commit()?;
-        tracing::debug!("✅ [BSC] Successfully committed snapshot block {} to DB", snap.block_number);
+        tracing::debug!("Succeed to insert snapshot block {} to DB", snap.block_number);
         Ok(())
     }
 }
@@ -175,10 +174,10 @@ impl<DB: Database + 'static> SnapshotProvider for DbSnapshotProvider<DB> {
         if snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
             match self.persist_to_db(&snapshot) {
                 Ok(()) => {
-                    tracing::debug!("✅ [BSC] Successfully persisted snapshot for block {} to DB", snapshot.block_number);
+                    tracing::debug!("Succeed to persist snapshot for block {} to DB", snapshot.block_number);
                 },
                 Err(e) => {
-                    tracing::error!("❌ [BSC] Failed to persist snapshot for block {} to DB: {}", snapshot.block_number, e);
+                    tracing::error!("Failed to persist snapshot for block {} to DB due to {:?}", snapshot.block_number, e);
                 }
             }
         }
@@ -200,7 +199,7 @@ where
         {
             let mut cache_guard = self.base.cache.write();
             if let Some(cached_snap) = cache_guard.get(&block_number) {
-                tracing::debug!("✅ [BSC] Cache hit for snapshot request {} -> found snapshot for block {}", block_number, cached_snap.block_number);
+                tracing::debug!("Succeed to query snapshot from cache, request {} -> found snapshot for block {}", block_number, cached_snap.block_number);
                 return Some(cached_snap.clone());
             }
         }
@@ -329,18 +328,15 @@ where
                 Some(snap) => snap,
                 None => {
                     if header.number % 100000 == 0 { // only log every 100k blocks to reduce spam
-                        tracing::debug!("🔄 [BSC] Failed to apply header {} to snapshot during Bodies stage", header.number);
+                        tracing::debug!("Failed to apply header {} to snapshot during Bodies stage", header.number);
                     }
                     return None;
                 }
             };
 
-            // Cache intermediate snapshots (like reth-bsc-trail)
             self.base.cache.write().insert(working_snapshot.block_number, working_snapshot.clone());
-
-            // Persist checkpoint snapshots to database (like reth-bsc-trail)
             if working_snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
-                // Persisting checkpoint snapshot
+                tracing::debug!("Succeed to rebuild snapshot for block {} to DB", working_snapshot.block_number);
                 self.base.insert(working_snapshot.clone());
             }
         }
