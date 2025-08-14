@@ -31,16 +31,22 @@ where
                 panic!("Failed to initialize on-demand MDBX snapshots: {}", e);
             });
         
-        let consensus = ParliaConsensus::new(
-            ctx.chain_spec(), 
+        let consensus = Arc::new(ParliaConsensus::new(
+            ctx.chain_spec(),
             snapshot_provider.clone(),
             EPOCH, // BSC epoch length (200 blocks)
-        );
-        
+        ));
+
         // Store the snapshot provider globally so RPC can access it
-        let _ = crate::shared::set_snapshot_provider(snapshot_provider as Arc<dyn crate::consensus::parlia::SnapshotProvider + Send + Sync>);
-        
-        Ok(Arc::new(consensus))
+        let _ = crate::shared::set_snapshot_provider(
+            snapshot_provider as Arc<dyn crate::consensus::parlia::SnapshotProvider + Send + Sync>,
+        );
+
+        // Store consensus globally for RPC access as a trait object
+        let consensus_obj: Arc<dyn FullConsensus<BscPrimitives, Error = ConsensusError>> = consensus.clone();
+        let _ = crate::shared::set_parlia_consensus(consensus_obj.clone());
+
+        Ok(consensus_obj)
     }
 }
 
