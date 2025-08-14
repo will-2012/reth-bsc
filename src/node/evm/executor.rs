@@ -73,8 +73,10 @@ where
     /// State hook.
     hook: Option<Box<dyn OnStateHook>>,
     /// Snapshot provider for accessing Parlia validator snapshots.
+    #[allow(dead_code)] 
     snapshot_provider: Option<Arc<dyn SnapshotProvider + Send + Sync>>,
     /// Parlia consensus instance used (optional during execution).
+    #[allow(dead_code)]
     parlia_consensus: Option<Arc<dyn FullConsensus<BscPrimitives, Error = ConsensusError> + Send + Sync>>,
 }
 

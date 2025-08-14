@@ -23,10 +23,12 @@ pub fn get_snapshot_provider() -> Option<&'static Arc<dyn SnapshotProvider + Sen
     SNAPSHOT_PROVIDER.get()
 }
 
+/// Store the parlia consensus globally
 pub fn set_parlia_consensus(consensus: Arc<dyn FullConsensus<BscPrimitives, Error = ConsensusError> + Send + Sync>) -> Result<(), Arc<dyn FullConsensus<BscPrimitives, Error = ConsensusError> + Send + Sync>> {
     PARLIA_CONSENSUS.set(consensus)
 }
 
+/// Get the global parlia consensus
 pub fn get_parlia_consensus() -> Option<&'static Arc<dyn FullConsensus<BscPrimitives, Error = ConsensusError> + Send + Sync>> {
     PARLIA_CONSENSUS.get()
 }
