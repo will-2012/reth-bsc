@@ -22,15 +22,15 @@ pub mod util;
 
 pub use snapshot::{Snapshot, ValidatorInfo, CHECKPOINT_INTERVAL};
 pub use vote::{VoteAddress, VoteAttestation, VoteData, VoteEnvelope, VoteSignature, ValidatorsBitSet};
-pub use provider::InMemorySnapshotProvider;
 pub use constants::*;
 pub use attestation::parse_vote_attestation_from_header;
-pub use validator::{ParliaHeaderValidator, SnapshotProvider};
+pub use validator::ParliaHeaderValidator;
 pub use validation::BscConsensusValidator;
 pub use hertz_patch::{HertzPatchManager, StoragePatch};
 pub use transaction_splitter::{TransactionSplitter, SplitTransactions, TransactionSplitterError};
 pub use consensus::ParliaConsensus;
 pub use util::hash_with_chain_id;
+pub use provider::SnapshotProvider;
 
 /// Epoch length (200 blocks on BSC main-net).
 pub const EPOCH: u64 = 200;

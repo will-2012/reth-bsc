@@ -1,7 +1,5 @@
 use super::snapshot::Snapshot;
-use super::validator::SnapshotProvider;
 use parking_lot::RwLock;
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use reth_provider::{HeaderProvider, BlockReader};
 use crate::chainspec::BscChainSpec;
@@ -16,77 +14,6 @@ pub trait OnDemandSnapshotCreator {
     fn create_snapshot_on_demand(&self, target_block_number: u64) -> Option<Snapshot>;
 }
 
-/// Very simple `SnapshotProvider` that keeps the most recent `max_entries` snapshots in memory.
-/// Keys are the **block number** the snapshot is valid for (i.e. the last block of the snapshot’s
-/// epoch). For historical sync this is sufficient – we can switch to an MDBX-backed provider later.
-#[derive(Clone, Debug)]
-pub struct InMemorySnapshotProvider {
-    inner: Arc<RwLock<BTreeMap<u64, Snapshot>>>,
-    max_entries: usize,
-}
-
-impl InMemorySnapshotProvider {
-    /// Create a new provider keeping at most `max_entries` snapshots.
-    pub fn new(max_entries: usize) -> Self {
-        Self { inner: Arc::new(RwLock::new(BTreeMap::new())), max_entries }
-    }
-}
-
-impl Default for InMemorySnapshotProvider {
-    fn default() -> Self { Self::new(2048) }
-}
-
-impl SnapshotProvider for InMemorySnapshotProvider {
-    fn snapshot(&self, block_number: u64) -> Option<Snapshot> {
-        let guard = self.inner.read();
-        // InMemorySnapshotProvider::snapshot called
-        
-        // Find the greatest key <= block_number.
-        if let Some((found_block, snap)) = guard.range(..=block_number).next_back() {
-            tracing::info!("✅ [BSC-PROVIDER] Found snapshot for block {} (requested {}): validators={}, epoch_num={}", 
-                found_block, block_number, snap.validators.len(), snap.epoch_num);
-            return Some(snap.clone());
-        }
-        
-        tracing::warn!("⚠️ [BSC-PROVIDER] No snapshot found for block {}", block_number);
-        None
-    }
-
-    fn insert(&self, snapshot: Snapshot) {
-        let mut guard = self.inner.write();
-        guard.insert(snapshot.block_number, snapshot.clone());
-        
-        // clamp size
-        while guard.len() > self.max_entries {
-            // remove the smallest key
-            if let Some(first_key) = guard.keys().next().cloned() {
-                // Removing old snapshot (cache full)
-                guard.remove(&first_key);
-            }
-        }
-        // Cache updated
-    }
-    
-    fn get_checkpoint_header(&self, _block_number: u64) -> Option<alloy_consensus::Header> {
-        // InMemorySnapshotProvider doesn't have access to headers
-        None
-    }
-}
-
-impl SnapshotProvider for Arc<InMemorySnapshotProvider> {
-    fn snapshot(&self, block_number: u64) -> Option<Snapshot> {
-        (**self).snapshot(block_number)
-    }
-
-    fn insert(&self, snapshot: Snapshot) {
-        (**self).insert(snapshot)
-    }
-    
-    fn get_checkpoint_header(&self, block_number: u64) -> Option<alloy_consensus::Header> {
-        (**self).get_checkpoint_header(block_number)
-    }
-}
-
 // ---------------------------------------------------------------------------
 // MDBX‐backed snapshot provider with LRU front‐cache
 // ---------------------------------------------------------------------------
@@ -97,6 +24,17 @@ use reth_db::models::ParliaSnapshotBlob;
 use reth_db::transaction::{DbTx, DbTxMut};
 use reth_db::cursor::DbCursorRO;
 use schnellru::{ByLength, LruMap};
+
+pub trait SnapshotProvider: Send + Sync {
+    /// Returns the snapshot that is valid for the given `block_number` (usually parent block).
+    fn snapshot(&self, block_number: u64) -> Option<Snapshot>;
+
+    /// Inserts (or replaces) the snapshot in the provider.
+    fn insert(&self, snapshot: Snapshot);
+    
+    /// Fetches header by block number for checkpoint parsing (like reth-bsc-trail's get_header_by_hash)
+    fn get_checkpoint_header(&self, block_number: u64) -> Option<alloy_consensus::Header>;
+}
 
 /// `DbSnapshotProvider` wraps an MDBX database; it keeps a small in-memory LRU to avoid hitting
 /// storage for hot epochs. The DB layer persists snapshots as CBOR blobs via the `ParliaSnapshots`

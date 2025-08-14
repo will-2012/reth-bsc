@@ -1,4 +1,3 @@
-use super::snapshot::Snapshot;
 use super::{EXTRA_SEAL, EXTRA_VANITY};
 use alloy_primitives::Address;
 use reth::consensus::{ConsensusError, HeaderValidator};
@@ -93,17 +92,7 @@ where
     (vals, Some(vote_vals), turn_len)
 }
 
-/// Very light-weight snapshot provider (trait object) so the header validator can fetch the latest snapshot.
-pub trait SnapshotProvider: Send + Sync {
-    /// Returns the snapshot that is valid for the given `block_number` (usually parent block).
-    fn snapshot(&self, block_number: u64) -> Option<Snapshot>;
 
-    /// Inserts (or replaces) the snapshot in the provider.
-    fn insert(&self, snapshot: Snapshot);
-    
-    /// Fetches header by block number for checkpoint parsing (like reth-bsc-trail's get_header_by_hash)
-    fn get_checkpoint_header(&self, block_number: u64) -> Option<alloy_consensus::Header>;
-}
 
 /// Header validator for Parlia consensus.
 ///

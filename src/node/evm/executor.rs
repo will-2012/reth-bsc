@@ -59,6 +59,8 @@ where
     /// System contracts used to trigger fork specific logic.
     system_contracts: SystemContract<Spec>,
     /// Hertz patch manager for mainnet compatibility
+    /// TODO: refine later.
+    #[allow(dead_code)]
     hertz_patch_manager: HertzPatchManager,
     /// Context for block execution.
     _ctx: EthBlockExecutionCtx<'a>,
