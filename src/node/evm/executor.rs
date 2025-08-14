@@ -453,7 +453,7 @@ where
                 + FromRecoveredTx<TransactionSigned>
                 + FromTxWithEncoded<TransactionSigned>,
     >,
-    Spec: EthereumHardforks + BscHardforks + EthChainSpec + Hardforks + 'static,
+    Spec: EthereumHardforks + BscHardforks + EthChainSpec + Hardforks,
     R: ReceiptBuilder<Transaction = TransactionSigned, Receipt: TxReceipt>,
     <R as ReceiptBuilder>::Transaction: Unpin + From<TransactionSigned>,
     <E as alloy_evm::Evm>::Tx: FromTxWithEncoded<<R as ReceiptBuilder>::Transaction>,
