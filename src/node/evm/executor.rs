@@ -39,6 +39,8 @@ use revm::{
 use tracing::{debug, trace, warn};
 use alloy_eips::eip2935::{HISTORY_STORAGE_ADDRESS, HISTORY_STORAGE_CODE};
 use alloy_primitives::keccak256;
+use std::sync::Arc;
+use crate::consensus::parlia::{SnapshotProvider, ParliaConsensus};
 
 pub struct BscBlockExecutor<'a, EVM, Spec, R: ReceiptBuilder>
 where
@@ -66,8 +68,35 @@ where
     _ctx: EthBlockExecutionCtx<'a>,
     /// Utility to call system caller.
     system_caller: SystemCaller<Spec>,
-    /// state hook
+    /// State hook.
     hook: Option<Box<dyn OnStateHook>>,
+    /// Snapshot provider for accessing Parlia validator snapshots.
+    snapshot_provider: Option<Arc<dyn SnapshotProvider + Send + Sync>>,
+    /// Parlia consensus instance used (optional during execution).
+    parlia_consensus: Option<ParliaConsensus<Spec, GlobalSnapshotProvider>>,
+}
+
+#[derive(Clone)]
+struct GlobalSnapshotProvider(Arc<dyn SnapshotProvider + Send + Sync>);
+
+impl std::fmt::Debug for GlobalSnapshotProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GlobalSnapshotProvider").finish()
+    }
+}
+
+impl SnapshotProvider for GlobalSnapshotProvider {
+    fn snapshot(&self, block_number: u64) -> Option<crate::consensus::parlia::snapshot::Snapshot> {
+        self.0.snapshot(block_number)
+    }
+
+    fn insert(&self, snapshot: crate::consensus::parlia::snapshot::Snapshot) {
+        self.0.insert(snapshot)
+    }
+
+    fn get_checkpoint_header(&self, block_number: u64) -> Option<alloy_consensus::Header> {
+        self.0.get_checkpoint_header(block_number)
+    }
 }
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
@@ -79,7 +108,7 @@ where
                 + FromRecoveredTx<TransactionSigned>
                 + FromTxWithEncoded<TransactionSigned>,
     >,
-    Spec: EthereumHardforks + BscHardforks + EthChainSpec + Hardforks + Clone,
+    Spec: EthereumHardforks + BscHardforks + EthChainSpec + Hardforks + Clone + 'static,
     R: ReceiptBuilder<Transaction = TransactionSigned, Receipt: TxReceipt>,
     <R as ReceiptBuilder>::Transaction: Unpin + From<TransactionSigned>,
     <EVM as alloy_evm::Evm>::Tx: FromTxWithEncoded<<R as ReceiptBuilder>::Transaction>,
@@ -99,6 +128,14 @@ where
         let hertz_patch_manager = HertzPatchManager::new(is_mainnet);
 
         let spec_clone = spec.clone();
+        // Initialize Parlia consensus if a global snapshot provider is available
+        let parlia_consensus = if let Some(provider) = crate::shared::get_snapshot_provider() {
+            let spec_arc = Arc::new(spec.clone());
+            let provider_wrapper = Arc::new(GlobalSnapshotProvider(provider.clone()));
+            Some(ParliaConsensus::new(spec_arc, provider_wrapper, crate::consensus::parlia::EPOCH))
+        } else {
+            None
+        };
         Self {
             spec,
             evm,
@@ -111,6 +148,8 @@ where
             _ctx,
             system_caller: SystemCaller::new(spec_clone),
             hook: None,
+            snapshot_provider: crate::shared::get_snapshot_provider().cloned(),
+            parlia_consensus,
         }
     }
 
@@ -441,7 +480,7 @@ where
                 + FromRecoveredTx<TransactionSigned>
                 + FromTxWithEncoded<TransactionSigned>,
     >,
-    Spec: EthereumHardforks + BscHardforks + EthChainSpec + Hardforks,
+    Spec: EthereumHardforks + BscHardforks + EthChainSpec + Hardforks + 'static,
     R: ReceiptBuilder<Transaction = TransactionSigned, Receipt: TxReceipt>,
     <R as ReceiptBuilder>::Transaction: Unpin + From<TransactionSigned>,
     <E as alloy_evm::Evm>::Tx: FromTxWithEncoded<<R as ReceiptBuilder>::Transaction>,
