@@ -308,8 +308,7 @@ where
     Self: Send + Sync + Unpin + Clone + 'static,
 {
     fn evm_env_for_payload(&self, payload: &BscExecutionData) -> EvmEnv<BscHardfork> {
-        let header = &payload.0.header;
-        self.evm_env(header)
+        self.evm_env(&payload.0.header)
     }
 
     fn context_for_payload<'a>(&self, payload: &'a BscExecutionData) -> EthBlockExecutionCtx<'a> {
