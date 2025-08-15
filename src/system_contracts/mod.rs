@@ -28,6 +28,7 @@ pub(crate) struct SystemContract<Spec: EthChainSpec> {
     stake_hub_abi: JsonAbi,
     /// The chain spec
     chain_spec: Spec,
+    // TODO: add validator set abi before luban.
 }
 
 impl<Spec: EthChainSpec> SystemContract<Spec> {

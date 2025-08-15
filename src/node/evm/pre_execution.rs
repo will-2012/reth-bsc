@@ -6,6 +6,8 @@ use reth_primitives::TransactionSigned;
 use reth_revm::State;
 use revm::context::BlockEnv;
 use alloy_consensus::TxReceipt;
+use alloy_primitives::Address;
+use crate::consensus::parlia::VoteAddress;
 // use consensus trait object for cascading validation
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
@@ -59,6 +61,7 @@ where
             .unwrap()
             .verify_cascading_fields(&header, &parent_header, None, &snap);
 
+        // TODO: remove this part, just for debug.
         if let Err(err) = verify_res {
             let proposer = header.beneficiary;
             let is_inturn = snap.is_inturn(proposer);
@@ -89,8 +92,21 @@ where
             return Err(err);
         }
 
-        // TODO: query finalise input from parlia consensus object.
+        // TODO: query validator-related info from system contract.
 
         Ok(())
+    }
+
+    fn get_current_validators(&self, block_number: u64) -> (Vec<Address>, Vec<VoteAddress>) {
+        if self.spec.is_luban_active_at_block(block_number) {
+
+           // let validators = self.system_contracts.
+
+            // TODO: query validator-related info from system contract.
+            return (Vec::new(), Vec::new());
+        } else {
+            // TODO: query validator-related info from system contract.
+            return (Vec::new(), Vec::new());
+        }
     }
 }

@@ -49,7 +49,7 @@ where
     Spec: EthChainSpec,
 {
     /// Reference to the specification object.
-    spec: Spec,
+    pub(super) spec: Spec,
     /// Inner EVM.
     evm: EVM,
     /// Gas used in the block.
@@ -61,7 +61,7 @@ where
     /// Receipt builder.
     receipt_builder: R,
     /// System contracts used to trigger fork specific logic.
-    system_contracts: SystemContract<Spec>,
+    pub(super) system_contracts: SystemContract<Spec>,
     /// Hertz patch manager for mainnet compatibility
     /// TODO: refine later.
     #[allow(dead_code)]
