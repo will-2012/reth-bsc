@@ -46,7 +46,7 @@ where
 
     /// Verify block time for Ramanujan fork
     /// After Ramanujan activation, blocks must respect specific timing rules
-    // TODO: refine and fix this function.
+    // TODO: refine and fix this function, now bypass backoff time.
     fn verify_block_time_for_ramanujan(
         &self,
         snapshot: &Snapshot,
@@ -80,8 +80,11 @@ where
             0
         } else {
             // Out-of-turn validators must wait longer
-            let turn_length = snapshot.turn_length.unwrap_or(1) as u64;
-            turn_length * snapshot.block_interval / 2
+            // TODO: fix this calculation.
+            // https://github.com/bnb-chain/reth-bsc-trail/blob/main/crates/bsc/consensus/src/lib.rs#L293
+            // let turn_length = snapshot.turn_length.unwrap_or(1) as u64;
+            // turn_length * snapshot.block_interval / 2
+            0
         }
     }
 
