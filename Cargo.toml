@@ -183,3 +183,6 @@ codegen-units = 16
 inherits = "release"
 lto = "fat"
 codegen-units = 1
+
+[dev-dependencies]
+uuid = { version = "1", features = ["v4"] }
