@@ -28,6 +28,7 @@ where
     /// depends on parlia, header and snapshot.
     pub(crate) fn check_new_block(&mut self, block: &BlockEnv) -> Result<(), BlockExecutionError> {
         let block_number = block.number.to::<u64>();
+        tracing::info!("Check new block, block_number: {}", block_number);
 
         let header = self
             .snapshot_provider

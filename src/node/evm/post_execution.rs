@@ -25,9 +25,10 @@ where
 {
     /// finalize the new block, post check and finalize the system tx.
     /// depends on parlia, header and snapshot.
-    pub(crate) fn finalize_new_block(&mut self, _block: &BlockEnv) -> Result<(), BlockExecutionError> {
+    pub(crate) fn finalize_new_block(&mut self, block: &BlockEnv) -> Result<(), BlockExecutionError> {
         // TODO: implement this function.
         // unimplemented!();
+        tracing::info!("Finalize new block, block_number: {}", block.number);
         Ok(())
     }
 }

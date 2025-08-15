@@ -294,10 +294,7 @@ where
                     let parsed = super::validator::parse_epoch_update(checkpoint_header, 
                         self.chain_spec.is_luban_active_at_block(checkpoint_header.number),
                         self.chain_spec.is_bohr_active_at_timestamp(checkpoint_header.timestamp)
-                    );
-                    
-                    // Validator set parsed from checkpoint header
-                    
+                    );                    
                     parsed
                 } else {
                     tracing::warn!("⚠️ [BSC] Checkpoint header for block {} not found in headers_to_apply list", checkpoint_block_number);
@@ -355,7 +352,7 @@ where
         match self.header_provider.header_by_number(block_number) {
             Ok(header) => header,
             Err(e) => {
-                tracing::error!("❌ [BSC] Failed to fetch header for block {}: {:?}", block_number, e);
+                tracing::error!("Failed to fetch header for block {}: {:?}", block_number, e);
                 None
             }
         }
