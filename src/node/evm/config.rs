@@ -3,10 +3,11 @@ use crate::{
     chainspec::BscChainSpec,
     evm::transaction::BscTxEnv,
     hardforks::{bsc::BscHardfork, BscHardforks},
+    node::engine_api::validator::BscExecutionData,
     system_contracts::SystemContract,
     BscPrimitives,
 };
-use alloy_consensus::{BlockHeader, Header, TxReceipt};
+use alloy_consensus::{transaction::SignerRecoverable, BlockHeader, Header, TxReceipt};
 use alloy_eips::eip7840::BlobParams;
 use alloy_primitives::{Log, U256};
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
@@ -14,8 +15,8 @@ use reth_ethereum_forks::EthereumHardfork;
 use reth_evm::{
     block::{BlockExecutorFactory, BlockExecutorFor},
     eth::{receipt_builder::ReceiptBuilder, EthBlockExecutionCtx},
-    ConfigureEvm, EvmEnv, EvmFactory, ExecutableTxIterator, ExecutionCtxFor, FromRecoveredTx,
-    FromTxWithEncoded, IntoTxEnv, NextBlockEnvAttributes,
+    ConfigureEngineEvm, ConfigureEvm, EvmEnv, EvmFactory, ExecutableTxIterator, ExecutionCtxFor,
+    FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, NextBlockEnvAttributes,
 };
 use reth_evm_ethereum::{EthBlockAssembler, RethReceiptBuilder};
 use reth_primitives::{BlockTy, HeaderTy, SealedBlock, SealedHeader, TransactionSigned};
@@ -302,9 +303,6 @@ where
     }
 }
 
-use crate::node::engine_api::validator::BscExecutionData;
-use reth_evm::ConfigureEngineEvm;
-
 impl ConfigureEngineEvm<BscExecutionData> for BscEvmConfig
 where
     Self: Send + Sync + Unpin + Clone + 'static,
@@ -328,14 +326,7 @@ where
         &self,
         payload: &BscExecutionData,
     ) -> impl ExecutableTxIterator<Self> {
-        use alloy_consensus::crypto::secp256k1::recover_signer;
-        use reth_primitives::Recovered;
-
-        let transactions = payload.0.body.inner.transactions.clone();
-        transactions.into_iter().map(|tx| {
-            let signer = recover_signer(tx.signature(), tx.signature_hash())?;
-            Ok::<_, alloy_consensus::crypto::RecoveryError>(Recovered::new_unchecked(tx, signer))
-        })
+        payload.0.body.inner.transactions.clone().into_iter().map(|tx| tx.try_into_recovered())
     }
 }
 

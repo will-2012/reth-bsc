@@ -384,7 +384,7 @@ where
             .evm
             .db_mut()
             .load_cache_account(HISTORY_STORAGE_ADDRESS)
-            .map_err(|err| BlockExecutionError::other(err))?;
+            .map_err(BlockExecutionError::other)?;
 
         let mut new_info = account.account_info().unwrap_or_default();
         new_info.code_hash = keccak256(HISTORY_STORAGE_CODE.clone());
