@@ -45,6 +45,7 @@ where
 
     /// Verify block time for Ramanujan fork
     /// After Ramanujan activation, blocks must respect specific timing rules
+    // TODO: refine and fix this function.
     fn verify_block_time_for_ramanujan(
         &self,
         snapshot: &Snapshot,
@@ -57,9 +58,12 @@ where
             
             if header.timestamp() < parent.timestamp() + block_interval + back_off_time {
                 return Err(ConsensusError::Other(format!(
-                    "Block time validation failed for Ramanujan fork: block {} timestamp {} too early",
+                    "Block time validation failed for Ramanujan fork: block {} timestamp {} too early, parent_timestamp {}, block_interval {}, backoff_time {}",
                     header.number(),
-                    header.timestamp()
+                    header.timestamp(),
+                    parent.timestamp(),
+                    block_interval,
+                    back_off_time
                 )));
             }
         }
