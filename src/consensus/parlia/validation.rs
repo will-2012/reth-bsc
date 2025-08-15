@@ -9,6 +9,7 @@ use alloy_primitives::{Address, B256, U256};
 use alloy_consensus::BlockHeader;
 use reth::consensus::ConsensusError;
 use reth_chainspec::EthChainSpec;
+use reth_eth_wire::snap;
 use reth_primitives_traits::SealedHeader;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -75,7 +76,7 @@ where
     fn calculate_back_off_time(&self, snapshot: &Snapshot, header: &SealedHeader) -> u64 {
         let validator = header.beneficiary();
         let is_inturn = snapshot.inturn_validator() == validator;
-        
+
         if is_inturn {
             0
         } else {
@@ -134,9 +135,12 @@ where
         
         if header.difficulty() != U256::from(expected_difficulty) {
             return Err(ConsensusError::Other(format!(
-                "Invalid difficulty: expected {}, got {}",
+                "Invalid difficulty: expected {}, got {}, expected_validator={}, actual_validator={} at new block {}",
                 expected_difficulty,
-                header.difficulty()
+                header.difficulty(),
+                snapshot.inturn_validator(),
+                proposer,
+                header.number()
             )));
         }
 
