@@ -352,7 +352,10 @@ where
         // Use the provider to fetch header from database (like reth-bsc-trail's get_header_by_hash)
         use reth_provider::HeaderProvider;
         match self.header_provider.header_by_number(block_number) {
-            Ok(header) => header,
+            Ok(header) => {
+                tracing::info!("Succeed to fetch header{} for block {} in enhanced snapshot provider", header.is_none(),block_number);
+                header
+            },
             Err(e) => {
                 tracing::error!("Failed to fetch header for block {}: {:?}", block_number, e);
                 None
