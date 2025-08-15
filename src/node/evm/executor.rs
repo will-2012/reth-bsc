@@ -41,8 +41,8 @@ use alloy_eips::eip2935::{HISTORY_STORAGE_ADDRESS, HISTORY_STORAGE_CODE};
 use alloy_primitives::keccak256;
 use std::sync::Arc;
 use crate::consensus::parlia::SnapshotProvider;
-use crate::BscPrimitives;
-use reth::consensus::{ConsensusError, FullConsensus};
+// use crate::BscPrimitives; // not needed directly here
+// use reth::consensus::{ConsensusError, FullConsensus}; // trait object is via ParliaConsensusObject
 
 pub struct BscBlockExecutor<'a, EVM, Spec, R: ReceiptBuilder>
 where
@@ -73,11 +73,9 @@ where
     /// State hook.
     hook: Option<Box<dyn OnStateHook>>,
     /// Snapshot provider for accessing Parlia validator snapshots.
-    #[allow(dead_code)] 
-    snapshot_provider: Option<Arc<dyn SnapshotProvider + Send + Sync>>,
+    pub(super) snapshot_provider: Option<Arc<dyn SnapshotProvider + Send + Sync>>,
     /// Parlia consensus instance used (optional during execution).
-    #[allow(dead_code)]
-    parlia_consensus: Option<Arc<dyn FullConsensus<BscPrimitives, Error = ConsensusError> + Send + Sync>>,
+    pub(super) parlia_consensus: Option<Arc<dyn crate::consensus::parlia::ParliaConsensusObject + Send + Sync>>,
 }
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
@@ -465,6 +463,9 @@ where
     type Evm = E;
 
     fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
+        let block_env = self.evm.block().clone();
+        self.check_new_block(&block_env)?;
+
         // Set state clear flag if the block is after the Spurious Dragon hardfork.
         let state_clear_flag =
             self.spec.is_spurious_dragon_active_at_block(self.evm.block().number.to());

@@ -14,6 +14,7 @@ use reth_provider::BlockExecutionResult;
 use reth_primitives_traits::{Block, SealedBlock, SealedHeader, RecoveredBlock};
 use reth_chainspec::EthChainSpec;
 use std::sync::Arc;
+use std::collections::HashMap;
 
 /// Enhanced Parlia consensus that implements proper pre/post execution validation
 #[derive(Debug, Clone)]
@@ -484,6 +485,29 @@ where
         }
 
         Ok(())
+    }
+}
+
+impl<ChainSpec, P> super::ParliaConsensusObject for ParliaConsensus<ChainSpec, P>
+where
+    ChainSpec: EthChainSpec + BscHardforks + 'static,
+    P: SnapshotProvider + std::fmt::Debug + 'static,
+{
+    fn verify_cascading_fields(
+        &self,
+        header: &Header,
+        parent: &Header,
+        _ancestor: Option<&HashMap<alloy_primitives::B256, SealedHeader<Header>>>,
+        snap: &Snapshot,
+    ) -> Result<(), reth_evm::execute::BlockExecutionError> {
+        let header_hash = alloy_primitives::keccak256(alloy_rlp::encode(header));
+        let parent_hash = alloy_primitives::keccak256(alloy_rlp::encode(parent));
+        let sealed_header = SealedHeader::new(header.clone(), header_hash);
+        let sealed_parent = SealedHeader::new(parent.clone(), parent_hash);
+
+        self.consensus_validator
+            .verify_cascading_fields(&sealed_header, &sealed_parent, None, snap)
+            .map_err(|e| reth_evm::execute::BlockExecutionError::msg(format!("{}", e)))
     }
 }
 
