@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use crate::consensus::parlia::TURN_LENGTH_SIZE;
+//use crate::consensus::parlia::TURN_LENGTH_SIZE;
 
 use super::vote::{VoteAddress, VoteAttestation, VoteData};
 use alloy_primitives::{Address, BlockNumber, B256};

@@ -9,7 +9,7 @@ use alloy_primitives::{Address, B256, U256};
 use alloy_consensus::BlockHeader;
 use reth::consensus::ConsensusError;
 use reth_chainspec::EthChainSpec;
-use reth_eth_wire::snap;
+//use reth_eth_wire::snap;
 use reth_primitives_traits::SealedHeader;
 use std::collections::HashMap;
 use std::sync::Arc;
