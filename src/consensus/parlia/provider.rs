@@ -184,8 +184,9 @@ impl<DB: Database + 'static> SnapshotProvider for DbSnapshotProvider<DB> {
     }
     
     fn get_checkpoint_header(&self, _block_number: u64) -> Option<alloy_consensus::Header> {
+        tracing::info!("Get checkpoint header for block {} in DbSnapshotProvider", _block_number);
         // DbSnapshotProvider doesn't have access to headers
-        None
+        unimplemented!("DbSnapshotProvider doesn't have access to headers");
     }
 }
 
@@ -347,6 +348,7 @@ where
     }
     
     fn get_checkpoint_header(&self, block_number: u64) -> Option<alloy_consensus::Header> {
+        tracing::info!("Get checkpoint header for block {} in enhanced snapshot provider", block_number);
         // Use the provider to fetch header from database (like reth-bsc-trail's get_header_by_hash)
         use reth_provider::HeaderProvider;
         match self.header_provider.header_by_number(block_number) {
