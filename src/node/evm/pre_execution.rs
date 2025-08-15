@@ -24,6 +24,8 @@ where
     BscTxEnv: IntoTxEnv<<EVM as alloy_evm::Evm>::Tx>,
     R::Transaction: Into<TransactionSigned>,
 {
+    /// check the new block, pre check and prepare some intermediate data for commit parlia snapshot in finish function.
+    /// depends on parlia/header/snapshot.
     pub(crate) fn check_new_block(&mut self, block: &BlockEnv) -> Result<(), BlockExecutionError> {
         let header = self.snapshot_provider.as_ref().unwrap().get_checkpoint_header(block.number.to::<u64>()).ok_or(BlockExecutionError::msg("Failed to get header from snapshot provider"))?;
         let parent_header = self.snapshot_provider.as_ref().unwrap().get_checkpoint_header(block.number.to::<u64>() - 1).ok_or(BlockExecutionError::msg("Failed to get parent header from snapshot provider"))?;
@@ -35,6 +37,8 @@ where
             .as_ref()
             .unwrap()
             .verify_cascading_fields(&header, &parent_header, None, &snap)?;
+
+        // TODO: query finalise input from parlia consensus object.
 
         Ok(())
     }
