@@ -47,7 +47,7 @@ where
             .snapshot_provider
             .as_ref()
             .unwrap()
-            .snapshot(block_number)
+            .snapshot(block_number-1)
             .ok_or(BlockExecutionError::msg("Failed to get snapshot from snapshot provider"))?;
 
         // Delegate to Parlia consensus object; no ancestors available here, pass None
