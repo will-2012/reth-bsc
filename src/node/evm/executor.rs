@@ -39,6 +39,10 @@ use revm::{
 use tracing::{debug, trace, warn};
 use alloy_eips::eip2935::{HISTORY_STORAGE_ADDRESS, HISTORY_STORAGE_CODE};
 use alloy_primitives::keccak256;
+use std::sync::Arc;
+use crate::consensus::parlia::SnapshotProvider;
+// use crate::BscPrimitives; // not needed directly here
+// use reth::consensus::{ConsensusError, FullConsensus}; // trait object is via ParliaConsensusObject
 
 pub struct BscBlockExecutor<'a, EVM, Spec, R: ReceiptBuilder>
 where
@@ -59,13 +63,19 @@ where
     /// System contracts used to trigger fork specific logic.
     system_contracts: SystemContract<Spec>,
     /// Hertz patch manager for mainnet compatibility
+    /// TODO: refine later.
+    #[allow(dead_code)]
     hertz_patch_manager: HertzPatchManager,
     /// Context for block execution.
     _ctx: EthBlockExecutionCtx<'a>,
     /// Utility to call system caller.
     system_caller: SystemCaller<Spec>,
-    /// state hook
+    /// State hook.
     hook: Option<Box<dyn OnStateHook>>,
+    /// Snapshot provider for accessing Parlia validator snapshots.
+    pub(super) snapshot_provider: Option<Arc<dyn SnapshotProvider + Send + Sync>>,
+    /// Parlia consensus instance used (optional during execution).
+    pub(super) parlia_consensus: Option<Arc<dyn crate::consensus::parlia::ParliaConsensusObject + Send + Sync>>,
 }
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
@@ -109,6 +119,8 @@ where
             _ctx,
             system_caller: SystemCaller::new(spec_clone),
             hook: None,
+            snapshot_provider: crate::shared::get_snapshot_provider().cloned(),
+            parlia_consensus: crate::shared::get_parlia_consensus().cloned(),
         }
     }
 
@@ -451,69 +463,19 @@ where
     type Evm = E;
 
     fn apply_pre_execution_changes(&mut self) -> Result<(), BlockExecutionError> {
-        // Set state clear flag if the block is after the Spurious Dragon hardfork.
-        let state_clear_flag =
-            self.spec.is_spurious_dragon_active_at_block(self.evm.block().number.to());
-        self.evm.db_mut().set_state_clear_flag(state_clear_flag);
+        // pre check and prepare some intermediate data for commit parlia snapshot in finish function.
+        let block_env = self.evm.block().clone();
+        self.check_new_block(&block_env)?;
 
-        // TODO: (Consensus Verify cascading fields)[https://github.com/bnb-chain/reth/blob/main/crates/bsc/evm/src/pre_execution.rs#L43]
-        // TODO: (Consensus System Call Before Execution)[https://github.com/bnb-chain/reth/blob/main/crates/bsc/evm/src/execute.rs#L678]
+        // set state clear flag if the block is after the Spurious Dragon hardfork.
+        let state_clear_flag = self.spec.is_spurious_dragon_active_at_block(self.evm.block().number.to());
+        self.evm.db_mut().set_state_clear_flag(state_clear_flag);
 
         if !self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
             self.upgrade_contracts()?;
         }
 
-        // -----------------------------------------------------------------
-        // reth-bsc-trail PATTERN: Get parent snapshot at start of execution
-        // This ensures we have the parent snapshot available for the entire execution
-        // -----------------------------------------------------------------
-        use crate::consensus::parlia::{hooks::{ParliaHooks, PreExecutionHook}, snapshot::Snapshot};
-
-        // Get parent snapshot at start of execution (like reth-bsc-trail does)
-        let current_block_number = self.evm.block().number.to::<u64>();
-        let parent_block_number = current_block_number.saturating_sub(1);
-        
-        let snap_for_hooks = if let Some(provider) = crate::shared::get_snapshot_provider() {
-            // Get parent snapshot (like reth-bsc-trail does at start of execution)
-            match provider.snapshot(parent_block_number) {
-                Some(parent_snap) => {
-                    tracing::debug!("✅ [BSC] Got parent snapshot for block {} at start of execution (following reth-bsc-trail pattern)", parent_block_number);
-                    parent_snap
-                },
-                None => {
-                    tracing::warn!("⚠️ [BSC] Parent snapshot not available for block {} at start of execution", parent_block_number);
-                    Snapshot::default()
-                }
-            }
-        } else {
-            tracing::debug!("🔍 [BSC] No global snapshot provider available, using placeholder for hooks");
-            Snapshot::default()
-        };
-        let beneficiary = self.evm.block().beneficiary;
-
-        // Assume in-turn for now; detailed check requires snapshot state which will be wired
-        // later.
-        let in_turn = true;
-
-        // DEBUG: Uncomment to trace Parlia pre-execution hooks
-        // debug!("🎯 [BSC] apply_pre_execution_changes: calling Parlia pre-execution hooks, beneficiary={:?}, in_turn={}", 
-        //     beneficiary, in_turn);
-
-        let pre_out = (ParliaHooks, &self.system_contracts)
-            .on_pre_execution(&snap_for_hooks, beneficiary, in_turn);
-
-        // DEBUG: Uncomment to trace Parlia hooks output
-        // debug!("🎯 [BSC] apply_pre_execution_changes: Parlia hooks returned {} system txs, reserved_gas={}", 
-        //     pre_out.system_txs.len(), pre_out.reserved_gas);
-
-        // Queue system-transactions for execution in finish().
-        // Note: We don't reserve gas here since we'll execute the actual transactions and count their real gas usage.
-        self.system_txs.extend(pre_out.system_txs.into_iter());
-
-        // DEBUG: Uncomment to trace queued system transactions count
-        // debug!("🎯 [BSC] apply_pre_execution_changes: total queued system txs now: {}", self.system_txs.len());
-
-        // enable BEP-440/EIP-2935 for historical block hashes from state
+        // enable BEP-440/EIP-2935 for historical block hashes from state.
         if self.spec.is_prague_transition_at_timestamp(self.evm.block().timestamp.to(), self.evm.block().timestamp.to::<u64>() - 3) {
             self.apply_history_storage_account(self.evm.block().number.to::<u64>())?;
         }
@@ -529,7 +491,7 @@ where
         _tx: impl ExecutableTx<Self>,
         _f: impl FnOnce(&ExecutionResult<<Self::Evm as Evm>::HaltReason>) -> CommitChanges,
     ) -> Result<Option<u64>, BlockExecutionError> {
-        Ok(Some(0))
+        unimplemented!();
     }
 
     fn execute_transaction_with_result_closure(
@@ -625,6 +587,7 @@ where
         mut self,
     ) -> Result<(Self::Evm, BlockExecutionResult<R::Receipt>), BlockExecutionError> {
 
+        self.finalize_new_block(&self.evm.block().clone())?;
         
         // TODO:
         // Consensus: Verify validators

@@ -202,12 +202,24 @@ impl<P: SnapshotProvider + Send + Sync + 'static> ParliaApiServer for ParliaApiI
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::consensus::parlia::InMemorySnapshotProvider;
+    use crate::chainspec::{bsc_testnet, BscChainSpec};
+    use crate::consensus::parlia::provider::EnhancedDbSnapshotProvider;
+    use reth_db::test_utils::create_test_rw_db;
+    use reth_provider::test_utils::NoopProvider;
 
 
     #[tokio::test]
     async fn test_snapshot_api() {
-        let snapshot_provider = Arc::new(InMemorySnapshotProvider::new(100));
+        // Build an EnhancedDbSnapshotProvider backed by a temp DB and noop header provider
+        let db = create_test_rw_db();
+        let header_provider = Arc::new(NoopProvider::default());
+        let chain_spec = Arc::new(BscChainSpec::from(bsc_testnet()));
+        let snapshot_provider = Arc::new(EnhancedDbSnapshotProvider::new(
+            db.clone(),
+            2048,
+            header_provider,
+            chain_spec,
+        ));
         
         // Insert a test snapshot
         let mut test_snapshot = Snapshot::default();

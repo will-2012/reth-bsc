@@ -9,9 +9,11 @@ use alloy_primitives::{Address, B256, U256};
 use alloy_consensus::BlockHeader;
 use reth::consensus::ConsensusError;
 use reth_chainspec::EthChainSpec;
+//use reth_eth_wire::snap;
 use reth_primitives_traits::SealedHeader;
 use std::collections::HashMap;
 use std::sync::Arc;
+use crate::consensus::parlia::util::calculate_millisecond_timestamp;
 
 /// BSC consensus validator that implements the missing pre/post execution logic
 #[derive(Debug, Clone)]
@@ -45,6 +47,7 @@ where
 
     /// Verify block time for Ramanujan fork
     /// After Ramanujan activation, blocks must respect specific timing rules
+    // TODO: refine and fix this function, now bypass backoff time.
     fn verify_block_time_for_ramanujan(
         &self,
         snapshot: &Snapshot,
@@ -55,11 +58,14 @@ where
             let block_interval = snapshot.block_interval;
             let back_off_time = self.calculate_back_off_time(snapshot, header);
             
-            if header.timestamp() < parent.timestamp() + block_interval + back_off_time {
+            if calculate_millisecond_timestamp(header) < calculate_millisecond_timestamp(parent) + block_interval + back_off_time {
                 return Err(ConsensusError::Other(format!(
-                    "Block time validation failed for Ramanujan fork: block {} timestamp {} too early",
+                    "Block time validation failed for Ramanujan fork: block {} timestamp {} too early, parent_timestamp {}, block_interval {}, backoff_time {}",
                     header.number(),
-                    header.timestamp()
+                    calculate_millisecond_timestamp(header),
+                    calculate_millisecond_timestamp(parent),
+                    block_interval,
+                    back_off_time
                 )));
             }
         }
@@ -70,13 +76,16 @@ where
     fn calculate_back_off_time(&self, snapshot: &Snapshot, header: &SealedHeader) -> u64 {
         let validator = header.beneficiary();
         let is_inturn = snapshot.inturn_validator() == validator;
-        
+
         if is_inturn {
             0
         } else {
             // Out-of-turn validators must wait longer
-            let turn_length = snapshot.turn_length.unwrap_or(1) as u64;
-            turn_length * snapshot.block_interval / 2
+            // TODO: fix this calculation.
+            // https://github.com/bnb-chain/reth-bsc-trail/blob/main/crates/bsc/consensus/src/lib.rs#L293
+            // let turn_length = snapshot.turn_length.unwrap_or(1) as u64;
+            // turn_length * snapshot.block_interval / 2
+            0
         }
     }
 
@@ -126,9 +135,13 @@ where
         
         if header.difficulty() != U256::from(expected_difficulty) {
             return Err(ConsensusError::Other(format!(
-                "Invalid difficulty: expected {}, got {}",
+                "Invalid difficulty: expected {}, got {}, expected_validator={}, actual_validator={} at block {}, snapshot_block={}",
                 expected_difficulty,
-                header.difficulty()
+                header.difficulty(),
+                snapshot.inturn_validator(),
+                proposer,
+                header.number(),
+                snapshot.block_number
             )));
         }
 

@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
+//use crate::consensus::parlia::TURN_LENGTH_SIZE;
+
 use super::vote::{VoteAddress, VoteAttestation, VoteData};
 use alloy_primitives::{Address, BlockNumber, B256};
 use serde::{Deserialize, Serialize};
@@ -59,7 +61,7 @@ pub struct Snapshot {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn_length: Option<u8>,
 
-    /// Expected block interval in seconds.
+    /// Expected block interval in milliseconds.
     pub block_interval: u64,
 }
 
@@ -281,14 +283,14 @@ impl Snapshot {
 
     /// Validator that should propose the **next** block.
     pub fn inturn_validator(&self) -> Address {
-        let turn = u64::from(self.turn_length.unwrap_or(DEFAULT_TURN_LENGTH));
+        let turn_length = u64::from(self.turn_length.unwrap_or(DEFAULT_TURN_LENGTH));
         let next_block = self.block_number + 1;
-        let offset = (next_block / turn) as usize % self.validators.len();
+        let offset = (next_block / turn_length) as usize % self.validators.len();
         let next_validator = self.validators[offset];
         
         tracing::debug!(
-            "🔢 [BSC] inturn_validator calculation: snapshot_block={}, next_block={}, turn={}, offset={}, validators_len={}, next_validator=0x{:x}",
-            self.block_number, next_block, turn, offset, self.validators.len(), next_validator
+            "inturn_validator debug info, snapshot_block={}, next_block={}, turn_length={}, offset={}, validators_len={}, next_validator=0x{:x}",
+            self.block_number, next_block, turn_length, offset, self.validators.len(), next_validator
         );
         
         next_validator

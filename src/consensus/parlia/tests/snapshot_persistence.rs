@@ -3,7 +3,7 @@
 use super::super::{
     provider::DbSnapshotProvider,
     snapshot::Snapshot,
-    validator::SnapshotProvider,
+    provider::SnapshotProvider,
 };
 use alloy_primitives::{Address, B256};
 use reth_db::{init_db, mdbx::DatabaseArguments, Database, transaction::DbTx, cursor::DbCursorRO};

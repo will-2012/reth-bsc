@@ -22,15 +22,31 @@ pub mod util;
 
 pub use snapshot::{Snapshot, ValidatorInfo, CHECKPOINT_INTERVAL};
 pub use vote::{VoteAddress, VoteAttestation, VoteData, VoteEnvelope, VoteSignature, ValidatorsBitSet};
-pub use provider::InMemorySnapshotProvider;
 pub use constants::*;
 pub use attestation::parse_vote_attestation_from_header;
-pub use validator::{ParliaHeaderValidator, SnapshotProvider};
+pub use validator::ParliaHeaderValidator;
 pub use validation::BscConsensusValidator;
 pub use hertz_patch::{HertzPatchManager, StoragePatch};
 pub use transaction_splitter::{TransactionSplitter, SplitTransactions, TransactionSplitterError};
 pub use consensus::ParliaConsensus;
 pub use util::hash_with_chain_id;
+pub use provider::SnapshotProvider;
+
+// A single object-safe trait to represent the Parlia consensus object when held globally.
+// This combines the execution-facing validator API with the consensus engine trait.
+pub trait ParliaConsensusObject:
+    reth::consensus::FullConsensus<crate::BscPrimitives, Error = reth::consensus::ConsensusError>
+{
+    fn verify_cascading_fields(
+        &self,
+        header: &alloy_consensus::Header,
+        parent: &alloy_consensus::Header,
+        ancestor: Option<&std::collections::HashMap<alloy_primitives::B256, reth_primitives_traits::SealedHeader>>,
+        snap: &Snapshot,
+    ) -> Result<(), reth_evm::execute::BlockExecutionError>;
+}
+
+// Note: concrete implementation is provided for `ParliaConsensus` in `consensus.rs`
 
 /// Epoch length (200 blocks on BSC main-net).
 pub const EPOCH: u64 = 200;
