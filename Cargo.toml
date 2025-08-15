@@ -171,15 +171,6 @@ client = [
     "reth-rpc-eth-api/client",
 ]
 
-[dev-dependencies]
-# E2E test-suite support
-reth-e2e-test-utils = { git = "https://github.com/clydemeng/reth.git", branch = "6487f0b-bsc-patch" }
-# (all other reth crates are pulled in automatically via workspace deps)
-
-# For unit tests
-uuid = { version = "1.0", features = ["v4"] }
-
-
 [profile.release]
 opt-level = 3
 lto = "thin"

@@ -4,8 +4,6 @@ use alloy_primitives::{BlockHash, B256, U256};
 use reth_chainspec::{
     make_genesis_header, BaseFeeParams, BaseFeeParamsKind, Chain, ChainSpec, Head, NamedChain,
 };
-use alloy_eips::{eip7840::BlobParams, eip7892::BlobScheduleBlobParams};
-use alloy_eips::eip4844::BLOB_TX_MIN_BLOB_GASPRICE;
 use reth_primitives::SealedHeader;
 use std::str::FromStr;
 
@@ -21,23 +19,6 @@ pub fn bsc_testnet() -> ChainSpec {
         hardforks: BscHardfork::bsc_testnet(),
         deposit_contract: None,
         base_fee_params: BaseFeeParamsKind::Constant(BaseFeeParams::new(1, 1)),
-        blob_params: BlobScheduleBlobParams {
-            cancun: BlobParams {
-                target_blob_count: 3,
-                max_blob_count: 6,
-                update_fraction: 3_338_477,
-                min_blob_fee: BLOB_TX_MIN_BLOB_GASPRICE,
-                max_blobs_per_tx: 6,
-            },
-            prague: BlobParams {
-                target_blob_count: 3, // BSC testnet keeps same values as mainnet
-                max_blob_count: 6,
-                update_fraction: 3_338_477,
-                min_blob_fee: BLOB_TX_MIN_BLOB_GASPRICE,
-                max_blobs_per_tx: 6,
-            },
-            ..Default::default()
-        },
         prune_delete_limit: 3500,
         genesis_header: SealedHeader::new(
             make_genesis_header(&genesis, &hardforks),
