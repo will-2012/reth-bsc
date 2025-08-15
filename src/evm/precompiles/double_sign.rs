@@ -103,7 +103,8 @@ fn double_sign_evidence_validation_run(input: &[u8], gas_limit: u64) -> Precompi
         return Err(BscPrecompileError::DoubleSignInvalidEvidence.into());
     }
 
-    if header1.extra.len() < EXTRA_SEAL_LENGTH || header1.extra.len() < EXTRA_SEAL_LENGTH {
+
+    if header1.extra.len() < EXTRA_SEAL_LENGTH || header2.extra.len() < EXTRA_SEAL_LENGTH {
         return Err(BscPrecompileError::DoubleSignInvalidEvidence.into());
     }
 
