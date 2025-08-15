@@ -135,12 +135,13 @@ where
         
         if header.difficulty() != U256::from(expected_difficulty) {
             return Err(ConsensusError::Other(format!(
-                "Invalid difficulty: expected {}, got {}, expected_validator={}, actual_validator={} at new block {}",
+                "Invalid difficulty: expected {}, got {}, expected_validator={}, actual_validator={} at block {}, snapshot_block={}",
                 expected_difficulty,
                 header.difficulty(),
                 snapshot.inturn_validator(),
                 proposer,
-                header.number()
+                header.number(),
+                snapshot.block_number
             )));
         }
 

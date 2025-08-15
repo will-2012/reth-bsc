@@ -278,7 +278,7 @@ where
             tracing::debug!("Epoch boundary at block {}", header.number);
         }
 
-        tracing::debug!("✅ [BSC] Full post-execution validation completed for block {}", header.number);
+        tracing::debug!("Succeed to finish full post-execution validation for block {}", header.number);
         Ok(())
     }
 
