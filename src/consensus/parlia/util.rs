@@ -83,3 +83,23 @@ fn rlp_header(header: &Header, chain_id: u64) -> alloy_rlp::Header {
     }
     rlp_head
 }
+
+
+pub fn calculate_millisecond_timestamp(header: &Header) -> u64 {
+    let seconds = header.timestamp;
+    let mix_digest = header.mix_hash;
+
+    let ms_part = if mix_digest != B256::ZERO {
+        let bytes = mix_digest.as_slice();
+        // Convert last 8 bytes to u64 (big-endian), equivalent to Go's uint256.SetBytes32().Uint64()
+        let mut result = 0u64;
+        for &byte in bytes.iter().skip(24).take(8) {
+            result = (result << 8) | u64::from(byte);
+        }
+        result
+    } else {
+        0
+    };
+
+    seconds * 1000 + ms_part
+}

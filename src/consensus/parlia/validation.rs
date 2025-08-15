@@ -12,6 +12,7 @@ use reth_chainspec::EthChainSpec;
 use reth_primitives_traits::SealedHeader;
 use std::collections::HashMap;
 use std::sync::Arc;
+use crate::consensus::parlia::util::calculate_millisecond_timestamp;
 
 /// BSC consensus validator that implements the missing pre/post execution logic
 #[derive(Debug, Clone)]
@@ -56,12 +57,12 @@ where
             let block_interval = snapshot.block_interval;
             let back_off_time = self.calculate_back_off_time(snapshot, header);
             
-            if header.timestamp() < parent.timestamp() + block_interval + back_off_time {
+            if calculate_millisecond_timestamp(header) < calculate_millisecond_timestamp(parent) + block_interval + back_off_time {
                 return Err(ConsensusError::Other(format!(
                     "Block time validation failed for Ramanujan fork: block {} timestamp {} too early, parent_timestamp {}, block_interval {}, backoff_time {}",
                     header.number(),
-                    header.timestamp(),
-                    parent.timestamp(),
+                    calculate_millisecond_timestamp(header),
+                    calculate_millisecond_timestamp(parent),
                     block_interval,
                     back_off_time
                 )));

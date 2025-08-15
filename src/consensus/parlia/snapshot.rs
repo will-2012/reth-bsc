@@ -59,7 +59,7 @@ pub struct Snapshot {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn_length: Option<u8>,
 
-    /// Expected block interval in seconds.
+    /// Expected block interval in milliseconds.
     pub block_interval: u64,
 }
 
