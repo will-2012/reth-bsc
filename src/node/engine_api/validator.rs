@@ -2,16 +2,17 @@ use crate::{chainspec::BscChainSpec, hardforks::BscHardforks, BscBlock, BscPrimi
 use alloy_consensus::BlockHeader;
 use alloy_eips::eip4895::Withdrawal;
 use alloy_primitives::B256;
-use alloy_rpc_types_engine::{PayloadAttributes, PayloadError};
+use alloy_rpc_types_engine::PayloadError;
 use reth::{
     api::{FullNodeComponents, NodeTypes},
-    builder::{rpc::EngineValidatorBuilder, AddOnsContext},
+    builder::{
+        rpc::{BasicEngineValidatorBuilder, PayloadValidatorBuilder},
+        AddOnsContext,
+    },
     consensus::ConsensusError,
 };
-use reth_engine_primitives::{EngineValidator, ExecutionPayload, PayloadValidator};
-use reth_payload_primitives::{
-    EngineApiMessageVersion, EngineObjectValidationError, NewPayloadError, PayloadOrAttributes,
-};
+use reth_engine_primitives::{ExecutionPayload, PayloadValidator};
+use reth_payload_primitives::NewPayloadError;
 use reth_primitives::{RecoveredBlock, SealedBlock};
 use reth_primitives_traits::Block as _;
 use reth_trie_common::HashedPostState;
@@ -22,9 +23,9 @@ use super::payload::BscPayloadTypes;
 
 #[derive(Debug, Default, Clone)]
 #[non_exhaustive]
-pub struct BscEngineValidatorBuilder;
+pub struct BscPayloadValidatorBuilder;
 
-impl<Node, Types> EngineValidatorBuilder<Node> for BscEngineValidatorBuilder
+impl<Node, Types> PayloadValidatorBuilder<Node> for BscPayloadValidatorBuilder
 where
     Types:
         NodeTypes<ChainSpec = BscChainSpec, Payload = BscPayloadTypes, Primitives = BscPrimitives>,
@@ -36,6 +37,9 @@ where
         Ok(BscEngineValidator::new(Arc::new(ctx.config.chain.clone().as_ref().clone())))
     }
 }
+
+/// BSC engine validator builder that wraps the payload validator
+pub type BscEngineValidatorBuilder = BasicEngineValidatorBuilder<BscPayloadValidatorBuilder>;
 
 /// Validator for Optimism engine API.
 #[derive(Debug, Clone)]
@@ -100,24 +104,6 @@ impl PayloadValidator<BscPayloadTypes> for BscEngineValidator {
         _state_updates: &HashedPostState,
         _block: &RecoveredBlock<Self::Block>,
     ) -> Result<(), ConsensusError> {
-        Ok(())
-    }
-}
-
-impl EngineValidator<BscPayloadTypes> for BscEngineValidator {
-    fn validate_version_specific_fields(
-        &self,
-        _version: EngineApiMessageVersion,
-        _payload_or_attrs: PayloadOrAttributes<'_, BscExecutionData, PayloadAttributes>,
-    ) -> Result<(), EngineObjectValidationError> {
-        Ok(())
-    }
-
-    fn ensure_well_formed_attributes(
-        &self,
-        _version: EngineApiMessageVersion,
-        _attributes: &PayloadAttributes,
-    ) -> Result<(), EngineObjectValidationError> {
         Ok(())
     }
 }
