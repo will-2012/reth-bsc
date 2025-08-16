@@ -49,9 +49,9 @@ where
     Spec: EthChainSpec,
 {
     /// Reference to the specification object.
-    spec: Spec,
+    pub(super) spec: Spec,
     /// Inner EVM.
-    evm: EVM,
+    pub(super) evm: EVM,
     /// Gas used in the block.
     gas_used: u64,
     /// Receipts of executed transactions.
@@ -61,7 +61,7 @@ where
     /// Receipt builder.
     receipt_builder: R,
     /// System contracts used to trigger fork specific logic.
-    system_contracts: SystemContract<Spec>,
+    pub(super) system_contracts: SystemContract<Spec>,
     /// Hertz patch manager for mainnet compatibility
     /// TODO: refine later.
     #[allow(dead_code)]
@@ -192,7 +192,7 @@ where
         tx: &TransactionSigned,
         sender: Address,
     ) -> Result<(), BlockExecutionError> {
-        trace!("⚙️  [BSC] transact_system_tx: sender={:?}, tx_hash={:?}, to={:?}, value={}, gas_limit={}", 
+        trace!("Start to transact_system_tx: sender={:?}, tx_hash={:?}, to={:?}, value={}, gas_limit={}", 
             sender, tx.hash(), tx.to(), tx.value(), tx.gas_limit());
 
         // TODO: Consensus handle reverting slashing system txs (they shouldnt be in the block)
@@ -205,7 +205,7 @@ where
             .map_err(BlockExecutionError::other)?
             .unwrap_or_default();
 
-        trace!("⚙️  [BSC] transact_system_tx: sender account balance={}, nonce={}", account.balance, account.nonce);
+        trace!("transact_system_tx: sender account balance={}, nonce={}", account.balance, account.nonce);
 
         let tx_env = BscTxEnv {
             base: TxEnv {
@@ -234,7 +234,7 @@ where
             is_system_transaction: true,
         };
 
-                trace!("⚙️  [BSC] transact_system_tx: TxEnv gas_price={}, gas_limit={}, is_system_transaction={}",
+        trace!("transact_system_tx: TxEnv gas_price={}, gas_limit={}, is_system_transaction={}",
             tx_env.base.gas_price, tx_env.base.gas_limit, tx_env.is_system_transaction);
 
         let result_and_state = self.evm.transact(tx_env).map_err(BlockExecutionError::other)?;
