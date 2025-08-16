@@ -96,7 +96,7 @@ where
         }
 
         // TODO: query validator-related info from system contract.
-        let (validator_set, vote_address) = self.get_current_validators(block_number);
+        let (validator_set, vote_address) = self.get_current_validators(block_number)?;
         tracing::info!("validator_set: {:?}, vote_address: {:?}", validator_set, vote_address);
 
         // TODO:
@@ -104,16 +104,16 @@ where
         Ok(())
     }
 
-    fn get_current_validators(&mut self, block_number: u64) -> (Vec<Address>, Vec<VoteAddress>) {
+    fn get_current_validators(&mut self, block_number: u64) -> Result<(Vec<Address>, Vec<VoteAddress>), BlockExecutionError> {
         if self.spec.is_luban_active_at_block(block_number) {
             let (to, data) = self.system_contracts.get_current_validators();
-            let output = self.eth_call(to, data).unwrap();
-            return self.system_contracts.unpack_data_into_validator_set(&output);
+            let output = self.eth_call(to, data)?;
+            Ok(self.system_contracts.unpack_data_into_validator_set(&output))
         } else {
             let (to, data) = self.system_contracts.get_current_validators_before_luban(block_number);
-            let output = self.eth_call(to, data).unwrap();
+            let output = self.eth_call(to, data)?;
             let validator_set = self.system_contracts.unpack_data_into_validator_set_before_luban(&output);
-            return (validator_set, Vec::new());
+            Ok((validator_set, Vec::new()))
         }
     }
 
@@ -123,7 +123,7 @@ where
                 caller: Address::default(),
                 kind: TxKind::Call(to),
                 nonce: 0,
-                gas_limit: u64::MAX / 2,
+                gas_limit: self.evm.block().gas_limit,
                 value: U256::ZERO,
                 data: data.clone(),
                 gas_price: 0,
