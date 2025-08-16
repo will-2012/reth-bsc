@@ -21,6 +21,7 @@ use thiserror::Error;
 
 mod abi;
 mod embedded_contracts;
+pub mod feynman_fork;
 
 pub(crate) struct SystemContract<Spec: EthChainSpec> {
     /// The validator set abi before luban.
@@ -98,6 +99,65 @@ impl<Spec: EthChainSpec + crate::hardforks::BscHardforks> SystemContract<Spec> {
             .collect();
 
         (consensus_addresses, vote_address)
+    }
+
+    /// Return system address and input which is used to query max elected validators.
+    pub fn get_max_elected_validators(&self) -> (Address, Bytes) {
+        let function =
+            self.stake_hub_abi.function("maxElectedValidators").unwrap().first().unwrap();
+
+        (STAKE_HUB_CONTRACT, Bytes::from(function.abi_encode_input(&[]).unwrap()))
+    }
+
+    /// Unpack the data into max elected validators.
+    pub fn unpack_data_into_max_elected_validators(&self, data: &[u8]) -> U256 {
+        let function =
+            self.stake_hub_abi.function("maxElectedValidators").unwrap().first().unwrap();
+        let output = function.abi_decode_output(data).unwrap();
+
+        output[0].as_uint().unwrap().0
+    }
+
+    /// Return system address and input which is used to query validator election info.
+    pub fn get_validator_election_info(&self) -> (Address, Bytes) {
+        let function =
+            self.stake_hub_abi.function("getValidatorElectionInfo").unwrap().first().unwrap();
+
+        (
+            STAKE_HUB_CONTRACT,
+            Bytes::from(
+                function
+                    .abi_encode_input(&[
+                        DynSolValue::from(U256::from(0)),
+                        DynSolValue::from(U256::from(0)),
+                    ])
+                    .unwrap(),
+            ),
+        )
+    }
+
+    /// Unpack the data into validator election info.
+    pub fn unpack_data_into_validator_election_info(
+        &self,
+        data: &[u8],
+    ) -> (Vec<Address>, Vec<U256>, Vec<Vec<u8>>, U256) {
+        let function =
+            self.stake_hub_abi.function("getValidatorElectionInfo").unwrap().first().unwrap();
+        let output = function.abi_decode_output(data).unwrap();
+
+        let consensus_address =
+            output[0].as_array().unwrap().iter().map(|val| val.as_address().unwrap()).collect();
+        let voting_powers =
+            output[1].as_array().unwrap().iter().map(|val| val.as_uint().unwrap().0).collect();
+        let vote_addresses = output[2]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|val| val.as_bytes().unwrap().to_vec())
+            .collect();
+        let total_length = output[3].as_uint().unwrap().0;
+
+        (consensus_address, voting_powers, vote_addresses, total_length)
     }
 
     /// Creates a deposit tx to pay block reward to a validator.

@@ -11,6 +11,7 @@ use revm::{
 use alloy_consensus::TxReceipt;
 //use alloy_primitives::Address;
 use crate::consensus::parlia::VoteAddress;
+use crate::system_contracts::feynman_fork::ValidatorElectionInfo;
 // use consensus trait object for cascading validation
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
@@ -99,7 +100,41 @@ where
         let (validator_set, vote_address) = self.get_current_validators(block_number)?;
         tracing::info!("validator_set: {:?}, vote_address: {:?}", validator_set, vote_address);
 
-        // TODO:
+        // TODO: query election info from system contract.
+        if self.spec.is_feynman_active_at_timestamp(header.timestamp) &&
+            !self.spec.is_feynman_transition_at_timestamp(header.timestamp, parent_header.timestamp)
+        {
+            let (to, data) = self.system_contracts.get_max_elected_validators();
+            let bz = self.eth_call(to, data)?;
+            let max_elected_validators = self.system_contracts.unpack_data_into_max_elected_validators(bz.as_ref());
+            tracing::info!("max_elected_validators: {:?}", max_elected_validators);
+
+            let (to, data) = self.system_contracts.get_validator_election_info();
+            let bz = self.eth_call(to, data)?;
+
+            let (validators, voting_powers, vote_addrs, total_length) =
+                self.system_contracts.unpack_data_into_validator_election_info(bz.as_ref());
+
+            let total_length = total_length.to::<u64>() as usize;
+            if validators.len() != total_length ||
+                voting_powers.len() != total_length ||
+                vote_addrs.len() != total_length
+            {
+                return Err(BlockExecutionError::msg("Failed to get top validators"));
+            }
+
+            let validator_election_info: Vec<ValidatorElectionInfo> = validators
+                .into_iter()
+                .zip(voting_powers)
+                .zip(vote_addrs)
+                .map(|((validator, voting_power), vote_addr)| ValidatorElectionInfo {
+                    address: validator,
+                    voting_power,
+                    vote_address: vote_addr,
+                })
+                .collect();
+            tracing::info!("validator_election_info: {:?}", validator_election_info);
+        }
 
         Ok(())
     }
@@ -146,4 +181,6 @@ where
         let output = result_and_state.result.output().ok_or(BlockExecutionError::msg("ETH call output is None"))?;
         Ok(output.clone())
     }
+
+
 }
