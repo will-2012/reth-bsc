@@ -4,9 +4,12 @@ use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_evm::{eth::receipt_builder::ReceiptBuilder, execute::BlockExecutionError, Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
 use reth_primitives::TransactionSigned;
 use reth_revm::State;
-use revm::context::BlockEnv;
+use revm::{
+    context::{BlockEnv, TxEnv},
+    primitives::{Address, Bytes, TxKind, U256},
+};
 use alloy_consensus::TxReceipt;
-use alloy_primitives::Address;
+//use alloy_primitives::Address;
 use crate::consensus::parlia::VoteAddress;
 // use consensus trait object for cascading validation
 
@@ -93,20 +96,54 @@ where
         }
 
         // TODO: query validator-related info from system contract.
+        let (validator_set, vote_address) = self.get_current_validators(block_number);
+        tracing::info!("validator_set: {:?}, vote_address: {:?}", validator_set, vote_address);
+
+        // TODO:
 
         Ok(())
     }
 
-    fn get_current_validators(&self, block_number: u64) -> (Vec<Address>, Vec<VoteAddress>) {
+    fn get_current_validators(&mut self, block_number: u64) -> (Vec<Address>, Vec<VoteAddress>) {
         if self.spec.is_luban_active_at_block(block_number) {
-
-           // let validators = self.system_contracts.
-
-            // TODO: query validator-related info from system contract.
-            return (Vec::new(), Vec::new());
+            let (to, data) = self.system_contracts.get_current_validators();
+            let output = self.eth_call(to, data).unwrap();
+            return self.system_contracts.unpack_data_into_validator_set(&output);
         } else {
-            // TODO: query validator-related info from system contract.
-            return (Vec::new(), Vec::new());
+            let (to, data) = self.system_contracts.get_current_validators_before_luban(block_number);
+            let output = self.eth_call(to, data).unwrap();
+            let validator_set = self.system_contracts.unpack_data_into_validator_set_before_luban(&output);
+            return (validator_set, Vec::new());
         }
+    }
+
+    fn eth_call(&mut self, to: Address, data: Bytes) -> Result<Bytes, BlockExecutionError> {
+        let tx_env = BscTxEnv {
+            base: TxEnv {
+                caller: Address::default(),
+                kind: TxKind::Call(to),
+                nonce: 0,
+                gas_limit: u64::MAX / 2,
+                value: U256::ZERO,
+                data: data.clone(),
+                gas_price: 0,
+                chain_id: Some(self.spec.chain().id()),
+                gas_priority_fee: None,
+                access_list: Default::default(),
+                blob_hashes: Vec::new(),
+                max_fee_per_blob_gas: 0,
+                tx_type: 0,
+                authorization_list: Default::default(),
+            },
+            is_system_transaction: false,
+        };
+
+        let result_and_state = self.evm.transact(tx_env).map_err(|err| BlockExecutionError::other(err))?;
+        if !result_and_state.result.is_success() {
+            tracing::error!("Failed to eth call, to: {:?}, data: {:?}", to, data);
+            return Err(BlockExecutionError::msg("ETH call failed"));
+        }
+        let output = result_and_state.result.output().ok_or(BlockExecutionError::msg("ETH call output is None"))?;
+        Ok(output.clone())
     }
 }

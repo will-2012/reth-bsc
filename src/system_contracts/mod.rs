@@ -2,12 +2,13 @@
 //! Credits to <https://github.com/bnb-chain/reth/blob/main/crates/bsc/primitives/src/system_contracts/mod.rs>
 use crate::{
     chainspec::{bsc::bsc_mainnet, bsc_chapel::bsc_testnet},
+    consensus::parlia::VoteAddress,
     hardforks::{bsc::BscHardfork, BscHardforks},
 };
-use abi::{STAKE_HUB_ABI, VALIDATOR_SET_ABI};
+use abi::{STAKE_HUB_ABI, VALIDATOR_SET_ABI, VALIDATOR_SET_ABI_BEFORE_LUBAN};
 use alloy_chains::Chain;
 use alloy_consensus::TxLegacy;
-use alloy_dyn_abi::{DynSolValue, JsonAbiExt};
+use alloy_dyn_abi::{DynSolValue, FunctionExt, JsonAbiExt};
 use alloy_json_abi::JsonAbi;
 use alloy_primitives::{address, hex, Address, BlockNumber, Bytes, Signature, TxKind, U256};
 use lazy_static::lazy_static;
@@ -22,20 +23,81 @@ mod abi;
 mod embedded_contracts;
 
 pub(crate) struct SystemContract<Spec: EthChainSpec> {
-    /// The validator contract abi
+    /// The validator set abi before luban.
+    validator_abi_before_luban: JsonAbi,
+    /// The validator contract abi.
     validator_abi: JsonAbi,
-    /// The stake hub abi
+    /// The stake hub abi.
     stake_hub_abi: JsonAbi,
-    /// The chain spec
+    /// The chain spec.
     chain_spec: Spec,
-    // TODO: add validator set abi before luban.
 }
 
-impl<Spec: EthChainSpec> SystemContract<Spec> {
+impl<Spec: EthChainSpec + crate::hardforks::BscHardforks> SystemContract<Spec> {
     pub(crate) fn new(chain_spec: Spec) -> Self {
+        let validator_abi_before_luban = serde_json::from_str(*VALIDATOR_SET_ABI_BEFORE_LUBAN).unwrap();
         let validator_abi = serde_json::from_str(*VALIDATOR_SET_ABI).unwrap();
         let stake_hub_abi = serde_json::from_str(*STAKE_HUB_ABI).unwrap();
-        Self { validator_abi, stake_hub_abi, chain_spec }
+        Self { validator_abi_before_luban, validator_abi, stake_hub_abi, chain_spec }
+    }
+
+    /// Return system address and input which is used to query current validators before luban.
+    pub fn get_current_validators_before_luban(&self, block_number: BlockNumber) -> (Address, Bytes) {
+        let function = if self.chain_spec.is_euler_active_at_block(block_number) {
+            self.validator_abi_before_luban
+                .function("getMiningValidators")
+                .unwrap()
+                .first()
+                .unwrap()
+        } else {
+            self.validator_abi_before_luban.function("getValidators").unwrap().first().unwrap()
+        };
+        (VALIDATOR_CONTRACT, Bytes::from(function.abi_encode_input(&[]).unwrap()))
+    }
+
+    /// Unpack the data into validator set before luban.
+    pub fn unpack_data_into_validator_set_before_luban(&self, data: &[u8]) -> Vec<Address> {
+        let function =
+            self.validator_abi_before_luban.function("getValidators").unwrap().first().unwrap();
+        let output = function.abi_decode_output(data).unwrap();
+
+        output
+            .first()
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|val| val.as_address().unwrap())
+            .collect()
+    }
+
+    /// Return system address and input which is used to query current validators.
+    pub fn get_current_validators(&self) -> (Address, Bytes) {
+        let function = self.validator_abi.function("getMiningValidators").unwrap().first().unwrap();
+        (VALIDATOR_CONTRACT, Bytes::from(function.abi_encode_input(&[]).unwrap()))
+    }
+
+    /// Unpack the data into validator set.
+    pub fn unpack_data_into_validator_set(&self, data: &[u8]) -> (Vec<Address>, Vec<VoteAddress>) {
+        let function = self.validator_abi.function("getMiningValidators").unwrap().first().unwrap();
+        let output = function.abi_decode_output(data).unwrap();
+
+        let consensus_addresses =
+            output[0].as_array().unwrap().iter().map(|val| val.as_address().unwrap()).collect();
+        let vote_address = output[1]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|val| {
+                if val.as_bytes().unwrap().is_empty() {
+                    VoteAddress::default()
+                } else {
+                    VoteAddress::from_slice(val.as_bytes().unwrap())
+                }
+            })
+            .collect();
+
+        (consensus_addresses, vote_address)
     }
 
     /// Creates a deposit tx to pay block reward to a validator.
