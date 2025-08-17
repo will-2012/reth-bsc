@@ -11,7 +11,7 @@ use crate::{
         SYSTEM_REWARD_CONTRACT,
     },
 };
-use alloy_consensus::{Transaction, TxReceipt};
+use alloy_consensus::{Header, Transaction, TxReceipt};
 use alloy_eips::{eip7685::Requests, Encodable2718};
 use alloy_evm::{block::{ExecutableTx, StateChangeSource}, eth::receipt_builder::ReceiptBuilderCtx};
 use alloy_primitives::{uint, Address, TxKind, U256, BlockNumber, Bytes};
@@ -51,6 +51,7 @@ pub(crate) struct InnerExecutionContext {
     pub(crate) max_elected_validators: Option<U256>,
     pub(crate) validators_election_info: Option<Vec<ValidatorElectionInfo>>,
     pub(crate) snap: Option<Snapshot>,
+    pub(crate) header: Option<Header>,
 }
 
 pub struct BscBlockExecutor<'a, EVM, Spec, R: ReceiptBuilder>
@@ -137,6 +138,7 @@ where
                 max_elected_validators: None,
                 validators_election_info: None,
                 snap: None,
+                header: None,
             },
         }
     }

@@ -9,12 +9,11 @@ use revm::{
     primitives::{Address, Bytes, TxKind, U256},
 };
 use alloy_consensus::TxReceipt;
-//use alloy_primitives::Address;
 use crate::consensus::parlia::VoteAddress;
 use crate::consensus::parlia::util::is_breathe_block;
 use crate::system_contracts::feynman_fork::ValidatorElectionInfo;
 use std::collections::HashMap;
-// use consensus trait object for cascading validation
+
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
 where
@@ -44,6 +43,7 @@ where
             .unwrap()
             .get_checkpoint_header(block_number)
             .ok_or(BlockExecutionError::msg("Failed to get header from snapshot provider"))?;
+        self.inner_ctx.header = Some(header.clone());
 
         let parent_header = self
             .snapshot_provider
@@ -104,10 +104,17 @@ where
             let (validator_set, vote_addresses) = self.get_current_validators(block_number)?;
             tracing::info!("validator_set: {:?}, vote_addresses: {:?}", validator_set, vote_addresses);
             
-            let vote_address_map: HashMap<Address, VoteAddress> = validator_set.iter().zip(vote_addresses.iter())
-                .map(|(&addr, &vote_addr)| (addr, vote_addr))
-                .collect();
-            self.inner_ctx.current_validators = Some((validator_set, vote_address_map));
+            let vote_addrs_map = if vote_addresses.is_empty() {
+                HashMap::new()
+            } else {
+                validator_set
+                    .iter()
+                    .copied()
+                    .zip(vote_addresses)
+                    .collect::<std::collections::HashMap<_, _>>()
+            };
+            tracing::info!("vote_addrs_map: {:?}", vote_addrs_map);
+            self.inner_ctx.current_validators = Some((validator_set, vote_addrs_map));
         }
     
         if self.spec.is_feynman_active_at_timestamp(header.timestamp) &&
