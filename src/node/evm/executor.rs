@@ -2,10 +2,11 @@ use super::patch::{
     patch_chapel_after_tx, patch_chapel_before_tx, patch_mainnet_after_tx, patch_mainnet_before_tx,
 };
 use crate::{
-    consensus::{MAX_SYSTEM_REWARD, SYSTEM_ADDRESS, SYSTEM_REWARD_PERCENT, parlia::HertzPatchManager},
+    consensus::{MAX_SYSTEM_REWARD, SYSTEM_ADDRESS, SYSTEM_REWARD_PERCENT, parlia::{HertzPatchManager, VoteAddress, Snapshot}},
     evm::transaction::BscTxEnv,
     hardforks::BscHardforks,
     system_contracts::{
+        feynman_fork::ValidatorElectionInfo,
         get_upgrade_system_contracts, is_system_transaction, SystemContract, STAKE_HUB_CONTRACT,
         SYSTEM_REWARD_CONTRACT,
     },
@@ -39,10 +40,18 @@ use revm::{
 use tracing::{debug, trace, warn};
 use alloy_eips::eip2935::{HISTORY_STORAGE_ADDRESS, HISTORY_STORAGE_CODE};
 use alloy_primitives::keccak256;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use crate::consensus::parlia::SnapshotProvider;
-// use crate::BscPrimitives; // not needed directly here
-// use reth::consensus::{ConsensusError, FullConsensus}; // trait object is via ParliaConsensusObject
+
+/// Helper type for the input of post execution.
+#[allow(clippy::type_complexity)]
+#[derive(Debug, Clone)]
+pub(crate) struct InnerExecutionContext {
+    pub(crate) current_validators: Option<(Vec<Address>, HashMap<Address, VoteAddress>)>,
+    pub(crate) max_elected_validators: Option<U256>,
+    pub(crate) validators_election_info: Option<Vec<ValidatorElectionInfo>>,
+    pub(crate) snap: Option<Snapshot>,
+}
 
 pub struct BscBlockExecutor<'a, EVM, Spec, R: ReceiptBuilder>
 where
@@ -76,6 +85,8 @@ where
     pub(super) snapshot_provider: Option<Arc<dyn SnapshotProvider + Send + Sync>>,
     /// Parlia consensus instance used (optional during execution).
     pub(super) parlia_consensus: Option<Arc<dyn crate::consensus::parlia::ParliaConsensusObject + Send + Sync>>,
+    /// Inner execution context.
+    pub(super) inner_ctx: InnerExecutionContext,
 }
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
@@ -121,6 +132,12 @@ where
             hook: None,
             snapshot_provider: crate::shared::get_snapshot_provider().cloned(),
             parlia_consensus: crate::shared::get_parlia_consensus().cloned(),
+            inner_ctx: InnerExecutionContext {
+                current_validators: None,
+                max_elected_validators: None,
+                validators_election_info: None,
+                snap: None,
+            },
         }
     }
 
@@ -586,32 +603,24 @@ where
     fn finish(
         mut self,
     ) -> Result<(Self::Evm, BlockExecutionResult<R::Receipt>), BlockExecutionError> {
-
-        self.finalize_new_block(&self.evm.block().clone())?;
-        
-        // TODO:
-        // Consensus: Verify validators
-        // Consensus: Verify turn length
-
         // If first block deploy genesis contracts
         if self.evm.block().number == uint!(1U256) {
-
             self.deploy_genesis_contracts(self.evm.block().beneficiary)?;
         }
 
         if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) {
-
             self.upgrade_contracts()?;
         }
-
         if self.spec.is_feynman_active_at_timestamp(self.evm.block().timestamp.to()) &&
             !self
                 .spec
                 .is_feynman_active_at_timestamp(self.evm.block().timestamp.to::<u64>() - 100)
         {
-
             self.initialize_feynman_contracts(self.evm.block().beneficiary)?;
         }
+
+        self.finalize_new_block(&self.evm.block().clone())?;
+
 
         // Prepare system transactions list and append slash transactions collected from consensus.
         let mut system_txs = self.system_txs.clone();

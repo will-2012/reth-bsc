@@ -1,4 +1,5 @@
 use super::executor::BscBlockExecutor;
+use crate::consensus::parlia::DIFF_INTURN;
 use crate::evm::transaction::BscTxEnv;
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_evm::{eth::receipt_builder::ReceiptBuilder, execute::BlockExecutionError, Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
@@ -29,6 +30,15 @@ where
         // TODO: implement this function.
         // unimplemented!();
         tracing::info!("Finalize new block, block_number: {}", block.number);
+
+          // TODO:
+        // Consensus: Verify validators
+        // Consensus: Verify turn length
+
+        // 
+        if block.difficulty != DIFF_INTURN {
+
+        }
         Ok(())
     }
 }

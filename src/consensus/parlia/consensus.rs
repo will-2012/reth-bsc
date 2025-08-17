@@ -509,6 +509,12 @@ where
             .verify_cascading_fields(&sealed_header, &sealed_parent, None, snap)
             .map_err(|e| reth_evm::execute::BlockExecutionError::msg(format!("{}", e)))
     }
+
+    fn get_epoch_length(&self, header: &Header) -> u64 {
+        let header_hash = alloy_primitives::keccak256(alloy_rlp::encode(header));
+        let sealed_header = SealedHeader::new(header.clone(), header_hash);
+        self.get_epoch_length(&sealed_header)
+    }
 }
 
 impl<ChainSpec, P> HeaderValidator<Header> for ParliaConsensus<ChainSpec, P>
@@ -677,5 +683,15 @@ where
         }
         
         Ok(())
+    }
+
+    fn get_epoch_length(&self, header: &SealedHeader<alloy_consensus::Header>) -> u64 {
+        if self.chain_spec.is_maxwell_active_at_timestamp(header.timestamp()) {
+            return crate::consensus::parlia::snapshot::MAXWELL_EPOCH_LENGTH;
+        }
+        if self.chain_spec.is_lorentz_active_at_timestamp(header.timestamp()) {
+            return crate::consensus::parlia::snapshot::LORENTZ_EPOCH_LENGTH;
+        }
+        self.epoch
     }
 } 

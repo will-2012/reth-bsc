@@ -34,6 +34,7 @@ pub use provider::SnapshotProvider;
 
 // A single object-safe trait to represent the Parlia consensus object when held globally.
 // This combines the execution-facing validator API with the consensus engine trait.
+// TODO: refine it.
 pub trait ParliaConsensusObject:
     reth::consensus::FullConsensus<crate::BscPrimitives, Error = reth::consensus::ConsensusError>
 {
@@ -44,6 +45,8 @@ pub trait ParliaConsensusObject:
         ancestor: Option<&std::collections::HashMap<alloy_primitives::B256, reth_primitives_traits::SealedHeader>>,
         snap: &Snapshot,
     ) -> Result<(), reth_evm::execute::BlockExecutionError>;
+
+    fn get_epoch_length(&self, header: &alloy_consensus::Header) -> u64;
 }
 
 // Note: concrete implementation is provided for `ParliaConsensus` in `consensus.rs`
