@@ -33,7 +33,7 @@ use revm::{
     state::Bytecode,
     Database as _, DatabaseCommit,
 };
-use tracing::{debug, trace, warn};
+use tracing::debug;
 use alloy_eips::eip2935::{HISTORY_STORAGE_ADDRESS, HISTORY_STORAGE_CODE};
 use alloy_primitives::keccak256;
 use std::{collections::HashMap, sync::Arc};
@@ -189,16 +189,10 @@ where
         &mut self,
         beneficiary: Address,
     ) -> Result<(), BlockExecutionError> {
-        debug!("🏗️  [BSC] deploy_genesis_contracts: beneficiary={:?}, block={}", beneficiary, self.evm.block().number);
         let txs = self.system_contracts.genesis_contracts_txs();
-        trace!("🏗️  [BSC] deploy_genesis_contracts: created {} genesis txs", txs.len());
-
-        for (i, tx) in txs.iter().enumerate() {
-            trace!("🏗️  [BSC] deploy_genesis_contracts: executing genesis tx {}/{}: hash={:?}, to={:?}, value={}, gas_limit={}", 
-                i + 1, txs.len(), tx.hash(), tx.to(), tx.value(), tx.gas_limit());
+        for (_, tx) in txs.iter().enumerate() {
             self.transact_system_tx(tx, beneficiary)?;
         }
-        trace!("🏗️  [BSC] deploy_genesis_contracts: completed all {} genesis txs", txs.len());
         Ok(())
     }
 
@@ -207,20 +201,12 @@ where
         tx: &TransactionSigned,
         sender: Address,
     ) -> Result<(), BlockExecutionError> {
-        trace!("Start to transact_system_tx: sender={:?}, tx_hash={:?}, to={:?}, value={}, gas_limit={}", 
-            sender, tx.hash(), tx.to(), tx.value(), tx.gas_limit());
-
-        // TODO: Consensus handle reverting slashing system txs (they shouldnt be in the block)
-        // https://github.com/bnb-chain/reth/blob/main/crates/bsc/evm/src/execute.rs#L602
-
         let account = self
             .evm
             .db_mut()
             .basic(sender)
             .map_err(BlockExecutionError::other)?
             .unwrap_or_default();
-
-        trace!("transact_system_tx: sender account balance={}, nonce={}", account.balance, account.nonce);
 
         let tx_env = BscTxEnv {
             base: TxEnv {
@@ -230,17 +216,10 @@ where
                 gas_limit: u64::MAX / 2,
                 value: tx.value(),
                 data: tx.input().clone(),
-                // Setting the gas price to zero enforces that no value is transferred as part of
-                // the call, and that the call will not count against the block's
-                // gas limit
                 gas_price: 0,
-                // The chain ID check is not relevant here and is disabled if set to None
                 chain_id: Some(self.spec.chain().id()),
-                // Setting the gas priority fee to None ensures the effective gas price is
-                //derived         // from the `gas_price` field, which we need to be zero
                 gas_priority_fee: None,
                 access_list: Default::default(),
-                // blob fields can be None for this tx
                 blob_hashes: Vec::new(),
                 max_fee_per_blob_gas: 0,
                 tx_type: 0,
@@ -248,9 +227,6 @@ where
             },
             is_system_transaction: true,
         };
-
-        trace!("transact_system_tx: TxEnv gas_price={}, gas_limit={}, is_system_transaction={}",
-            tx_env.base.gas_price, tx_env.base.gas_limit, tx_env.is_system_transaction);
 
         let result_and_state = self.evm.transact(tx_env).map_err(BlockExecutionError::other)?;
 
@@ -262,7 +238,6 @@ where
 
         let tx = tx.clone();
         let gas_used = result.gas_used();
-        trace!("⚙️  [BSC] transact_system_tx: completed, gas_used={}, result={:?}", gas_used, result);
         self.gas_used += gas_used;
         self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
             tx: &tx,
@@ -381,37 +356,21 @@ where
             + RecoveredTx<TransactionSigned>,
         f: impl for<'b> FnOnce(&'b ExecutionResult<<E as alloy_evm::Evm>::HaltReason>),
     ) -> Result<u64, BlockExecutionError> {
-        // Check if it's a system transaction
         let signer = tx.signer();
         let is_system = is_system_transaction(tx.tx(), *signer, self.evm.block().beneficiary);
         
-        // DEBUG: Uncomment to trace transaction execution details
-        // debug!("🔍 [BSC] execute_transaction_with_result_closure: tx_hash={:?}, signer={:?}, beneficiary={:?}, is_system={}, to={:?}, value={}, gas_limit={}, max_fee_per_gas={}", 
-        //     tx.tx().hash(), signer, self.evm.block().beneficiary, is_system, tx.tx().to(), tx.tx().value(), tx.tx().gas_limit(), tx.tx().max_fee_per_gas());
-
         if is_system {
-            // DEBUG: Uncomment to trace system transaction handling
-            // debug!("⚙️  [BSC] execute_transaction_with_result_closure: queuing system tx for later execution");
             self.system_txs.push(tx.tx().clone());
             return Ok(0);
         }
 
-        // DEBUG: Uncomment to trace regular transaction execution
-        // debug!("🚀 [BSC] execute_transaction_with_result_closure: executing regular tx, block_gas_used={}, block_gas_limit={}, available_gas={}", 
-        //     self.gas_used, self.evm.block().gas_limit, self.evm.block().gas_limit - self.gas_used);
-
-        // Apply Hertz patches before transaction execution
-        // Note: Hertz patches are implemented in the existing patch system
-        // The HertzPatchManager is available for future enhanced patching
-        
+        // TODO: refine it.
         // apply patches before (legacy - keeping for compatibility)
         patch_mainnet_before_tx(tx.tx(), self.evm.db_mut())?;
         patch_chapel_before_tx(tx.tx(), self.evm.db_mut())?;
 
         let block_available_gas = self.evm.block().gas_limit - self.gas_used;
         if tx.tx().gas_limit() > block_available_gas {
-            warn!("❌ [BSC] execute_transaction_with_result_closure: tx gas limit {} exceeds available block gas {}", 
-                tx.tx().gas_limit(), block_available_gas);
             return Err(BlockValidationError::TransactionGasLimitMoreThanAvailableBlockGas {
                 transaction_gas_limit: tx.tx().gas_limit(),
                 block_available_gas,
@@ -419,12 +378,10 @@ where
             .into());
         }
         
-        trace!("🔥 [BSC] execute_transaction_with_result_closure: calling EVM transact for regular tx");
         let result_and_state = self
             .evm
             .transact(tx)
             .map_err(|err| {
-                warn!("❌ [BSC] execute_transaction_with_result_closure: EVM transact failed: {:?}", err);
                 BlockExecutionError::evm(err, tx.tx().trie_hash())
             })?;
         let ResultAndState { result, state } = result_and_state;
@@ -439,7 +396,6 @@ where
         }
 
         let gas_used = result.gas_used();
-        trace!("✅ [BSC] execute_transaction_with_result_closure: tx completed, gas_used={}, result={:?}", gas_used, result);
         self.gas_used += gas_used;
         self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
             tx: tx.tx(),
@@ -450,10 +406,6 @@ where
         }));
         self.evm.db_mut().commit(state);
 
-        // Apply Hertz patches after transaction execution
-        // Note: Hertz patches are implemented in the existing patch system
-        // The HertzPatchManager is available for future enhanced patching
-        
         // apply patches after (legacy - keeping for compatibility)
         patch_mainnet_after_tx(tx.tx(), self.evm.db_mut())?;
         patch_chapel_after_tx(tx.tx(), self.evm.db_mut())?;
@@ -484,6 +436,7 @@ where
 
         self.finalize_new_block(&self.evm.block().clone())?;
         
+        // TODO: refine this part.
         // -----------------------------------------------------------------
         // reth-bsc-trail PATTERN: Create current snapshot from parent snapshot after execution
         // Get parent snapshot at start, apply current block changes, cache current snapshot
