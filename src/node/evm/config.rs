@@ -3,10 +3,11 @@ use crate::{
     chainspec::BscChainSpec,
     evm::transaction::BscTxEnv,
     hardforks::{bsc::BscHardfork, BscHardforks},
+    node::engine_api::validator::BscExecutionData,
     system_contracts::SystemContract,
     BscPrimitives,
 };
-use alloy_consensus::{BlockHeader, Header, TxReceipt};
+use alloy_consensus::{transaction::SignerRecoverable, BlockHeader, Header, TxReceipt};
 use alloy_eips::eip7840::BlobParams;
 use alloy_primitives::{Log, U256};
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
@@ -14,8 +15,8 @@ use reth_ethereum_forks::EthereumHardfork;
 use reth_evm::{
     block::{BlockExecutorFactory, BlockExecutorFor},
     eth::{receipt_builder::ReceiptBuilder, EthBlockExecutionCtx},
-    ConfigureEvm, EvmEnv, EvmFactory, ExecutionCtxFor, FromRecoveredTx, FromTxWithEncoded,
-    IntoTxEnv, NextBlockEnvAttributes,
+    ConfigureEngineEvm, ConfigureEvm, EvmEnv, EvmFactory, ExecutableTxIterator, ExecutionCtxFor,
+    FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, NextBlockEnvAttributes,
 };
 use reth_evm_ethereum::{EthBlockAssembler, RethReceiptBuilder};
 use reth_primitives::{BlockTy, HeaderTy, SealedBlock, SealedHeader, TransactionSigned};
@@ -299,6 +300,32 @@ where
             ommers: &[],
             withdrawals: attributes.withdrawals.map(Cow::Owned),
         }
+    }
+}
+
+impl ConfigureEngineEvm<BscExecutionData> for BscEvmConfig
+where
+    Self: Send + Sync + Unpin + Clone + 'static,
+{
+    fn evm_env_for_payload(&self, payload: &BscExecutionData) -> EvmEnv<BscHardfork> {
+        self.evm_env(&payload.0.header)
+    }
+
+    fn context_for_payload<'a>(&self, payload: &'a BscExecutionData) -> EthBlockExecutionCtx<'a> {
+        let block = &payload.0;
+        EthBlockExecutionCtx {
+            parent_hash: block.header.parent_hash(),
+            parent_beacon_block_root: block.header.parent_beacon_block_root,
+            ommers: &block.body.inner.ommers,
+            withdrawals: block.body.inner.withdrawals.as_ref().map(Cow::Borrowed),
+        }
+    }
+
+    fn tx_iterator_for_payload(
+        &self,
+        payload: &BscExecutionData,
+    ) -> impl ExecutableTxIterator<Self> {
+        payload.0.body.inner.transactions.clone().into_iter().map(|tx| tx.try_into_recovered())
     }
 }
 

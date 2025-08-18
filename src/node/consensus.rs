@@ -144,7 +144,8 @@ pub fn calculate_millisecond_timestamp<H: alloy_consensus::BlockHeader>(header: 
 
     let milliseconds = if mix_digest != B256::ZERO {
         let bytes = mix_digest.as_slice();
-        // Convert last 8 bytes to u64 (big-endian), equivalent to Go's uint256.SetBytes32().Uint64()
+        // Convert last 8 bytes to u64 (big-endian), equivalent to Go's
+        // uint256.SetBytes32().Uint64()
         let mut result = 0u64;
         for &byte in bytes.iter().skip(24).take(8) {
             result = (result << 8) | u64::from(byte);
@@ -166,16 +167,10 @@ mod tests {
     #[test]
     fn test_calculate_millisecond_timestamp_without_mix_hash() {
         // Create a header with current timestamp and zero mix_hash
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        
-        let header = Header {
-            timestamp,
-            mix_hash: B256::ZERO,
-            ..Default::default()
-        };
+        let timestamp =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+
+        let header = Header { timestamp, mix_hash: B256::ZERO, ..Default::default() };
 
         let result = calculate_millisecond_timestamp(&header);
         assert_eq!(result, timestamp * 1000);
@@ -184,21 +179,15 @@ mod tests {
     #[test]
     fn test_calculate_millisecond_timestamp_with_milliseconds() {
         // Create a header with current timestamp and mix_hash containing milliseconds
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        
+        let timestamp =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+
         let milliseconds = 750u64;
         let mut mix_hash_bytes = [0u8; 32];
         mix_hash_bytes[24..32].copy_from_slice(&milliseconds.to_be_bytes());
         let mix_hash = B256::new(mix_hash_bytes);
 
-        let header = Header {
-            timestamp,
-            mix_hash,
-            ..Default::default()
-        };
+        let header = Header { timestamp, mix_hash, ..Default::default() };
 
         let result = calculate_millisecond_timestamp(&header);
         assert_eq!(result, timestamp * 1000 + milliseconds);
