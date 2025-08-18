@@ -194,44 +194,35 @@ impl<Spec: EthChainSpec + crate::hardforks::BscHardforks> SystemContract<Spec> {
         })
     }
 
-    /// Creates a deposit tx to pay block reward to a validator.
-    pub fn pay_validator_tx(&self, address: Address, block_reward: u128) -> TransactionSigned {
-        let function = self.validator_abi.function("deposit").unwrap().first().unwrap();
-        let input = function.abi_encode_input(&[DynSolValue::Address(address)]).unwrap();
-
-        let signature = Signature::new(Default::default(), Default::default(), false);
-
-        TransactionSigned::new_unhashed(
-            Transaction::Legacy(TxLegacy {
-                chain_id: Some(self.chain_spec.chain().id()),
-                nonce: 0,
-                gas_limit: u64::MAX / 2,
-                gas_price: 0,
-                value: U256::from(block_reward),
-                input: Bytes::from(input),
-                to: TxKind::Call(VALIDATOR_CONTRACT),
-            }),
-            signature,
-        )
-    }
-
     /// Creates a transaction to pay system reward transfering the reward to the system contract.
-    pub fn pay_system_tx(&self, system_reward: u128) -> TransactionSigned {
-        let signature = Signature::new(Default::default(), Default::default(), false);
-
-        TransactionSigned::new_unhashed(
-            Transaction::Legacy(TxLegacy {
-                chain_id: Some(self.chain_spec.chain().id()),
-                nonce: 0,
-                gas_limit: u64::MAX / 2,
-                gas_price: 0,
-                value: U256::from(system_reward),
-                input: Bytes::default(),
-                to: TxKind::Call(SYSTEM_REWARD_CONTRACT),
-            }),
-            signature,
-        )
+    pub fn distribute_to_system(&self, system_reward: u128) -> Transaction {
+        Transaction::Legacy(TxLegacy {
+            chain_id: Some(self.chain_spec.chain().id()),
+            nonce: 0,
+            gas_limit: u64::MAX / 2,
+            gas_price: 0,
+            value: U256::from(system_reward),
+            input: Bytes::default(),
+            to: TxKind::Call(SYSTEM_REWARD_CONTRACT),
+        })
     }
+
+    /// Creates a transaction to pay block reward to a validator.
+    pub fn distribute_to_validator(&self, address: Address, block_reward: u128) -> Transaction {
+        let function = self.validator_abi.function("deposit").unwrap().first().unwrap();
+        let input = function.abi_encode_input(&[DynSolValue::from(address)]).unwrap();
+
+        Transaction::Legacy(TxLegacy {
+            chain_id: Some(self.chain_spec.chain().id()),
+            nonce: 0,
+            gas_limit: u64::MAX / 2,
+            gas_price: 0,
+            value: U256::from(block_reward),
+            input: Bytes::from(input),
+            to: TxKind::Call(VALIDATOR_CONTRACT),
+        })
+    }
+
 
     pub(crate) fn genesis_contracts_txs(&self) -> Vec<TransactionSigned> {
         let function = self.validator_abi.function("init").unwrap().first().unwrap();

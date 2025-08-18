@@ -2,8 +2,9 @@ use super::executor::BscBlockExecutor;
 use super::error::BscBlockExecutionError;
 use super::util::set_nonce;
 use crate::consensus::parlia::{DIFF_INTURN, VoteAddress, Snapshot, snapshot::DEFAULT_TURN_LENGTH};
+use crate::consensus::{SYSTEM_ADDRESS, MAX_SYSTEM_REWARD, SYSTEM_REWARD_PERCENT};
 use crate::evm::transaction::BscTxEnv;
-use crate::system_contracts::SLASH_CONTRACT;
+use crate::system_contracts::{SLASH_CONTRACT, SYSTEM_REWARD_CONTRACT};
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_evm::{eth::receipt_builder::{ReceiptBuilder, ReceiptBuilderCtx}, execute::BlockExecutionError, Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, block::StateChangeSource};
 use reth_primitives::{TransactionSigned, Transaction};
@@ -11,7 +12,7 @@ use reth_revm::State;
 use crate::node::evm::ResultAndState;
 use revm::{context::{BlockEnv, TxEnv}, Database as RevmDatabase, DatabaseCommit};
 use alloy_consensus::{Header, TxReceipt, Transaction as AlloyTransaction, SignableTransaction};
-use alloy_primitives::{Address, hex, TxKind};
+use alloy_primitives::{Address, hex, TxKind, U256};
 use std::collections::HashMap;
 use tracing::{debug, warn};
 
@@ -52,6 +53,8 @@ where
                 self.slash_spoiled_validator(block.beneficiary, spoiled_validator)?;
             }
         }
+
+        self.distribute_incoming(block.beneficiary)?;
         Ok(())
     }
 
@@ -142,7 +145,6 @@ where
         Ok(Some(DEFAULT_TURN_LENGTH))
     }
 
-    #[allow(dead_code)]
     fn slash_spoiled_validator(
         &mut self,
         validator: Address,
@@ -223,6 +225,60 @@ where
         }));
         self.evm.db_mut().commit(state);
 
+        Ok(())
+    }
+
+    fn distribute_incoming(
+        &mut self,
+        validator: Address,
+    ) -> Result<(), BlockExecutionError> {
+        let system_account = self
+            .evm
+            .db_mut()
+            .load_cache_account(SYSTEM_ADDRESS)
+            .map_err(BlockExecutionError::other)?;
+
+        if system_account.account.is_none() ||
+            system_account.account.as_ref().unwrap().info.balance == U256::ZERO
+        {
+            return Ok(());
+        }
+
+        let (mut block_reward, mut transition) = system_account.drain_balance();
+        transition.info = None;
+        self.evm.db_mut().apply_transition(vec![(SYSTEM_ADDRESS, transition)]);
+        let balance_increment = vec![(validator, block_reward)];
+
+        self.evm
+            .db_mut()
+            .increment_balances(balance_increment)
+            .map_err(BlockExecutionError::other)?;
+
+        let system_reward_balance = self
+            .evm
+            .db_mut()
+            .basic(SYSTEM_REWARD_CONTRACT)
+            .map_err(BlockExecutionError::other)?
+            .unwrap_or_default()
+            .balance;
+
+        // Kepler introduced a max system reward limit, so we need to pay the system reward to the
+        // system contract if the limit is not exceeded.
+        if !self.spec.is_kepler_active_at_timestamp(self.evm.block().timestamp.to()) &&
+            system_reward_balance < U256::from(MAX_SYSTEM_REWARD)
+        {
+            let reward_to_system = block_reward >> SYSTEM_REWARD_PERCENT;
+            if reward_to_system > 0 {
+                let tx = self.system_contracts.distribute_to_system(reward_to_system);
+                self.transact_system_tx_v2(tx, validator)?;
+            }
+
+            block_reward -= reward_to_system;
+        }
+
+        let tx = self.system_contracts.distribute_to_validator(validator, block_reward);
+        self.transact_system_tx_v2(tx, validator)?;
+        
         Ok(())
     }
 }

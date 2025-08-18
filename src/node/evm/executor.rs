@@ -2,13 +2,12 @@ use super::patch::{
     patch_chapel_after_tx, patch_chapel_before_tx, patch_mainnet_after_tx, patch_mainnet_before_tx,
 };
 use crate::{
-    consensus::{MAX_SYSTEM_REWARD, SYSTEM_ADDRESS, SYSTEM_REWARD_PERCENT, parlia::{HertzPatchManager, VoteAddress, Snapshot}},
+    consensus::{SYSTEM_ADDRESS, parlia::{HertzPatchManager, VoteAddress, Snapshot}},
     evm::transaction::BscTxEnv,
     hardforks::BscHardforks,
     system_contracts::{
         feynman_fork::ValidatorElectionInfo,
         get_upgrade_system_contracts, is_system_transaction, SystemContract, STAKE_HUB_CONTRACT,
-        SYSTEM_REWARD_CONTRACT,
     },
 };
 use alloy_consensus::{Header, Transaction, TxReceipt};
@@ -352,66 +351,6 @@ where
         Ok(())
     }
 
-    /// Distributes block rewards to the validator.
-    fn distribute_block_rewards(&mut self, validator: Address) -> Result<(), BlockExecutionError> {
-        trace!("💰 [BSC] distribute_block_rewards: validator={:?}, block={}", validator, self.evm.block().number);
-        
-        let system_account = self
-            .evm
-            .db_mut()
-            .load_cache_account(SYSTEM_ADDRESS)
-            .map_err(BlockExecutionError::other)?;
-
-        if system_account.account.is_none() ||
-            system_account.account.as_ref().unwrap().info.balance == U256::ZERO
-        {
-            trace!("💰 [BSC] distribute_block_rewards: no system balance to distribute");
-            return Ok(());
-        }
-
-        let (mut block_reward, mut transition) = system_account.drain_balance();
-        trace!("💰 [BSC] distribute_block_rewards: drained system balance={}", block_reward);
-        transition.info = None;
-        self.evm.db_mut().apply_transition(vec![(SYSTEM_ADDRESS, transition)]);
-        let balance_increment = vec![(validator, block_reward)];
-
-        self.evm
-            .db_mut()
-            .increment_balances(balance_increment)
-            .map_err(BlockExecutionError::other)?;
-
-        let system_reward_balance = self
-            .evm
-            .db_mut()
-            .basic(SYSTEM_REWARD_CONTRACT)
-            .map_err(BlockExecutionError::other)?
-            .unwrap_or_default()
-            .balance;
-
-        trace!("💰 [BSC] distribute_block_rewards: system_reward_balance={}", system_reward_balance);
-
-        // Kepler introduced a max system reward limit, so we need to pay the system reward to the
-        // system contract if the limit is not exceeded.
-        if !self.spec.is_kepler_active_at_timestamp(self.evm.block().timestamp.to()) &&
-            system_reward_balance < U256::from(MAX_SYSTEM_REWARD)
-        {
-            let reward_to_system = block_reward >> SYSTEM_REWARD_PERCENT;
-            trace!("💰 [BSC] distribute_block_rewards: reward_to_system={}", reward_to_system);
-            if reward_to_system > 0 {
-                let tx = self.system_contracts.pay_system_tx(reward_to_system);
-                trace!("💰 [BSC] distribute_block_rewards: created pay_system_tx, hash={:?}, value={}", tx.hash(), tx.value());
-                self.transact_system_tx(&tx, validator)?;
-            }
-
-            block_reward -= reward_to_system;
-        }
-
-        let tx = self.system_contracts.pay_validator_tx(validator, block_reward);
-        trace!("💰 [BSC] distribute_block_rewards: created pay_validator_tx, hash={:?}, value={}", tx.hash(), tx.value());
-        self.transact_system_tx(&tx, validator)?;
-        Ok(())
-    }
-
     pub(crate) fn apply_history_storage_account(
         &mut self,
         block_number: BlockNumber,
@@ -602,9 +541,6 @@ where
 
         self.finalize_new_block(&self.evm.block().clone())?;
 
-
-        // ---- post-system-tx handling ---------------------------------
-        self.distribute_block_rewards(self.evm.block().beneficiary)?;
 
         let system_txs = self.system_txs.clone();
         if self.spec.is_plato_active_at_block(self.evm.block().number.to()) {
