@@ -1,16 +1,19 @@
 use super::executor::BscBlockExecutor;
 use super::error::BscBlockExecutionError;
+use super::util::set_nonce;
 use crate::consensus::parlia::{DIFF_INTURN, VoteAddress, Snapshot, snapshot::DEFAULT_TURN_LENGTH};
 use crate::evm::transaction::BscTxEnv;
+use crate::system_contracts::SLASH_CONTRACT;
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
-use reth_evm::{eth::receipt_builder::ReceiptBuilder, execute::BlockExecutionError, Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
-use reth_primitives::TransactionSigned;
+use reth_evm::{eth::receipt_builder::{ReceiptBuilder, ReceiptBuilderCtx}, execute::BlockExecutionError, Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, block::StateChangeSource};
+use reth_primitives::{TransactionSigned, Transaction};
 use reth_revm::State;
-use revm::context::BlockEnv;
-use alloy_consensus::{Header, TxReceipt};
-use alloy_primitives::{Address, hex};
+use crate::node::evm::ResultAndState;
+use revm::{context::{BlockEnv, TxEnv}, Database as RevmDatabase, DatabaseCommit};
+use alloy_consensus::{Header, TxReceipt, Transaction as AlloyTransaction, SignableTransaction};
+use alloy_primitives::{Address, hex, TxKind};
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::{debug, warn};
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
 where
@@ -46,7 +49,7 @@ where
                 snap.recent_proposers.iter().any(|(_, v)| *v == spoiled_validator)
             };
             if signed_recently {
-                // TODO: slash spoiled validator
+                self.slash_spoiled_validator(block.beneficiary, spoiled_validator)?;
             }
         }
         Ok(())
@@ -145,19 +148,81 @@ where
         validator: Address,
         spoiled_val: Address
     ) -> Result<(), BlockExecutionError> {
-        // self.transact_system_tx(
-        //     self.parlia().slash(spoiled_val),
-        //     validator,
-        //     system_txs,
-        //     receipts,
-        //     cumulative_gas_used,
-        //     env,
-        // )?;
+        self.transact_system_tx_v2(
+            self.system_contracts.slash(spoiled_val),
+            validator,
+        )?;
 
         Ok(())
     }
 
-    fn transact_system_tx_v2(&mut self, mut transaction: R::Transaction, sender: Address) -> Result<(), BlockExecutionError> {
-        return Ok(())
+    fn transact_system_tx_v2(&mut self, transaction: Transaction, sender: Address) -> Result<(), BlockExecutionError> {
+        let account = self.evm
+            .db_mut()
+            .basic(sender)
+            .map_err(BlockExecutionError::other)?
+            .unwrap_or_default();
+
+        let transaction = set_nonce(transaction, account.nonce);
+        let hash = transaction.signature_hash();
+        if self.system_txs.is_empty() || hash != self.system_txs[0].signature_hash() {
+            // slash tx could fail and not in the block
+            if let Some(to) = transaction.to() {
+                if to == SLASH_CONTRACT &&
+                    (self.system_txs.is_empty() ||
+                        self.system_txs[0].to().unwrap_or_default() !=
+                            SLASH_CONTRACT)
+                {
+                    warn!("slash validator failed");
+                    return Ok(());
+                }
+            }
+            debug!("unexpected transaction: {:?}", transaction);
+            for tx in self.system_txs.iter() {
+                debug!("left system tx: {:?}", tx);
+            }
+            return Err(BscBlockExecutionError::UnexpectedSystemTx.into());
+        }
+        let signed_tx = self.system_txs.remove(0);
+
+        // Create TxEnv first (before moving transaction)
+        let tx_env = BscTxEnv {
+            base: TxEnv {
+                caller: sender,
+                kind: TxKind::Call(transaction.to().unwrap()),
+                nonce: account.nonce,
+                gas_limit: u64::MAX / 2,
+                value: transaction.value(),
+                data: transaction.input().clone(),
+                gas_price: 0,
+                chain_id: Some(self.spec.chain().id()),
+                gas_priority_fee: None,
+                access_list: Default::default(),
+                blob_hashes: Vec::new(),
+                max_fee_per_blob_gas: 0,
+                tx_type: 0,
+                authorization_list: Default::default(),
+            },
+            is_system_transaction: true,
+        };
+
+        let result_and_state = self.evm.transact(tx_env).map_err(BlockExecutionError::other)?;
+        let ResultAndState { result, state } = result_and_state;
+        if let Some(hook) = &mut self.hook {
+            hook.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);
+        } 
+
+        let gas_used = result.gas_used();
+        self.gas_used += gas_used;
+        self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
+            tx: &signed_tx,
+            evm: &self.evm,
+            result,
+            state: &state,
+            cumulative_gas_used: self.gas_used,
+        }));
+        self.evm.db_mut().commit(state);
+
+        Ok(())
     }
 }

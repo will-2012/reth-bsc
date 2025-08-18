@@ -1,4 +1,5 @@
 pub mod error;
+pub mod util;
 
 use crate::{
     evm::{

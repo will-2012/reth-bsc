@@ -63,13 +63,13 @@ where
     /// Inner EVM.
     pub(super) evm: EVM,
     /// Gas used in the block.
-    gas_used: u64,
+    pub(super) gas_used: u64,
     /// Receipts of executed transactions.
-    receipts: Vec<R::Receipt>,
+    pub(super) receipts: Vec<R::Receipt>,
     /// System txs
-    system_txs: Vec<R::Transaction>,
+    pub(super) system_txs: Vec<R::Transaction>,
     /// Receipt builder.
-    receipt_builder: R,
+    pub(super) receipt_builder: R,
     /// System contracts used to trigger fork specific logic.
     pub(super) system_contracts: SystemContract<Spec>,
     /// Hertz patch manager for mainnet compatibility
@@ -79,9 +79,9 @@ where
     /// Context for block execution.
     _ctx: EthBlockExecutionCtx<'a>,
     /// Utility to call system caller.
-    system_caller: SystemCaller<Spec>,
+    pub(super) system_caller: SystemCaller<Spec>,
     /// State hook.
-    hook: Option<Box<dyn OnStateHook>>,
+    pub(super) hook: Option<Box<dyn OnStateHook>>,
     /// Snapshot provider for accessing Parlia validator snapshots.
     pub(super) snapshot_provider: Option<Arc<dyn SnapshotProvider + Send + Sync>>,
     /// Parlia consensus instance used (optional during execution).
@@ -295,27 +295,6 @@ where
 
         let transition = account.change(info, Default::default());
         self.evm.db_mut().apply_transition(vec![(address, transition)]);
-        Ok(())
-    }
-
-    /// Handle slash system tx
-    fn handle_slash_tx(&mut self, tx: &TransactionSigned) -> Result<(), BlockExecutionError> {
-        sol!(
-            function slash(
-                address amounts,
-            );
-        );
-
-        let input = tx.input();
-        let is_slash_tx = input.len() >= 4 && input[..4] == slashCall::SELECTOR;
-
-        if is_slash_tx {
-            // DEBUG: Uncomment to trace slash transaction processing
-        // debug!("⚔️  [BSC] handle_slash_tx: processing slash tx, hash={:?}", tx.hash());
-            let signer = tx.recover_signer().map_err(BlockExecutionError::other)?;
-            self.transact_system_tx(tx, signer)?;
-        }
-
         Ok(())
     }
 
@@ -624,48 +603,10 @@ where
         self.finalize_new_block(&self.evm.block().clone())?;
 
 
-        // Prepare system transactions list and append slash transactions collected from consensus.
-        let mut system_txs = self.system_txs.clone();
-
-        // Drain slashing evidence collected by header-validation for this block.
-        for spoiled in crate::consensus::parlia::slash_pool::drain() {
-            use alloy_sol_macro::sol;
-            use alloy_sol_types::SolCall;
-            use crate::system_contracts::SLASH_CONTRACT;
-            sol!(
-                function slash(address);
-            );
-            let input = slashCall(spoiled).abi_encode();
-            let tx = reth_primitives::TransactionSigned::new_unhashed(
-                reth_primitives::Transaction::Legacy(alloy_consensus::TxLegacy {
-                    chain_id: Some(self.spec.chain().id()),
-                    nonce: 0,
-                    gas_limit: u64::MAX / 2,
-                    gas_price: 0,
-                    value: alloy_primitives::U256::ZERO,
-                    input: alloy_primitives::Bytes::from(input),
-                    to: alloy_primitives::TxKind::Call(Address::from(*SLASH_CONTRACT)),
-                }),
-                alloy_primitives::Signature::new(Default::default(), Default::default(), false),
-            );
-            // DEBUG: Uncomment to trace slash transaction creation
-            // debug!("⚔️  [BSC] finish: added slash tx for spoiled validator {:?}", spoiled);
-            system_txs.push(tx);
-        }
-
-        // DEBUG: Uncomment to trace system transaction processing
-        // debug!("🎯 [BSC] finish: processing {} system txs for slash handling", system_txs.len());
-        let system_txs_for_slash = system_txs.clone();
-        for (_i, tx) in system_txs_for_slash.iter().enumerate() {
-            // DEBUG: Uncomment to trace individual slash transaction handling
-            // debug!("⚔️  [BSC] finish: handling slash tx {}/{}: hash={:?}", i + 1, system_txs_for_slash.len(), tx.hash());
-            self.handle_slash_tx(tx)?;
-        }
-
-
         // ---- post-system-tx handling ---------------------------------
         self.distribute_block_rewards(self.evm.block().beneficiary)?;
 
+        let system_txs = self.system_txs.clone();
         if self.spec.is_plato_active_at_block(self.evm.block().number.to()) {
             for (_i, tx) in system_txs.iter().enumerate() {
                 self.handle_finality_reward_tx(tx)?;
