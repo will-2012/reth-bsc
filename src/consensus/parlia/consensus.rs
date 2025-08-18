@@ -1,4 +1,5 @@
-use super::{ParliaHeaderValidator, SnapshotProvider, BscConsensusValidator, Snapshot, TransactionSplitter, SplitTransactions, constants::{DIFF_INTURN, DIFF_NOTURN}};
+use super::{ParliaHeaderValidator, SnapshotProvider, BscConsensusValidator, Snapshot, TransactionSplitter, SplitTransactions, constants::{DIFF_INTURN, DIFF_NOTURN, EXTRA_VANITY, EXTRA_SEAL, VALIDATOR_NUMBER_SIZE, VALIDATOR_BYTES_LEN_AFTER_LUBAN, VALIDATOR_BYTES_LEN_BEFORE_LUBAN, TURN_LENGTH_SIZE}};
+use super::error::ParliaConsensusError;
 use alloy_consensus::{Header, TxReceipt, Transaction, BlockHeader};
 use reth_primitives_traits::{GotExpected, SignerRecoverable};
 use crate::{
@@ -509,6 +510,17 @@ where
             .verify_cascading_fields(&sealed_header, &sealed_parent, None, snap)
             .map_err(|e| reth_evm::execute::BlockExecutionError::msg(format!("{}", e)))
     }
+
+    fn get_epoch_length(&self, header: &alloy_consensus::Header) -> u64 {
+        self.get_epoch_length(header)
+    }
+    fn get_validator_bytes_from_header(&self, header: &alloy_consensus::Header) -> Option<Vec<u8>> {
+        self.get_validator_bytes_from_header(header)
+    }
+
+    fn get_turn_length_from_header(&self, header: &alloy_consensus::Header) -> Result<Option<u8>, ParliaConsensusError> {
+        self.get_turn_length_from_header(header)
+    }
 }
 
 impl<ChainSpec, P> HeaderValidator<Header> for ParliaConsensus<ChainSpec, P>
@@ -678,4 +690,82 @@ where
         
         Ok(())
     }
+
+    fn get_epoch_length(&self, header: &Header) -> u64 {
+        if self.chain_spec.is_maxwell_active_at_timestamp(header.timestamp()) {
+            return crate::consensus::parlia::snapshot::MAXWELL_EPOCH_LENGTH;
+        }
+        if self.chain_spec.is_lorentz_active_at_timestamp(header.timestamp()) {
+            return crate::consensus::parlia::snapshot::LORENTZ_EPOCH_LENGTH;
+        }
+        self.epoch
+    }
+
+    fn get_validator_bytes_from_header(&self, header: &Header) -> Option<Vec<u8>> {
+        let extra_len = header.extra_data.len();
+        if extra_len <= EXTRA_VANITY + EXTRA_SEAL {
+            return None;
+        }
+
+        let is_luban_active = self.chain_spec.is_luban_active_at_block(header.number);
+        let is_epoch = header.number % self.get_epoch_length(header) == 0;
+
+        if is_luban_active {
+            if !is_epoch {
+                return None;
+            }
+
+            let count = header.extra_data[EXTRA_VANITY] as usize;
+            let start = EXTRA_VANITY+VALIDATOR_NUMBER_SIZE;
+            let end = start + count * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
+
+            let mut extra_min_len = end + EXTRA_SEAL;
+            let is_bohr_active = self.chain_spec.is_bohr_active_at_timestamp(header.timestamp);
+            if is_bohr_active {
+                extra_min_len += TURN_LENGTH_SIZE;
+            }
+            if count == 0 || extra_len < extra_min_len {
+                return None
+            }
+            Some(header.extra_data[start..end].to_vec())
+        } else {
+            if is_epoch &&
+                (extra_len - EXTRA_VANITY - EXTRA_SEAL) %
+                VALIDATOR_BYTES_LEN_BEFORE_LUBAN !=
+                    0
+            {
+                return None;
+            }
+
+            Some(header.extra_data[EXTRA_VANITY..extra_len - EXTRA_SEAL].to_vec())
+        }
+    }
+
+    pub fn get_turn_length_from_header(
+        &self,
+        header: &Header,
+    ) -> Result<Option<u8>, ParliaConsensusError> {
+        if header.number % self.get_epoch_length(header) != 0 ||
+            !self.chain_spec.is_bohr_active_at_timestamp(header.timestamp)
+        {
+            return Ok(None);
+        }
+
+        if header.extra_data.len() <= EXTRA_VANITY + EXTRA_SEAL {
+            return Err(ParliaConsensusError::InvalidHeaderExtraLen {
+                header_extra_len: header.extra_data.len() as u64,
+            });
+        }
+
+        let num = header.extra_data[EXTRA_VANITY] as usize;
+        let pos = EXTRA_VANITY + 1 + num * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
+
+        if header.extra_data.len() <= pos {
+            return Err(ParliaConsensusError::ExtraInvalidTurnLength);
+        }
+
+        let turn_length = header.extra_data[pos];
+        Ok(Some(turn_length))
+    }
+
 } 
