@@ -1,5 +1,6 @@
-use super::{ParliaHeaderValidator, SnapshotProvider, BscConsensusValidator, Snapshot, TransactionSplitter, SplitTransactions, constants::{DIFF_INTURN, DIFF_NOTURN, EXTRA_VANITY, EXTRA_SEAL, VALIDATOR_NUMBER_SIZE, VALIDATOR_BYTES_LEN_AFTER_LUBAN, VALIDATOR_BYTES_LEN_BEFORE_LUBAN, TURN_LENGTH_SIZE}};
+use super::{ParliaHeaderValidator, SnapshotProvider, BscConsensusValidator, Snapshot, TransactionSplitter, SplitTransactions, VoteAttestation, constants::{DIFF_INTURN, DIFF_NOTURN, EXTRA_VANITY, EXTRA_SEAL, VALIDATOR_NUMBER_SIZE, VALIDATOR_BYTES_LEN_AFTER_LUBAN, VALIDATOR_BYTES_LEN_BEFORE_LUBAN, TURN_LENGTH_SIZE}};
 use super::error::ParliaConsensusError;
+use alloy_rlp::Decodable;
 use alloy_consensus::{Header, TxReceipt, Transaction, BlockHeader};
 use reth_primitives_traits::{GotExpected, SignerRecoverable};
 use crate::{
@@ -514,12 +515,17 @@ where
     fn get_epoch_length(&self, header: &alloy_consensus::Header) -> u64 {
         self.get_epoch_length(header)
     }
+
     fn get_validator_bytes_from_header(&self, header: &alloy_consensus::Header) -> Option<Vec<u8>> {
         self.get_validator_bytes_from_header(header)
     }
 
     fn get_turn_length_from_header(&self, header: &alloy_consensus::Header) -> Result<Option<u8>, ParliaConsensusError> {
         self.get_turn_length_from_header(header)
+    }
+
+    fn get_vote_attestation_from_header(&self, header: &alloy_consensus::Header) -> Result<Option<VoteAttestation>, ParliaConsensusError> {
+        self.get_vote_attestation_from_header(header)
     }
 }
 
@@ -766,6 +772,47 @@ where
 
         let turn_length = header.extra_data[pos];
         Ok(Some(turn_length))
+    }
+
+    pub fn get_vote_attestation_from_header(
+        &self,
+        header: &Header,
+    ) -> Result<Option<VoteAttestation>, ParliaConsensusError> {
+        let extra_len = header.extra_data.len();
+
+        if extra_len <= EXTRA_VANITY + EXTRA_SEAL {
+            return Ok(None);
+        }
+
+        if !self.chain_spec.is_luban_active_at_block(header.number) {
+            return Ok(None);
+        }
+
+        let mut raw_attestation_data = if header.number % self.get_epoch_length(header) != 0 {
+            &header.extra_data[EXTRA_VANITY..extra_len - EXTRA_SEAL]
+        } else {
+            let validator_count =
+                header.extra_data[EXTRA_VANITY + VALIDATOR_NUMBER_SIZE - 1] as usize;
+            let mut start =
+                EXTRA_VANITY + VALIDATOR_NUMBER_SIZE + validator_count * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
+            let is_bohr_active = self.chain_spec.is_bohr_active_at_timestamp(header.timestamp);
+            if is_bohr_active {
+                start += TURN_LENGTH_SIZE;
+            }
+            let end = extra_len - EXTRA_SEAL;
+            if end <= start {
+                return Ok(None)
+            }
+            &header.extra_data[start..end]
+        };
+        if raw_attestation_data.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(
+            Decodable::decode(&mut raw_attestation_data)
+                .map_err(|_| ParliaConsensusError::ABIDecodeInnerError)?,
+        ))
     }
 
 } 

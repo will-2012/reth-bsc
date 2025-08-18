@@ -51,6 +51,7 @@ pub trait ParliaConsensusObject:
     fn get_epoch_length(&self, header: &alloy_consensus::Header) -> u64;
     fn get_validator_bytes_from_header(&self, header: &alloy_consensus::Header) -> Option<Vec<u8>>;
     fn get_turn_length_from_header(&self, header: &alloy_consensus::Header) -> Result<Option<u8>, ParliaConsensusError>;
+    fn get_vote_attestation_from_header(&self, header: &alloy_consensus::Header) -> Result<Option<VoteAttestation>, ParliaConsensusError>;
 }
 
 // Note: concrete implementation is provided for `ParliaConsensus` in `consensus.rs`

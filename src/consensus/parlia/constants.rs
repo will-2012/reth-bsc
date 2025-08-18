@@ -20,3 +20,5 @@ pub const TURN_LENGTH_SIZE: usize = 1;
 pub const DIFF_INTURN: U256 = U256::from_limbs([2, 0, 0, 0]);
 /// Difficulty for out-of-turn block (when it's not the proposer's turn)
 pub const DIFF_NOTURN: U256 = U256::from_limbs([1, 0, 0, 0]); 
+
+pub const COLLECT_ADDITIONAL_VOTES_REWARD_RATIO: usize = 100;
