@@ -160,6 +160,21 @@ impl<Spec: EthChainSpec + crate::hardforks::BscHardforks> SystemContract<Spec> {
         (consensus_address, voting_powers, vote_addresses, total_length)
     }
 
+    /// Return system address and input which is used to query turn length.
+    pub fn get_turn_length(&self) -> (Address, Bytes) {
+        let function = self.validator_abi.function("getTurnLength").unwrap().first().unwrap();
+
+        (VALIDATOR_CONTRACT, Bytes::from(function.abi_encode_input(&[]).unwrap()))
+    }
+
+    /// Unpack the data into turn length.
+    pub fn unpack_data_into_turn_length(&self, data: &[u8]) -> U256 {
+        let function = self.validator_abi.function("getTurnLength").unwrap().first().unwrap();
+        let output = function.abi_decode_output(data).unwrap();
+
+        output[0].as_uint().unwrap().0
+    }
+
     /// Creates a deposit tx to pay block reward to a validator.
     pub fn pay_validator_tx(&self, address: Address, block_reward: u128) -> TransactionSigned {
         let function = self.validator_abi.function("deposit").unwrap().first().unwrap();

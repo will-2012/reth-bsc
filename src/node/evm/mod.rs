@@ -1,3 +1,5 @@
+pub mod error;
+
 use crate::{
     evm::{
         api::{BscContext, BscEvm},

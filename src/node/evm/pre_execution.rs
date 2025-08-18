@@ -171,7 +171,7 @@ where
         }
     }
 
-    fn eth_call(&mut self, to: Address, data: Bytes) -> Result<Bytes, BlockExecutionError> {
+    pub(crate) fn eth_call(&mut self, to: Address, data: Bytes) -> Result<Bytes, BlockExecutionError> {
         let tx_env = BscTxEnv {
             base: TxEnv {
                 caller: Address::default(),

@@ -19,6 +19,7 @@ pub mod slash_pool;
 pub mod transaction_splitter;
 pub mod consensus;
 pub mod util;
+pub mod error;
 
 pub use snapshot::{Snapshot, ValidatorInfo, CHECKPOINT_INTERVAL};
 pub use vote::{VoteAddress, VoteAttestation, VoteData, VoteEnvelope, VoteSignature, ValidatorsBitSet};
@@ -28,6 +29,7 @@ pub use validator::ParliaHeaderValidator;
 pub use validation::BscConsensusValidator;
 pub use hertz_patch::{HertzPatchManager, StoragePatch};
 pub use transaction_splitter::{TransactionSplitter, SplitTransactions, TransactionSplitterError};
+pub use error::ParliaConsensusError;
 pub use consensus::ParliaConsensus;
 pub use util::hash_with_chain_id;
 pub use provider::SnapshotProvider;
@@ -48,6 +50,7 @@ pub trait ParliaConsensusObject:
 
     fn get_epoch_length(&self, header: &alloy_consensus::Header) -> u64;
     fn get_validator_bytes_from_header(&self, header: &alloy_consensus::Header) -> Option<Vec<u8>>;
+    fn get_turn_length_from_header(&self, header: &alloy_consensus::Header) -> Result<Option<u8>, ParliaConsensusError>;
 }
 
 // Note: concrete implementation is provided for `ParliaConsensus` in `consensus.rs`

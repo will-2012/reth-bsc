@@ -1,5 +1,6 @@
 use super::executor::BscBlockExecutor;
-use crate::consensus::parlia::{DIFF_INTURN, VoteAddress, Snapshot};
+use super::error::BscBlockExecutionError;
+use crate::consensus::parlia::{DIFF_INTURN, VoteAddress, Snapshot, snapshot::DEFAULT_TURN_LENGTH};
 use crate::evm::transaction::BscTxEnv;
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_evm::{eth::receipt_builder::ReceiptBuilder, execute::BlockExecutionError, Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
@@ -32,9 +33,7 @@ where
     pub(crate) fn finalize_new_block(&mut self, block: &BlockEnv) -> Result<(), BlockExecutionError> {
         tracing::info!("Finalize new block, block_number: {}", block.number);
 
-        // Consensus: Verify validators
         self.verify_validators(self.inner_ctx.current_validators.clone(), self.inner_ctx.header.clone())?;
-        // Consensus: Verify turn length
         self.verify_turn_length(self.inner_ctx.snap.clone(), self.inner_ctx.header.clone())?;
 
         // TODO: finalize the system txs.
@@ -48,6 +47,7 @@ where
         let header_ref = header.as_ref().unwrap();
         let epoch_length = self.parlia_consensus.as_ref().unwrap().get_epoch_length(header_ref);
         if header_ref.number % epoch_length != 0 {
+            tracing::info!("Skip verify validator, block_number {} is not an epoch boundary, epoch_length: {}", header_ref.number, epoch_length);
             return Ok(());
         }
 
@@ -81,11 +81,52 @@ where
             debug!("expected: {:?}", hex::encode(expected));
             return Err(BlockExecutionError::msg("Invalid validators"));
         }
+        tracing::info!("Succeed to verify validators, block_number: {}, epoch_length: {}", header_ref.number, epoch_length);
 
         Ok(())
     }
 
-    fn verify_turn_length(&mut self, _snap: Option<Snapshot>, _header: Option<Header>) -> Result<(), BlockExecutionError> {
-        Ok(())
+    fn verify_turn_length(&mut self, _snap: Option<Snapshot>, header: Option<Header>) -> Result<(), BlockExecutionError> {
+        let header_ref = header.as_ref().unwrap();
+        let epoch_length = {
+            let parlia = self.parlia_consensus.as_ref().unwrap();
+            parlia.get_epoch_length(header_ref)
+        };
+        if header_ref.number % epoch_length != 0 || !self.spec.is_bohr_active_at_timestamp(header_ref.timestamp) {
+            tracing::info!("Skip verify turn length, block_number {} is not an epoch boundary, epoch_length: {}", header_ref.number, epoch_length);
+            return Ok(());
+        }
+        let turn_length_from_header = {
+            let parlia = self.parlia_consensus.as_ref().unwrap();
+            match parlia.get_turn_length_from_header(header_ref) {
+                Ok(Some(length)) => length,
+                Ok(None) => return Ok(()),
+                Err(err) => return Err(BscBlockExecutionError::ParliaConsensusInnerError { error: Box::new(err) }.into()),
+            }
+        };
+        let turn_length_from_contract = self.get_turn_length(header_ref)?.unwrap();
+        if turn_length_from_header == turn_length_from_contract {
+            tracing::info!("Succeed to verify turn length, block_number: {}", header_ref.number);
+            return Ok(())
+        }
+
+        tracing::info!("Failed to verify turn length, block_number: {}, turn_length_from_header: {}, turn_length_from_contract: {}, epoch_length: {}", 
+            header_ref.number, turn_length_from_header, turn_length_from_contract, epoch_length);
+        Err(BscBlockExecutionError::MismatchingEpochTurnLengthError.into())
+    }
+
+    fn get_turn_length(
+        &mut self,
+        header: &Header,
+    ) -> Result<Option<u8>, BlockExecutionError> {
+        if self.spec.is_bohr_active_at_timestamp(header.timestamp) {
+            let (to, data) = self.system_contracts.get_turn_length();
+            let bz = self.eth_call(to, data)?;
+
+            let turn_length = self.system_contracts.unpack_data_into_turn_length(bz.as_ref()).to::<u8>();
+            return Ok(Some(turn_length))
+        }
+
+        Ok(Some(DEFAULT_TURN_LENGTH))
     }
 }
