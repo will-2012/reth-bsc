@@ -38,7 +38,7 @@ where
     /// finalize the new block, post check and finalize the system tx.
     /// depends on parlia, header and snapshot.
     pub(crate) fn finalize_new_block(&mut self, block: &BlockEnv) -> Result<(), BlockExecutionError> {
-        tracing::info!("Finalize new block, block_number: {}", block.number);
+        tracing::info!("Start to finalize new block, block_number: {}", block.number); 
         self.verify_validators(self.inner_ctx.current_validators.clone(), self.inner_ctx.header.clone())?;
         self.verify_turn_length(self.inner_ctx.snap.clone(), self.inner_ctx.header.clone())?;
 
@@ -53,6 +53,7 @@ where
             };
             if signed_recently {
                 self.slash_spoiled_validator(block.beneficiary, spoiled_validator)?;
+                tracing::info!("Slash spoiled validator, block_number: {}, spoiled_validator: {}", block.number, spoiled_validator);
             }
         }
 
@@ -74,15 +75,19 @@ where
             let validators_election_info = self.inner_ctx.validators_election_info.clone().unwrap_or_default();
  
             self.update_validator_set_v2(
-                max_elected_validators,
-                validators_election_info,
-                header.beneficiary,
-            )?;
+                 max_elected_validators,
+                 validators_election_info.clone(),
+                 header.beneficiary,
+             )?;
+            tracing::info!("Update validator set, block_number: {}, max_elected_validators: {}, validators_election_info: {:?}", 
+                header.number, max_elected_validators, validators_election_info);
         }
 
         if !self.system_txs.is_empty() {
             return Err(BscBlockExecutionError::UnexpectedSystemTx.into());
         }
+
+        tracing::info!("Succeed to finalize new block, block_number: {}", block.number);
 
         // TODO: apply snap and store it in db.
 
@@ -302,6 +307,7 @@ where
             if reward_to_system > 0 {
                 let tx = self.system_contracts.distribute_to_system(reward_to_system);
                 self.transact_system_tx_v2(tx, validator)?;
+                tracing::info!("Distribute to system, block_number: {}, reward_to_system: {}", self.evm.block().number, reward_to_system);
             }
 
             block_reward -= reward_to_system;
@@ -309,6 +315,7 @@ where
 
         let tx = self.system_contracts.distribute_to_validator(validator, block_reward);
         self.transact_system_tx_v2(tx, validator)?;
+        tracing::info!("Distribute to validator, block_number: {}, block_reward: {}", self.evm.block().number, block_reward);
         
         Ok(())
     }
@@ -352,6 +359,7 @@ where
             self.system_contracts.distribute_finality_reward(validators, weights),
             validator,
         )?;
+        tracing::info!("Distribute finality reward, block_number: {}, validator: {}", self.evm.block().number, validator);
 
         Ok(())
     }
