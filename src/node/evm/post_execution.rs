@@ -38,7 +38,16 @@ where
 
         // TODO: finalize the system txs.
         if block.difficulty != DIFF_INTURN {
-
+            let snap = self.inner_ctx.snap.as_ref().unwrap();
+            let spoiled_validator = snap.inturn_validator();
+            let signed_recently = if self.spec.is_plato_active_at_block(block.number.to()) {
+                snap.sign_recently(spoiled_validator)
+            } else {
+                snap.recent_proposers.iter().any(|(_, v)| *v == spoiled_validator)
+            };
+            if signed_recently {
+                // TODO: slash spoiled validator
+            }
         }
         Ok(())
     }
@@ -128,5 +137,27 @@ where
         }
 
         Ok(Some(DEFAULT_TURN_LENGTH))
+    }
+
+    #[allow(dead_code)]
+    fn slash_spoiled_validator(
+        &mut self,
+        validator: Address,
+        spoiled_val: Address
+    ) -> Result<(), BlockExecutionError> {
+        // self.transact_system_tx(
+        //     self.parlia().slash(spoiled_val),
+        //     validator,
+        //     system_txs,
+        //     receipts,
+        //     cumulative_gas_used,
+        //     env,
+        // )?;
+
+        Ok(())
+    }
+
+    fn transact_system_tx_v2(&mut self, mut transaction: R::Transaction, sender: Address) -> Result<(), BlockExecutionError> {
+        return Ok(())
     }
 }
