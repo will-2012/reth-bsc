@@ -142,8 +142,6 @@ where
         }
     }
 
-
-
     /// Applies system contract upgrades if the Feynman fork is not yet active.
     fn upgrade_contracts(&mut self) -> Result<(), BlockExecutionError> {
         let contracts = get_upgrade_system_contracts(
@@ -297,32 +295,6 @@ where
         Ok(())
     }
 
-    /// Handle finality reward system tx.
-    /// Activated by <https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP-319.md>
-    /// at <https://www.bnbchain.org/en/blog/announcing-v1-2-9-a-significant-hard-fork-release-for-bsc-mainnet>
-    fn handle_finality_reward_tx(
-        &mut self,
-        tx: &TransactionSigned,
-    ) -> Result<(), BlockExecutionError> {
-        sol!(
-            function distributeFinalityReward(
-                address[] validators,
-                uint256[] weights
-            );
-        );
-
-        let input = tx.input();
-        let is_finality_reward_tx =
-            input.len() >= 4 && input[..4] == distributeFinalityRewardCall::SELECTOR;
-
-        if is_finality_reward_tx {
-            debug!("🏆 [BSC] handle_finality_reward_tx: processing finality reward tx, hash={:?}", tx.hash());
-            let signer = tx.recover_signer().map_err(BlockExecutionError::other)?;
-            self.transact_system_tx(tx, signer)?;
-        }
-
-        Ok(())
-    }
 
     /// Handle update validatorsetv2 system tx.
     /// Activated by <https://github.com/bnb-chain/BEPs/pull/294>
@@ -541,22 +513,11 @@ where
 
         self.finalize_new_block(&self.evm.block().clone())?;
 
-
-        let system_txs = self.system_txs.clone();
-        if self.spec.is_plato_active_at_block(self.evm.block().number.to()) {
-            for (_i, tx) in system_txs.iter().enumerate() {
-                self.handle_finality_reward_tx(tx)?;
-            }
-        }
-
         // TODO: add breathe check and polish it later.
         let system_txs_v2 = self.system_txs.clone();
         for (_i, tx) in system_txs_v2.iter().enumerate() {
             self.handle_update_validator_set_v2_tx(tx)?;
         }
-
-        // TODO:
-        // Consensus: Slash validator if not in turn
         
         // -----------------------------------------------------------------
         // reth-bsc-trail PATTERN: Create current snapshot from parent snapshot after execution

@@ -1,7 +1,7 @@
 use super::executor::BscBlockExecutor;
 use super::error::BscBlockExecutionError;
 use super::util::set_nonce;
-use crate::consensus::parlia::{DIFF_INTURN, VoteAddress, Snapshot, snapshot::DEFAULT_TURN_LENGTH};
+use crate::consensus::parlia::{DIFF_INTURN, VoteAddress, Snapshot, VoteAttestation, snapshot::DEFAULT_TURN_LENGTH, constants::COLLECT_ADDITIONAL_VOTES_REWARD_RATIO};
 use crate::consensus::{SYSTEM_ADDRESS, MAX_SYSTEM_REWARD, SYSTEM_REWARD_PERCENT};
 use crate::evm::transaction::BscTxEnv;
 use crate::system_contracts::{SLASH_CONTRACT, SYSTEM_REWARD_CONTRACT};
@@ -15,6 +15,9 @@ use alloy_consensus::{Header, TxReceipt, Transaction as AlloyTransaction, Signab
 use alloy_primitives::{Address, hex, TxKind, U256};
 use std::collections::HashMap;
 use tracing::{debug, warn};
+use reth_primitives_traits::GotExpected;
+use bit_set::BitSet;
+
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
 where
@@ -36,7 +39,6 @@ where
     /// depends on parlia, header and snapshot.
     pub(crate) fn finalize_new_block(&mut self, block: &BlockEnv) -> Result<(), BlockExecutionError> {
         tracing::info!("Finalize new block, block_number: {}", block.number);
-
         self.verify_validators(self.inner_ctx.current_validators.clone(), self.inner_ctx.header.clone())?;
         self.verify_turn_length(self.inner_ctx.snap.clone(), self.inner_ctx.header.clone())?;
 
@@ -55,6 +57,13 @@ where
         }
 
         self.distribute_incoming(block.beneficiary)?;
+
+        if self.spec.is_plato_active_at_block(block.number.to()) {
+            let header = self.inner_ctx.header.as_ref().unwrap().clone();
+            self.distribute_finality_reward(&header)?;
+        }
+
+
         Ok(())
     }
 
@@ -281,4 +290,95 @@ where
         
         Ok(())
     }
+
+    fn distribute_finality_reward(
+        &mut self,
+        header: &Header
+    ) -> Result<(), BlockExecutionError> {
+        let parlia = self.parlia_consensus.as_ref().unwrap();
+        let epoch_length = parlia.get_epoch_length(header);
+        if header.number % epoch_length != 0 {
+            return Ok(());
+        }
+
+        let validator = header.beneficiary;
+        let mut accumulated_weights: HashMap<Address, U256> = HashMap::new();
+
+        let start = (header.number - epoch_length).max(1);
+        let end = header.number;
+        let mut target_number = header.number - 1;
+        for _ in (start..end).rev() {
+            //  let header = &(self.get_header_by_hash(target_hash, ancestor)?);
+            let header = self.snapshot_provider.as_ref().unwrap().get_checkpoint_header(target_number)
+                .ok_or_else(|| BlockExecutionError::msg(format!("Header not found for block number: {}", target_number)))?;
+
+            if let Some(attestation) =
+                self.parlia_consensus.as_ref().unwrap().get_vote_attestation_from_header(&header).map_err(|err| {
+                    BscBlockExecutionError::ParliaConsensusInnerError { error: err.into() }
+                })?
+            {
+                self.process_attestation(&attestation, &header, &mut accumulated_weights)?;
+            }
+            target_number = header.number - 1;
+        }
+
+        let mut validators: Vec<Address> = accumulated_weights.keys().copied().collect();
+        validators.sort();
+        let weights: Vec<U256> = validators.iter().map(|val| accumulated_weights[val]).collect();
+
+        self.transact_system_tx_v2(
+            self.system_contracts.distribute_finality_reward(validators, weights),
+            validator,
+        )?;
+
+        Ok(())
+    }
+
+    fn process_attestation(
+        &self,
+        attestation: &VoteAttestation,
+        parent_header: &Header,
+        accumulated_weights: &mut std::collections::HashMap<Address, U256>,
+    ) -> Result<(), BlockExecutionError> {
+        let justified_header = self.snapshot_provider.as_ref().unwrap().get_checkpoint_header(attestation.data.target_number)
+            .ok_or_else(|| BlockExecutionError::msg(format!("Header not found for block number: {}", attestation.data.target_number)))?;
+        let parent = self.snapshot_provider.as_ref().unwrap().get_checkpoint_header(justified_header.number - 1)
+            .ok_or_else(|| BlockExecutionError::msg(format!("Header not found for block number: {}", justified_header.number - 1)))?;
+        let snapshot = self.snapshot_provider.as_ref().unwrap().snapshot(parent.number);
+        let validators = &snapshot.unwrap().validators;  
+        let mut validators_bit_set = BitSet::new();
+        let vote_address_set = attestation.vote_address_set;
+        for i in 0..64 {
+            if (vote_address_set & (1u64 << i)) != 0 {
+                validators_bit_set.insert(i);
+            }
+        }
+
+        if validators_bit_set.len() > validators.len() {
+            return Err(BscBlockExecutionError::InvalidAttestationVoteCount(GotExpected {
+                got: validators_bit_set.len() as u64,
+                expected: validators.len() as u64,
+            })
+            .into());
+        }
+
+        let mut valid_vote_count = 0;
+        for (index, validator) in validators.iter().enumerate() {
+            if validators_bit_set.contains(index) {
+                *accumulated_weights.entry(*validator).or_insert(U256::ZERO) += U256::from(1);
+                valid_vote_count += 1;
+            }
+        }
+
+        let quorum = (validators.len() * 2 + 2) / 3; // ceil div
+        if valid_vote_count > quorum {
+            let reward =
+                ((valid_vote_count - quorum) * COLLECT_ADDITIONAL_VOTES_REWARD_RATIO) / 100;
+            *accumulated_weights.entry(parent_header.beneficiary).or_insert(U256::ZERO) +=
+                U256::from(reward);
+        }
+
+        Ok(())
+    
+    }   
 }
