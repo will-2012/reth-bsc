@@ -51,7 +51,7 @@ where
             } else {
                 snap.recent_proposers.iter().any(|(_, v)| *v == spoiled_validator)
             };
-            if signed_recently {
+            if !signed_recently {
                 self.slash_spoiled_validator(block.beneficiary, spoiled_validator)?;
                 tracing::info!("Slash spoiled validator, block_number: {}, spoiled_validator: {}", block.number, spoiled_validator);
             }
