@@ -51,6 +51,7 @@ where
             .unwrap()
             .get_checkpoint_header(block_number - 1)
             .ok_or(BlockExecutionError::msg("Failed to get parent header from snapshot provider"))?;
+        self.inner_ctx.parent_header = Some(parent_header.clone());
 
         let snap = self
             .snapshot_provider

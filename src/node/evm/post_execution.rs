@@ -1,10 +1,10 @@
 use super::executor::BscBlockExecutor;
 use super::error::BscBlockExecutionError;
 use super::util::set_nonce;
-use crate::consensus::parlia::{DIFF_INTURN, VoteAddress, Snapshot, VoteAttestation, snapshot::DEFAULT_TURN_LENGTH, constants::COLLECT_ADDITIONAL_VOTES_REWARD_RATIO};
+use crate::consensus::parlia::{DIFF_INTURN, VoteAddress, Snapshot, VoteAttestation, snapshot::DEFAULT_TURN_LENGTH, constants::COLLECT_ADDITIONAL_VOTES_REWARD_RATIO, util::is_breathe_block};
 use crate::consensus::{SYSTEM_ADDRESS, MAX_SYSTEM_REWARD, SYSTEM_REWARD_PERCENT};
 use crate::evm::transaction::BscTxEnv;
-use crate::system_contracts::{SLASH_CONTRACT, SYSTEM_REWARD_CONTRACT};
+use crate::system_contracts::{SLASH_CONTRACT, SYSTEM_REWARD_CONTRACT, feynman_fork::{ValidatorElectionInfo, get_top_validators_by_voting_power, ElectedValidators}};
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_evm::{eth::receipt_builder::{ReceiptBuilder, ReceiptBuilderCtx}, execute::BlockExecutionError, Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, block::StateChangeSource};
 use reth_primitives::{TransactionSigned, Transaction};
@@ -42,7 +42,7 @@ where
         self.verify_validators(self.inner_ctx.current_validators.clone(), self.inner_ctx.header.clone())?;
         self.verify_turn_length(self.inner_ctx.snap.clone(), self.inner_ctx.header.clone())?;
 
-        // TODO: finalize the system txs.
+        // finalize the system txs.
         if block.difficulty != DIFF_INTURN {
             let snap = self.inner_ctx.snap.as_ref().unwrap();
             let spoiled_validator = snap.inturn_validator();
@@ -63,6 +63,28 @@ where
             self.distribute_finality_reward(&header)?;
         }
 
+        // update validator set after Feynman upgrade
+        let header = self.inner_ctx.header.as_ref().unwrap().clone();
+        let parent_header = self.inner_ctx.parent_header.as_ref().unwrap().clone();
+        if self.spec.is_feynman_active_at_timestamp(header.timestamp) &&
+            is_breathe_block(parent_header.timestamp, header.timestamp) &&
+            !self.spec.is_feynman_transition_at_timestamp(header.timestamp, parent_header.timestamp)
+        {
+            let max_elected_validators = self.inner_ctx.max_elected_validators.unwrap_or(U256::from(21));
+            let validators_election_info = self.inner_ctx.validators_election_info.clone().unwrap_or_default();
+ 
+            self.update_validator_set_v2(
+                max_elected_validators,
+                validators_election_info,
+                header.beneficiary,
+            )?;
+        }
+
+        if !self.system_txs.is_empty() {
+            return Err(BscBlockExecutionError::UnexpectedSystemTx.into());
+        }
+
+        // TODO: apply snap and store it in db.
 
         Ok(())
     }
@@ -381,4 +403,21 @@ where
         Ok(())
     
     }   
+
+    fn update_validator_set_v2(
+        &mut self,
+        max_elected_validators: U256,
+        validators_election_info: Vec<ValidatorElectionInfo>,
+        validator: Address,
+    ) -> Result<(), BlockExecutionError> {
+        let ElectedValidators { validators, voting_powers, vote_addrs } =
+            get_top_validators_by_voting_power(validators_election_info, max_elected_validators);
+
+        self.transact_system_tx_v2(
+            self.system_contracts.update_validator_set_v2(validators, voting_powers, vote_addrs),
+            validator,
+        )?;
+
+        Ok(())
+    }
 }

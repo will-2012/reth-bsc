@@ -249,6 +249,38 @@ impl<Spec: EthChainSpec + crate::hardforks::BscHardforks> SystemContract<Spec> {
         })
     }
 
+    /// Creates a transaction to update validator set v2.
+    pub fn update_validator_set_v2(
+        &self,
+        validators: Vec<Address>,
+        voting_powers: Vec<u64>,
+        vote_addresses: Vec<Vec<u8>>,
+    ) -> Transaction {
+        let function =
+            self.validator_abi.function("updateValidatorSetV2").unwrap().first().unwrap();
+
+        let validators = validators.into_iter().map(DynSolValue::from).collect();
+        let voting_powers = voting_powers.into_iter().map(DynSolValue::from).collect();
+        let vote_addresses = vote_addresses.into_iter().map(DynSolValue::from).collect();
+        let input = function
+            .abi_encode_input(&[
+                DynSolValue::Array(validators),
+                DynSolValue::Array(voting_powers),
+                DynSolValue::Array(vote_addresses),
+            ])
+            .unwrap();
+
+        Transaction::Legacy(TxLegacy {
+            chain_id: Some(self.chain_spec.chain().id()),
+            nonce: 0,
+            gas_limit: u64::MAX / 2,
+            gas_price: 0,
+            value: U256::ZERO,
+            input: Bytes::from(input),
+            to: TxKind::Call(VALIDATOR_CONTRACT),
+        })
+    }
+
     pub(crate) fn genesis_contracts_txs(&self) -> Vec<TransactionSigned> {
         let function = self.validator_abi.function("init").unwrap().first().unwrap();
         let input = function.abi_encode_input(&[]).unwrap();

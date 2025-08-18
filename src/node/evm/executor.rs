@@ -14,8 +14,6 @@ use alloy_consensus::{Header, Transaction, TxReceipt};
 use alloy_eips::{eip7685::Requests, Encodable2718};
 use alloy_evm::{block::{ExecutableTx, StateChangeSource}, eth::receipt_builder::ReceiptBuilderCtx};
 use alloy_primitives::{uint, Address, TxKind, U256, BlockNumber, Bytes};
-use alloy_sol_macro::sol;
-use alloy_sol_types::SolCall;
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_evm::{
     block::{BlockValidationError, CommitChanges},
@@ -25,7 +23,6 @@ use reth_evm::{
     Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, OnStateHook, RecoveredTx,
 };
 use reth_primitives::TransactionSigned;
-use reth_primitives_traits::SignerRecoverable;
 use reth_provider::BlockExecutionResult;
 use reth_revm::State;
 use revm::{
@@ -51,6 +48,7 @@ pub(crate) struct InnerExecutionContext {
     pub(crate) validators_election_info: Option<Vec<ValidatorElectionInfo>>,
     pub(crate) snap: Option<Snapshot>,
     pub(crate) header: Option<Header>,
+    pub(crate) parent_header: Option<Header>,
 }
 
 pub struct BscBlockExecutor<'a, EVM, Spec, R: ReceiptBuilder>
@@ -138,6 +136,7 @@ where
                 validators_election_info: None,
                 snap: None,
                 header: None,
+                parent_header: None,
             },
         }
     }
@@ -292,34 +291,6 @@ where
 
         let transition = account.change(info, Default::default());
         self.evm.db_mut().apply_transition(vec![(address, transition)]);
-        Ok(())
-    }
-
-
-    /// Handle update validatorsetv2 system tx.
-    /// Activated by <https://github.com/bnb-chain/BEPs/pull/294>
-    fn handle_update_validator_set_v2_tx(
-        &mut self,
-        tx: &TransactionSigned,
-    ) -> Result<(), BlockExecutionError> {
-        sol!(
-            function updateValidatorSetV2(
-                address[] _consensusAddrs,
-                uint64[] _votingPowers,
-                bytes[] _voteAddrs
-            );
-        );
-
-        let input = tx.input();
-        let is_update_validator_set_v2_tx =
-            input.len() >= 4 && input[..4] == updateValidatorSetV2Call::SELECTOR;
-
-        if is_update_validator_set_v2_tx {
-    
-            let signer = tx.recover_signer().map_err(BlockExecutionError::other)?;
-            self.transact_system_tx(tx, signer)?;
-        }
-
         Ok(())
     }
 
@@ -512,12 +483,6 @@ where
         }
 
         self.finalize_new_block(&self.evm.block().clone())?;
-
-        // TODO: add breathe check and polish it later.
-        let system_txs_v2 = self.system_txs.clone();
-        for (_i, tx) in system_txs_v2.iter().enumerate() {
-            self.handle_update_validator_set_v2_tx(tx)?;
-        }
         
         // -----------------------------------------------------------------
         // reth-bsc-trail PATTERN: Create current snapshot from parent snapshot after execution
