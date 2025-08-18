@@ -324,20 +324,19 @@ where
         &mut self,
         header: &Header
     ) -> Result<(), BlockExecutionError> {
-        let parlia = self.parlia_consensus.as_ref().unwrap();
-        let epoch_length = parlia.get_epoch_length(header);
-        if header.number % epoch_length != 0 {
+        // distribute finality reward per 200 blocks.
+        let distribute_interval = 200;
+        if header.number % distribute_interval != 0 {
             return Ok(());
         }
 
         let validator = header.beneficiary;
         let mut accumulated_weights: HashMap<Address, U256> = HashMap::new();
 
-        let start = (header.number - epoch_length).max(1);
+        let start = (header.number - distribute_interval).max(1);
         let end = header.number;
         let mut target_number = header.number - 1;
         for _ in (start..end).rev() {
-            //  let header = &(self.get_header_by_hash(target_hash, ancestor)?);
             let header = self.snapshot_provider.as_ref().unwrap().get_checkpoint_header(target_number)
                 .ok_or_else(|| BlockExecutionError::msg(format!("Header not found for block number: {}", target_number)))?;
 
