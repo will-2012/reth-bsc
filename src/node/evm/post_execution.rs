@@ -43,7 +43,9 @@ where
         self.verify_turn_length(self.inner_ctx.snap.clone(), self.inner_ctx.header.clone())?;
 
         // finalize the system txs.
-        if block.difficulty != DIFF_INTURN {
+        if self.inner_ctx.header.as_ref().unwrap().difficulty != DIFF_INTURN {
+            tracing::info!("Start to slash spoiled validator, block_number: {}, block_difficulty: {:?}, diff_inturn: {:?}", 
+                block.number, self.inner_ctx.header.as_ref().unwrap().difficulty, DIFF_INTURN);
             let snap = self.inner_ctx.snap.as_ref().unwrap();
             let spoiled_validator = snap.inturn_validator();
             let signed_recently = if self.spec.is_plato_active_at_block(block.number.to()) {
@@ -88,9 +90,6 @@ where
         }
 
         tracing::info!("Succeed to finalize new block, block_number: {}", block.number);
-
-        // TODO: apply snap and store it in db.
-
         Ok(())
     }
 
