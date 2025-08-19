@@ -234,7 +234,7 @@ where
 
         if let Some(hook) = &mut self.hook {
             hook.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);
-        } 
+        }
 
         let tx = tx.clone();
         let gas_used = result.gas_used();
@@ -358,7 +358,7 @@ where
     ) -> Result<u64, BlockExecutionError> {
         let signer = tx.signer();
         let is_system = is_system_transaction(tx.tx(), *signer, self.evm.block().beneficiary);
-        
+
         if is_system {
             self.system_txs.push(tx.tx().clone());
             return Ok(0);
@@ -377,13 +377,10 @@ where
             }
             .into());
         }
-        
-        let result_and_state = self
-            .evm
-            .transact(tx)
-            .map_err(|err| {
-                BlockExecutionError::evm(err, tx.tx().trie_hash())
-            })?;
+        let tx_hash = tx.tx().trie_hash();
+        let tx_ref = tx.tx().clone();
+        let result_and_state =
+            self.evm.transact(tx).map_err(|err| BlockExecutionError::evm(err, tx_hash))?;
         let ResultAndState { result, state } = result_and_state;
 
         f(&result);
@@ -398,7 +395,7 @@ where
         let gas_used = result.gas_used();
         self.gas_used += gas_used;
         self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
-            tx: tx.tx(),
+            tx: &tx_ref,
             evm: &self.evm,
             result,
             state: &state,
@@ -406,9 +403,9 @@ where
         }));
         self.evm.db_mut().commit(state);
 
-        // apply patches after (legacy - keeping for compatibility)
-        patch_mainnet_after_tx(tx.tx(), self.evm.db_mut())?;
-        patch_chapel_after_tx(tx.tx(), self.evm.db_mut())?;
+        // apply patches after
+        patch_mainnet_after_tx(&tx_ref, self.evm.db_mut())?;
+        patch_chapel_after_tx(&tx_ref, self.evm.db_mut())?;
 
         Ok(gas_used)
     }

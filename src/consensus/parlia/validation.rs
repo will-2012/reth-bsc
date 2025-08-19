@@ -165,8 +165,8 @@ where
         }
         let sig_bytes = &signature[..64];
         let recovery_id = signature[64];
-        let recovery_id = RecoveryId::from_i32(recovery_id as i32)
-            .map_err(|_| ConsensusError::Other("Invalid recovery ID".into()))?;
+        let recovery_id = RecoveryId::try_from(recovery_id as i32)
+        .map_err(|_| ConsensusError::Other("Invalid recovery ID".into()))?;
             
         let recoverable_sig = RecoverableSignature::from_compact(sig_bytes, recovery_id)
             .map_err(|_| ConsensusError::Other("Invalid signature format".into()))?;
