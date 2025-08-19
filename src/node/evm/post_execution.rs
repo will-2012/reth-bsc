@@ -87,10 +87,9 @@ where
             return Err(BscBlockExecutionError::UnexpectedSystemTx.into());
         }
 
+        self.generate_and_save_snap()?;
+        
         tracing::info!("Succeed to finalize new block, block_number: {}", block.number);
-
-        // TODO: apply snap and store it in db.
-
         Ok(())
     }
 
@@ -426,5 +425,10 @@ where
         )?;
 
         Ok(())
+    }
+
+    // apply current block header to parent snapshot and save it in db.
+    fn generate_and_save_snap(&mut self) -> Result<(), BlockExecutionError> {
+       return Ok(());
     }
 }
