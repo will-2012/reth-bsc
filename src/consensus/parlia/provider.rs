@@ -330,7 +330,7 @@ where
         use reth_provider::HeaderProvider;
         match self.header_provider.header_by_number(block_number) {
             Ok(header) => {
-                tracing::info!("Succeed to fetch header{} for block {} in enhanced snapshot provider", header.is_none(),block_number);
+                tracing::info!("Succeed to fetch header, is_none: {} for block {} in enhanced snapshot provider", header.is_none(),block_number);
                 header
             },
             Err(e) => {

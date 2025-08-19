@@ -44,6 +44,8 @@ where
 
         // finalize the system txs.
         if block.difficulty != DIFF_INTURN {
+            tracing::info!("Start to slash spoiled validator, block_number: {}, block_difficulty: {:?}, diff_inturn: {:?}", 
+                block.number, block.difficulty, DIFF_INTURN);
             let snap = self.inner_ctx.snap.as_ref().unwrap();
             let spoiled_validator = snap.inturn_validator();
             let signed_recently = if self.spec.is_plato_active_at_block(block.number.to()) {
@@ -88,7 +90,7 @@ where
         }
 
         self.generate_and_save_snap()?;
-        
+
         tracing::info!("Succeed to finalize new block, block_number: {}", block.number);
         Ok(())
     }
@@ -429,6 +431,7 @@ where
 
     // apply current block header to parent snapshot and save it in db.
     fn generate_and_save_snap(&mut self) -> Result<(), BlockExecutionError> {
+
        return Ok(());
     }
 }
