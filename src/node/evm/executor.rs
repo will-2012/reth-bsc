@@ -234,7 +234,7 @@ where
 
         if let Some(hook) = &mut self.hook {
             hook.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);
-        } 
+        }
 
         let tx = tx.clone();
         let gas_used = result.gas_used();
@@ -358,7 +358,7 @@ where
     ) -> Result<u64, BlockExecutionError> {
         let signer = tx.signer();
         let is_system = is_system_transaction(tx.tx(), *signer, self.evm.block().beneficiary);
-        
+
         if is_system {
             self.system_txs.push(tx.tx().clone());
             return Ok(0);
@@ -377,13 +377,10 @@ where
             }
             .into());
         }
-        
-        let result_and_state = self
-            .evm
-            .transact(tx)
-            .map_err(|err| {
-                BlockExecutionError::evm(err, tx.tx().trie_hash())
-            })?;
+        let tx_hash = tx.tx().trie_hash();
+        let tx_ref = tx.tx().clone();
+        let result_and_state =
+            self.evm.transact(tx).map_err(|err| BlockExecutionError::evm(err, tx_hash))?;
         let ResultAndState { result, state } = result_and_state;
 
         f(&result);
@@ -398,7 +395,7 @@ where
         let gas_used = result.gas_used();
         self.gas_used += gas_used;
         self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
-            tx: tx.tx(),
+            tx: &tx_ref,
             evm: &self.evm,
             result,
             state: &state,
@@ -406,9 +403,9 @@ where
         }));
         self.evm.db_mut().commit(state);
 
-        // apply patches after (legacy - keeping for compatibility)
-        patch_mainnet_after_tx(tx.tx(), self.evm.db_mut())?;
-        patch_chapel_after_tx(tx.tx(), self.evm.db_mut())?;
+        // apply patches after
+        patch_mainnet_after_tx(&tx_ref, self.evm.db_mut())?;
+        patch_chapel_after_tx(&tx_ref, self.evm.db_mut())?;
 
         Ok(gas_used)
     }
@@ -435,7 +432,7 @@ where
         }
 
         self.finalize_new_block(&self.evm.block().clone())?;
-        
+
         // TODO: refine this part.
         // -----------------------------------------------------------------
         // reth-bsc-trail PATTERN: Create current snapshot from parent snapshot after execution
@@ -449,7 +446,7 @@ where
                 // Create current snapshot by applying current block to parent snapshot (like reth-bsc-trail does)
                 // We need to create a simple header for snapshot application
                 let current_block = self.evm.block();
-                
+
                 // Create a minimal header for snapshot application
                 // Note: We only need the essential fields for snapshot application
                 let header = alloy_consensus::Header {
@@ -475,35 +472,35 @@ where
                     ommers_hash: alloy_primitives::B256::ZERO, // Not used in snapshot.apply
                     requests_hash: None, // Not used in snapshot.apply
                 };
-                
+
                 // Check for epoch boundary and parse validator updates (exactly like reth-bsc-trail does)
                 let epoch_num = parent_snapshot.epoch_num;
                 let miner_check_len = parent_snapshot.miner_history_check_len();
-                let is_epoch_boundary = current_block_number > 0 && 
+                let is_epoch_boundary = current_block_number > 0 &&
                     current_block_number % epoch_num == miner_check_len;
-                
+
                 let (new_validators, vote_addrs, turn_length) = if is_epoch_boundary {
                     // Epoch boundary detected during execution
-                    
+
                     // Find the checkpoint header (miner_check_len blocks back, like reth-bsc-trail does)
                     let checkpoint_block_number = current_block_number - miner_check_len;
                     // Looking for validator updates in checkpoint block
-                    
+
                     // Use the global snapshot provider to access header data
                     if let Some(provider) = crate::shared::get_snapshot_provider() {
                         // Try to get the checkpoint header from the same provider that has database access
                         match provider.get_checkpoint_header(checkpoint_block_number) {
                             Some(checkpoint_header) => {
                                 // Successfully fetched checkpoint header
-                                
+
                                 // Parse validator set from checkpoint header (like reth-bsc-trail does)
-                                let parsed = crate::consensus::parlia::validator::parse_epoch_update(&checkpoint_header, 
+                                let parsed = crate::consensus::parlia::validator::parse_epoch_update(&checkpoint_header,
                                     self.spec.is_luban_active_at_block(checkpoint_block_number),
                                     self.spec.is_bohr_active_at_timestamp(checkpoint_header.timestamp)
                                 );
-                                
+
                                 // Validator set parsed from checkpoint header
-                                
+
                                 parsed
                             },
                             None => {
@@ -546,7 +543,7 @@ where
                 ) {
                     // Cache the current snapshot immediately (like reth-bsc-trail does)
                     provider.insert(current_snapshot.clone());
-                    
+
                     // Log only for major checkpoints to reduce spam
                     if current_block_number % (crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL * 10) == 0 {
                         tracing::info!("📦 [BSC] Created checkpoint snapshot for block {}", current_block_number);
