@@ -257,7 +257,7 @@ where
 
         headers_to_apply.reverse();
         let mut working_snapshot = base_snapshot;
-        tracing::info!("Start to apply headers forward with epoch updates, base_snapshot: {:?}, target_snapshot: {}, apply_length: {}", 
+        tracing::info!("Start to apply headers to base snapshot, base_snapshot: {:?}, target_snapshot: {}, apply_length: {}", 
             working_snapshot.block_number, block_number, headers_to_apply.len());
 
         for (_index, header) in headers_to_apply.iter().enumerate() {
@@ -278,8 +278,23 @@ where
                     );                    
                     parsed
                 } else {
-                    tracing::warn!("Failed to find checkpoint header for block {} in headers_to_apply list", checkpoint_block_number);
-                    return None;
+                    match self.header_provider.header_by_number(checkpoint_block_number) {
+                        Ok(Some(header_ref)) => {
+                            let parsed = super::validator::parse_epoch_update(&header_ref, 
+                                self.chain_spec.is_luban_active_at_block(header_ref.number),
+                                self.chain_spec.is_bohr_active_at_timestamp(header_ref.timestamp)
+                            );                    
+                            parsed
+                        },
+                        Ok(None) => {
+                            tracing::warn!("Failed to find checkpoint header for block {} - header not found", checkpoint_block_number);
+                            return None;
+                        },
+                        Err(e) => {
+                            tracing::error!("Failed to query checkpoint header for block {}: {:?}", checkpoint_block_number, e);
+                            return None;
+                        }
+                    }
                 }
             } else {
                 (Vec::new(), None, None)
@@ -305,14 +320,14 @@ where
             ) {
                 Some(snap) => snap,
                 None => {
-                    tracing::warn!("Failed to apply header {} to snapshot during Bodies stage", header.number);
+                    tracing::warn!("Failed to apply header {} to snapshot, snapshot: {:?}", header.number, working_snapshot);
                     return None;
                 }
             };
 
             self.base.cache.write().insert(working_snapshot.block_number, working_snapshot.clone());
             if working_snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
-                tracing::debug!("Succeed to rebuild snapshot for block {} to DB", working_snapshot.block_number);
+                tracing::debug!("Succeed to rebuild snapshot checkpoint for block {} to DB", working_snapshot.block_number);
                 self.base.insert(working_snapshot.clone());
             }
         }
