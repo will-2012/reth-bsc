@@ -86,6 +86,10 @@ where
         }
 
         if !self.system_txs.is_empty() {
+            tracing::error!("Unexpected system tx, block_number: {}, len: {}", block.number, self.system_txs.len());
+            for tx in self.system_txs.iter() {
+                tracing::error!("system tx: {:?}", tx);
+            }
             return Err(BscBlockExecutionError::UnexpectedSystemTx.into());
         }
 
