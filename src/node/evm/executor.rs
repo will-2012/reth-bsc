@@ -15,9 +15,10 @@ use alloy_eips::{eip7685::Requests, Encodable2718};
 use alloy_evm::{block::{ExecutableTx, StateChangeSource}, eth::receipt_builder::ReceiptBuilderCtx};
 use alloy_primitives::{uint, Address, TxKind, U256, BlockNumber, Bytes};
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
+use super::config::BscBlockExecutionCtx;
 use reth_evm::{
     block::{BlockValidationError, CommitChanges},
-    eth::{receipt_builder::ReceiptBuilder, EthBlockExecutionCtx},
+    eth::receipt_builder::ReceiptBuilder,
     execute::{BlockExecutionError, BlockExecutor},
     system_calls::SystemCaller,
     Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, OnStateHook, RecoveredTx,
@@ -74,7 +75,7 @@ where
     #[allow(dead_code)]
     hertz_patch_manager: HertzPatchManager,
     /// Context for block execution.
-    _ctx: EthBlockExecutionCtx<'a>,
+    _ctx: BscBlockExecutionCtx<'a>,
     /// Utility to call system caller.
     pub(super) system_caller: SystemCaller<Spec>,
     /// State hook.
@@ -106,7 +107,7 @@ where
     /// Creates a new BscBlockExecutor.
     pub fn new(
         evm: EVM,
-        _ctx: EthBlockExecutionCtx<'a>,
+        ctx: BscBlockExecutionCtx<'a>,
         spec: Spec,
         receipt_builder: R,
         system_contracts: SystemContract<Spec>,
@@ -114,6 +115,7 @@ where
         // Determine if this is mainnet for Hertz patches
         let is_mainnet = spec.chain().id() == 56; // BSC mainnet chain ID
         let hertz_patch_manager = HertzPatchManager::new(is_mainnet);
+        tracing::info!("Succeed to new block executor, header: {:?}", ctx.header);
 
         let spec_clone = spec.clone();
         Self {
@@ -125,7 +127,7 @@ where
             receipt_builder,
             system_contracts,
             hertz_patch_manager,
-            _ctx,
+            _ctx: ctx,
             system_caller: SystemCaller::new(spec_clone),
             hook: None,
             snapshot_provider: crate::shared::get_snapshot_provider().cloned(),
@@ -294,8 +296,6 @@ where
     }
 }
 
-// Note: Storage patch application function is available for future use
-// Currently, Hertz patches are applied through the existing patch system
 
 impl<'a, DB, E, Spec, R> BlockExecutor for BscBlockExecutor<'a, E, Spec, R>
 where
@@ -335,7 +335,7 @@ where
             self.apply_history_storage_account(self.evm.block().number.to::<u64>())?;
         }
         if self.spec.is_prague_active_at_timestamp(self.evm.block().timestamp.to()) {
-            self.system_caller.apply_blockhashes_contract_call(self._ctx.parent_hash, &mut self.evm)?;
+            self.system_caller.apply_blockhashes_contract_call(self._ctx.base.parent_hash, &mut self.evm)?;
         }
 
         Ok(())
