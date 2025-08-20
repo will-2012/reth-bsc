@@ -14,6 +14,7 @@ use reth_chainspec::EthChainSpec;
 
 use std::sync::Arc;
 
+// TODO: refine it later.
 
 /// A basic Bsc consensus builder.
 #[derive(Debug, Default, Clone, Copy)]
@@ -44,13 +45,7 @@ where
             snapshot_provider as Arc<dyn crate::consensus::parlia::SnapshotProvider + Send + Sync>,
         );
 
-        // Store the header provider globally for shared access
-        let header_provider = Arc::new(ctx.provider().clone());
-        if let Err(_) = crate::shared::set_header_provider(header_provider) {
-            tracing::warn!("Failed to set global header provider - it may already be set");
-        } else {
-            tracing::info!("Successfully set global header provider");
-        }
+       
 
         // Store consensus globally for RPC access as a trait object that also exposes validator API
         let consensus_obj_global: Arc<dyn crate::consensus::parlia::ParliaConsensusObject + Send + Sync> = Arc::new(consensus_concrete.clone());
@@ -69,7 +64,7 @@ where
 /// for snapshot storage, avoiding the need for unsafe access to provider internals.
 fn try_create_ondemand_snapshots<Node>(
     ctx: &BuilderContext<Node>,
-) -> eyre::Result<Arc<EnhancedDbSnapshotProvider<Arc<reth_db::DatabaseEnv>, Node::Provider>>>
+) -> eyre::Result<Arc<EnhancedDbSnapshotProvider<Arc<reth_db::DatabaseEnv>>>>
 where
     Node: FullNodeTypes<Types = BscNode>,
 {
@@ -89,16 +84,25 @@ where
 
     tracing::info!("Succeed to create a separate database instance for persistent snapshots");
 
-    // Get access to the blockchain provider for header lookups
+        // Get blockchain provider for header lookups
     let blockchain_provider = Arc::new(ctx.provider().clone());
+    
+    // Store the header provider globally for shared access
+    // This enables the global HEADER_CACHE_READER to fetch from provider when cache misses
+    if let Err(_) = crate::shared::set_header_provider(blockchain_provider.clone()) {
+        tracing::warn!("Failed to set global header provider - it may already be set");
+    } else {
+        tracing::info!("Successfully set global header provider");
+    }
 
-    // Create EnhancedDbSnapshotProvider with backward walking capability (reth-bsc-trail/bsc-erigon style)
+    // Create EnhancedDbSnapshotProvider - now uses global HEADER_CACHE_READER directly
     let snapshot_provider = Arc::new(EnhancedDbSnapshotProvider::new(
         snapshot_db,
         2048, // Production LRU cache size
-        blockchain_provider,
         ctx.chain_spec().clone(),
     ));
+    
+    tracing::info!("Global HEADER_CACHE_READER is ready for use throughout the system");
 
     tracing::info!("Succeed to create EnhancedDbSnapshotProvider with backward walking capability");
 

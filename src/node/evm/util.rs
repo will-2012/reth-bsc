@@ -30,6 +30,7 @@ pub fn set_nonce(transaction: Transaction, nonce: u64) -> Transaction {
 }
 
 // HeaderReader add a cache layer on the provider.
+#[derive(Debug)]
 pub struct HeaderCacheReader {
     pub blocknumber_to_header: LruMap<u64, Header, ByLength>,
     pub blockhash_to_header: LruMap<B256, Header, ByLength>,
@@ -71,9 +72,10 @@ impl HeaderCacheReader {
     pub fn insert_header_to_cache(&mut self, header: Header) {
         let block_number = header.number();
         let block_hash = header.hash_slow();
+        let header_clone_for_log = header.clone();
         self.blocknumber_to_header.insert(block_number, header.clone());
         self.blockhash_to_header.insert(block_hash, header);
-        tracing::info!("Insert header to cache, block_number: {:?}, block_hash: {:?}, header: {:?}", block_number, block_hash, header);
+        tracing::info!("Insert header to cache, block_number: {:?}, block_hash: {:?}, header: {:?}", block_number, block_hash, header_clone_for_log);
     }
 }
 

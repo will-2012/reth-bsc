@@ -1,7 +1,7 @@
 use super::snapshot::Snapshot;
 use parking_lot::RwLock;
 use std::sync::Arc;
-use reth_provider::{HeaderProvider, BlockReader};
+
 use crate::chainspec::BscChainSpec;
 use crate::hardforks::BscHardforks;
 
@@ -33,6 +33,7 @@ pub trait SnapshotProvider: Send + Sync {
     fn insert(&self, snapshot: Snapshot);
     
     /// Fetches header by block number for checkpoint parsing (like reth-bsc-trail's get_header_by_hash)
+    // TODO: refine it later.
     fn get_checkpoint_header(&self, block_number: u64) -> Option<alloy_consensus::Header>;
 }
 
@@ -50,10 +51,8 @@ pub struct DbSnapshotProvider<DB: Database> {
 
 /// Enhanced version with backward walking capability
 #[derive(Debug)]
-pub struct EnhancedDbSnapshotProvider<DB: Database, Provider> {
+pub struct EnhancedDbSnapshotProvider<DB: Database> {
     base: DbSnapshotProvider<DB>,
-    /// Header provider for backward walking
-    header_provider: Arc<Provider>,
     /// Chain spec for genesis snapshot creation
     chain_spec: Arc<BscChainSpec>,
 }
@@ -67,19 +66,14 @@ impl<DB: Database> DbSnapshotProvider<DB> {
     }
 }
 
-impl<DB: Database, Provider> EnhancedDbSnapshotProvider<DB, Provider> 
-where
-    Provider: HeaderProvider<Header = alloy_consensus::Header> + BlockReader + Send + Sync + 'static,
-{
+impl<DB: Database> EnhancedDbSnapshotProvider<DB> {
     pub fn new(
         db: DB, 
         capacity: usize, 
-        header_provider: Arc<Provider>,
         chain_spec: Arc<BscChainSpec>,
     ) -> Self {
         Self { 
             base: DbSnapshotProvider::new(db, capacity),
-            header_provider,
             chain_spec,
         }
     }
@@ -92,11 +86,10 @@ impl<DB: Database + Clone> Clone for DbSnapshotProvider<DB> {
     }
 }
 
-impl<DB: Database + Clone, Provider: Clone> Clone for EnhancedDbSnapshotProvider<DB, Provider> {
+impl<DB: Database + Clone> Clone for EnhancedDbSnapshotProvider<DB> {
     fn clone(&self) -> Self {
         Self {
             base: self.base.clone(),
-            header_provider: self.header_provider.clone(),
             chain_spec: self.chain_spec.clone(),
         }
     }
@@ -189,9 +182,7 @@ impl<DB: Database + 'static> SnapshotProvider for DbSnapshotProvider<DB> {
 }
 
 // Simplified version based on reth-bsc-trail's approach - much faster and simpler
-impl<DB: Database + 'static, Provider> SnapshotProvider for EnhancedDbSnapshotProvider<DB, Provider> 
-where
-    Provider: HeaderProvider<Header = alloy_consensus::Header> + BlockReader + Send + Sync + 'static,
+impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
 {
     fn snapshot(&self, block_number: u64) -> Option<Snapshot> {
         { // fast path query.
@@ -246,11 +237,11 @@ where
             }
 
             // Collect header for forward application - fail if not available 
-            if let Ok(Some(header)) = self.header_provider.header_by_number(current_block) {
+        if let Some(header) = crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(current_block) {
                 headers_to_apply.push(header);
                 current_block = current_block.saturating_sub(1);
             } else {
-                tracing::error!("Failed to load header in DB for block {}", current_block);
+                tracing::error!("Failed get snap due to load header in DB for block {}", current_block);
                 return None;
             }
         };
@@ -278,20 +269,16 @@ where
                     );                    
                     parsed
                 } else {
-                    match self.header_provider.header_by_number(checkpoint_block_number) {
-                        Ok(Some(header_ref)) => {
+                    match crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(checkpoint_block_number) {
+                        Some(header_ref) => {
                             let parsed = super::validator::parse_epoch_update(&header_ref, 
                                 self.chain_spec.is_luban_active_at_block(header_ref.number),
                                 self.chain_spec.is_bohr_active_at_timestamp(header_ref.timestamp)
                             );                    
                             parsed
                         },
-                        Ok(None) => {
+                        None => {
                             tracing::warn!("Failed to find checkpoint header for block {} - header not found", checkpoint_block_number);
-                            return None;
-                        },
-                        Err(e) => {
-                            tracing::error!("Failed to query checkpoint header for block {}: {:?}", checkpoint_block_number, e);
                             return None;
                         }
                     }
@@ -341,17 +328,9 @@ where
     
     fn get_checkpoint_header(&self, block_number: u64) -> Option<alloy_consensus::Header> {
         tracing::info!("Get checkpoint header for block {} in enhanced snapshot provider", block_number);
-        // Use the provider to fetch header from database (like reth-bsc-trail's get_header_by_hash)
-        use reth_provider::HeaderProvider;
-        match self.header_provider.header_by_number(block_number) {
-            Ok(header) => {
-                tracing::info!("Succeed to fetch header, is_none: {} for block {} in enhanced snapshot provider", header.is_none(),block_number);
-                header
-            },
-            Err(e) => {
-                tracing::error!("Failed to fetch header for block {}: {:?}", block_number, e);
-                None
-            }
-        }
+        // Use the global HEADER_CACHE_READER to fetch header
+        let header = crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(block_number);
+        tracing::info!("Succeed to fetch header, is_none: {} for block {} in enhanced snapshot provider", header.is_none(), block_number);
+        header
     }
 }
