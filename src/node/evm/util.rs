@@ -73,10 +73,10 @@ impl HeaderCacheReader {
         let block_hash = header.hash_slow();
         self.blocknumber_to_header.insert(block_number, header.clone());
         self.blockhash_to_header.insert(block_hash, header);
-        tracing::info!("Insert header to cache, block_number: {:?}, block_hash: {:?}", block_number, block_hash);
+        tracing::info!("Insert header to cache, block_number: {:?}, block_hash: {:?}, header: {:?}", block_number, block_hash, header);
     }
 }
 
 pub static HEADER_CACHE_READER: LazyLock<Mutex<HeaderCacheReader>> = LazyLock::new(|| {
-    Mutex::new(HeaderCacheReader::new(10000))
+    Mutex::new(HeaderCacheReader::new(100000))
 });
