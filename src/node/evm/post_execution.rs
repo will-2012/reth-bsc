@@ -86,6 +86,10 @@ where
         }
 
         if !self.system_txs.is_empty() {
+            tracing::error!("Unexpected system tx, block_number: {}, len: {}", block.number, self.system_txs.len());
+            for tx in self.system_txs.iter() {
+                tracing::error!("system tx: {:?}", tx);
+            }
             return Err(BscBlockExecutionError::UnexpectedSystemTx.into());
         }
 
@@ -185,7 +189,7 @@ where
         validator: Address,
         spoiled_val: Address
     ) -> Result<(), BlockExecutionError> {
-        self.transact_system_tx_v2(
+        self.transact_system_tx(
             self.system_contracts.slash(spoiled_val),
             validator,
         )?;
@@ -193,7 +197,7 @@ where
         Ok(())
     }
 
-    fn transact_system_tx_v2(&mut self, transaction: Transaction, sender: Address) -> Result<(), BlockExecutionError> {
+    pub(crate) fn transact_system_tx(&mut self, transaction: Transaction, sender: Address) -> Result<(), BlockExecutionError> {
         let account = self.evm
             .db_mut()
             .basic(sender)
@@ -305,7 +309,7 @@ where
             let reward_to_system = block_reward >> SYSTEM_REWARD_PERCENT;
             if reward_to_system > 0 {
                 let tx = self.system_contracts.distribute_to_system(reward_to_system);
-                self.transact_system_tx_v2(tx, validator)?;
+                self.transact_system_tx(tx, validator)?;
                 tracing::info!("Distribute to system, block_number: {}, reward_to_system: {}", self.evm.block().number, reward_to_system);
             }
 
@@ -313,7 +317,7 @@ where
         }
 
         let tx = self.system_contracts.distribute_to_validator(validator, block_reward);
-        self.transact_system_tx_v2(tx, validator)?;
+        self.transact_system_tx(tx, validator)?;
         tracing::info!("Distribute to validator, block_number: {}, block_reward: {}", self.evm.block().number, block_reward);
         
         Ok(())
@@ -353,7 +357,7 @@ where
         validators.sort();
         let weights: Vec<U256> = validators.iter().map(|val| accumulated_weights[val]).collect();
 
-        self.transact_system_tx_v2(
+        self.transact_system_tx(
             self.system_contracts.distribute_finality_reward(validators, weights),
             validator,
         )?;
@@ -419,7 +423,7 @@ where
         let ElectedValidators { validators, voting_powers, vote_addrs } =
             get_top_validators_by_voting_power(validators_election_info, max_elected_validators);
 
-        self.transact_system_tx_v2(
+        self.transact_system_tx(
             self.system_contracts.update_validator_set_v2(validators, voting_powers, vote_addrs),
             validator,
         )?;

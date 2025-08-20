@@ -13,7 +13,7 @@ use crate::{
 use alloy_consensus::{Header, Transaction, TxReceipt};
 use alloy_eips::{eip7685::Requests, Encodable2718};
 use alloy_evm::{block::{ExecutableTx, StateChangeSource}, eth::receipt_builder::ReceiptBuilderCtx};
-use alloy_primitives::{uint, Address, TxKind, U256, BlockNumber, Bytes};
+use alloy_primitives::{uint, Address, U256, BlockNumber, Bytes};
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use super::config::BscBlockExecutionCtx;
 use reth_evm::{
@@ -29,7 +29,7 @@ use reth_revm::State;
 use revm::{
     context::{
         result::{ExecutionResult, ResultAndState},
-        TxEnv,
+
     },
     state::Bytecode,
     Database as _, DatabaseCommit,
@@ -174,7 +174,6 @@ where
         &mut self,
         beneficiary: Address,
     ) -> Result<(), BlockExecutionError> {
-        // Exit early if contracts are already initialized
         if !self
             .evm
             .db_mut()
@@ -187,7 +186,7 @@ where
 
         let txs = self.system_contracts.feynman_contracts_txs();
         for tx in txs {
-            self.transact_system_tx(&tx, beneficiary)?;
+            self.transact_system_tx(tx.into(), beneficiary)?;
         }
         Ok(())
     }
@@ -198,64 +197,9 @@ where
         beneficiary: Address,
     ) -> Result<(), BlockExecutionError> {
         let txs = self.system_contracts.genesis_contracts_txs();
-        for (_, tx) in txs.iter().enumerate() {
-            self.transact_system_tx(tx, beneficiary)?;
+        for  tx in txs {
+            self.transact_system_tx(tx.into(), beneficiary)?;
         }
-        Ok(())
-    }
-
-    pub(crate) fn transact_system_tx(
-        &mut self,
-        tx: &TransactionSigned,
-        sender: Address,
-    ) -> Result<(), BlockExecutionError> {
-        let account = self
-            .evm
-            .db_mut()
-            .basic(sender)
-            .map_err(BlockExecutionError::other)?
-            .unwrap_or_default();
-
-        let tx_env = BscTxEnv {
-            base: TxEnv {
-                caller: sender,
-                kind: TxKind::Call(tx.to().unwrap()),
-                nonce: account.nonce,
-                gas_limit: u64::MAX / 2,
-                value: tx.value(),
-                data: tx.input().clone(),
-                gas_price: 0,
-                chain_id: Some(self.spec.chain().id()),
-                gas_priority_fee: None,
-                access_list: Default::default(),
-                blob_hashes: Vec::new(),
-                max_fee_per_blob_gas: 0,
-                tx_type: 0,
-                authorization_list: Default::default(),
-            },
-            is_system_transaction: true,
-        };
-
-        let result_and_state = self.evm.transact(tx_env).map_err(BlockExecutionError::other)?;
-
-        let ResultAndState { result, state } = result_and_state;
-
-        if let Some(hook) = &mut self.hook {
-            hook.on_state(StateChangeSource::Transaction(self.receipts.len()), &state);
-        }
-
-        let tx = tx.clone();
-        let gas_used = result.gas_used();
-        self.gas_used += gas_used;
-        self.receipts.push(self.receipt_builder.build_receipt(ReceiptBuilderCtx {
-            tx: &tx,
-            evm: &self.evm,
-            result,
-            state: &state,
-            cumulative_gas_used: self.gas_used,
-        }));
-        self.evm.db_mut().commit(state);
-
         Ok(())
     }
 
