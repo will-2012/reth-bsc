@@ -75,7 +75,7 @@ where
     #[allow(dead_code)]
     hertz_patch_manager: HertzPatchManager,
     /// Context for block execution.
-    _ctx: BscBlockExecutionCtx<'a>,
+    pub(super) ctx: BscBlockExecutionCtx<'a>,
     /// Utility to call system caller.
     pub(super) system_caller: SystemCaller<Spec>,
     /// State hook.
@@ -133,7 +133,7 @@ where
             receipt_builder,
             system_contracts,
             hertz_patch_manager,
-            _ctx: ctx,
+            ctx,
             system_caller: SystemCaller::new(spec_clone),
             hook: None,
             snapshot_provider: crate::shared::get_snapshot_provider().cloned(),
@@ -341,7 +341,7 @@ where
             self.apply_history_storage_account(self.evm.block().number.to::<u64>())?;
         }
         if self.spec.is_prague_active_at_timestamp(self.evm.block().timestamp.to()) {
-            self.system_caller.apply_blockhashes_contract_call(self._ctx.base.parent_hash, &mut self.evm)?;
+            self.system_caller.apply_blockhashes_contract_call(self.ctx.base.parent_hash, &mut self.evm)?;
         }
 
         Ok(())

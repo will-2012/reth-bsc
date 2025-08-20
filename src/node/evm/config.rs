@@ -348,8 +348,6 @@ where
         }
     }
 
-
-
     fn tx_iterator_for_payload(
         &self,
         payload: &BscExecutionData,

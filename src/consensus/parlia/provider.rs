@@ -236,12 +236,12 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
                 }
             }
 
-            // Collect header for forward application - fail if not available 
+        // Collect header for forward application - fail if not available 
         if let Some(header) = crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(current_block) {
                 headers_to_apply.push(header);
                 current_block = current_block.saturating_sub(1);
             } else {
-                tracing::error!("Failed get snap due to load header in DB for block {}", current_block);
+                tracing::error!("Failed to get snap due to load header in DB for block {}", current_block);
                 return None;
             }
         };
@@ -327,8 +327,6 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
     }
     
     fn get_checkpoint_header(&self, block_number: u64) -> Option<alloy_consensus::Header> {
-        tracing::info!("Get checkpoint header for block {} in enhanced snapshot provider", block_number);
-        // Use the global HEADER_CACHE_READER to fetch header
         let header = crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(block_number);
         tracing::info!("Succeed to fetch header, is_none: {} for block {} in enhanced snapshot provider", header.is_none(), block_number);
         header
