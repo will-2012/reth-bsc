@@ -14,6 +14,7 @@ use reth_chainspec::EthChainSpec;
 
 use std::sync::Arc;
 
+// TODO: refine it later.
 
 /// A basic Bsc consensus builder.
 #[derive(Debug, Default, Clone, Copy)]
@@ -44,6 +45,13 @@ where
             snapshot_provider as Arc<dyn crate::consensus::parlia::SnapshotProvider + Send + Sync>,
         );
 
+        // Store the header provider globally for shared access
+        if let Err(_) = crate::shared::set_header_provider(Arc::new(ctx.provider().clone())) {
+            tracing::warn!("Failed to set global header provider");
+        } else {
+            tracing::info!("Succeed to set global header provider");
+        }
+
         // Store consensus globally for RPC access as a trait object that also exposes validator API
         let consensus_obj_global: Arc<dyn crate::consensus::parlia::ParliaConsensusObject + Send + Sync> = Arc::new(consensus_concrete.clone());
         let _ = crate::shared::set_parlia_consensus(consensus_obj_global);
@@ -61,7 +69,7 @@ where
 /// for snapshot storage, avoiding the need for unsafe access to provider internals.
 fn try_create_ondemand_snapshots<Node>(
     ctx: &BuilderContext<Node>,
-) -> eyre::Result<Arc<EnhancedDbSnapshotProvider<Arc<reth_db::DatabaseEnv>, Node::Provider>>>
+) -> eyre::Result<Arc<EnhancedDbSnapshotProvider<Arc<reth_db::DatabaseEnv>>>>
 where
     Node: FullNodeTypes<Types = BscNode>,
 {
@@ -78,20 +86,13 @@ where
         &db_path,
         DatabaseArguments::new(Default::default())
     ).map_err(|e| eyre::eyre!("Failed to initialize snapshot database: {}", e))?);
-
     tracing::info!("Succeed to create a separate database instance for persistent snapshots");
 
-    // Get access to the blockchain provider for header lookups
-    let blockchain_provider = Arc::new(ctx.provider().clone());
-
-    // Create EnhancedDbSnapshotProvider with backward walking capability (reth-bsc-trail/bsc-erigon style)
     let snapshot_provider = Arc::new(EnhancedDbSnapshotProvider::new(
         snapshot_db,
         2048, // Production LRU cache size
-        blockchain_provider,
         ctx.chain_spec().clone(),
     ));
-
     tracing::info!("Succeed to create EnhancedDbSnapshotProvider with backward walking capability");
 
     Ok(snapshot_provider)
