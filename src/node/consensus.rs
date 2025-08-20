@@ -44,6 +44,14 @@ where
             snapshot_provider as Arc<dyn crate::consensus::parlia::SnapshotProvider + Send + Sync>,
         );
 
+        // Store the header provider globally for shared access
+        let header_provider = Arc::new(ctx.provider().clone());
+        if let Err(_) = crate::shared::set_header_provider(header_provider) {
+            tracing::warn!("Failed to set global header provider - it may already be set");
+        } else {
+            tracing::info!("Successfully set global header provider");
+        }
+
         // Store consensus globally for RPC access as a trait object that also exposes validator API
         let consensus_obj_global: Arc<dyn crate::consensus::parlia::ParliaConsensusObject + Send + Sync> = Arc::new(consensus_concrete.clone());
         let _ = crate::shared::set_parlia_consensus(consensus_obj_global);

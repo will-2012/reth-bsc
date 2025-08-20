@@ -117,6 +117,12 @@ where
         let hertz_patch_manager = HertzPatchManager::new(is_mainnet);
         tracing::info!("Succeed to new block executor, header: {:?}", ctx.header);
 
+        if let Some(ref header) = ctx.header {
+            crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().insert_header_to_cache(header.clone());
+        } else {
+            tracing::warn!("No header found in the context, block_number: {:?}", evm.block().number.to::<u64>());
+        }
+
         let spec_clone = spec.clone();
         Self {
             spec,

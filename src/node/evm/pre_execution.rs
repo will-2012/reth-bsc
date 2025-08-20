@@ -37,20 +37,18 @@ where
         let block_number = block.number.to::<u64>();
         tracing::info!("Check new block, block_number: {}", block_number);
 
-        let header = self
-            .snapshot_provider
-            .as_ref()
+        let header = crate::node::evm::util::HEADER_CACHE_READER
+            .lock()
             .unwrap()
-            .get_checkpoint_header(block_number)
-            .ok_or(BlockExecutionError::msg("Failed to get header from snapshot provider"))?;
+            .get_header_by_number(block_number)
+            .ok_or(BlockExecutionError::msg("Failed to get header from global header reader"))?;
         self.inner_ctx.header = Some(header.clone());
 
-        let parent_header = self
-            .snapshot_provider
-            .as_ref()
+        let parent_header = crate::node::evm::util::HEADER_CACHE_READER
+            .lock()
             .unwrap()
-            .get_checkpoint_header(block_number - 1)
-            .ok_or(BlockExecutionError::msg("Failed to get parent header from snapshot provider"))?;
+            .get_header_by_number(block_number - 1)
+            .ok_or(BlockExecutionError::msg("Failed to get parent header from global header reader"))?;
         self.inner_ctx.parent_header = Some(parent_header.clone());
 
         let snap = self
