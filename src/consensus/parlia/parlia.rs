@@ -12,17 +12,19 @@ use reth_chainspec::EthChainSpec;
 use alloy_consensus::{Header, BlockHeader};
 use alloy_rlp::Decodable;
 use super::{
-    VoteAttestation, ParliaConsensusError,
+    VoteAttestation, ParliaConsensusError, VoteAddress,
     constants::{
         EXTRA_VANITY, EXTRA_SEAL, VALIDATOR_NUMBER_SIZE, 
         VALIDATOR_BYTES_LEN_AFTER_LUBAN, VALIDATOR_BYTES_LEN_BEFORE_LUBAN, TURN_LENGTH_SIZE,
         EXTRA_VANITY_LEN, EXTRA_SEAL_LEN, EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM,
         EXTRA_VALIDATOR_LEN, EXTRA_VALIDATOR_LEN_BEFORE_LUBAN
     },
-    hash_with_chain_id
+    hash_with_chain_id,
+    provider::ValidatorsInfo
 };
 
 const RECOVERED_PROPOSER_CACHE_NUM: usize = 4096;
+const ADDRESS_LENGTH: usize = 20; // Ethereum address length in bytes
 
 lazy_static! {
     // recovered proposer cache map by block_number: proposer_address
@@ -277,5 +279,70 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
         }
 
         Ok(())
+    }
+
+    pub fn parse_validators_from_header(
+        &self,
+        header: &Header,
+    ) -> Result<ValidatorsInfo, ParliaConsensusError> {
+        let val_bytes = self.get_validator_bytes_from_header(header).ok_or_else(|| {
+            ParliaConsensusError::InvalidHeaderExtraLen {
+                header_extra_len: header.extra_data.len() as u64,
+            }
+        })?;
+
+        if val_bytes.is_empty() {
+            return Err(ParliaConsensusError::InvalidHeaderExtraValidatorBytesLen {
+                is_epoch: true,
+                validator_bytes_len: 0,
+            })
+        }
+
+        if self.spec.is_luban_active_at_block(header.number) {
+            self.parse_validators_after_luban(&val_bytes)
+        } else {
+            self.parse_validators_before_luban(&val_bytes)
+        }
+    }
+
+    fn parse_validators_after_luban(
+        &self,
+        validator_bytes: &[u8],
+    ) -> Result<ValidatorsInfo, ParliaConsensusError> {
+        let count = validator_bytes.len() / EXTRA_VALIDATOR_LEN;
+        let mut consensus_addrs = Vec::with_capacity(count);
+        let mut vote_addrs = Vec::with_capacity(count);
+
+        for i in 0..count {
+            let consensus_start = i * EXTRA_VALIDATOR_LEN;
+            let consensus_end = consensus_start + ADDRESS_LENGTH;
+            let consensus_address =
+                Address::from_slice(&validator_bytes[consensus_start..consensus_end]);
+            consensus_addrs.push(consensus_address);
+
+            let vote_start = consensus_start + ADDRESS_LENGTH;
+            let vote_end = consensus_start + EXTRA_VALIDATOR_LEN;
+            let vote_address = VoteAddress::from_slice(&validator_bytes[vote_start..vote_end]);
+            vote_addrs.push(vote_address);
+        }
+
+        Ok(ValidatorsInfo { consensus_addrs, vote_addrs: Some(vote_addrs) })
+    }
+
+    fn parse_validators_before_luban(
+        &self,
+        validator_bytes: &[u8],
+    ) -> Result<ValidatorsInfo, ParliaConsensusError> {
+        let count = validator_bytes.len() / EXTRA_VALIDATOR_LEN_BEFORE_LUBAN;
+        let mut consensus_addrs = Vec::with_capacity(count);
+
+        for i in 0..count {
+            let start = i * EXTRA_VALIDATOR_LEN_BEFORE_LUBAN;
+            let end = start + EXTRA_VALIDATOR_LEN_BEFORE_LUBAN;
+            let address = Address::from_slice(&validator_bytes[start..end]);
+            consensus_addrs.push(address);
+        }
+
+        Ok(ValidatorsInfo { consensus_addrs, vote_addrs: None })
     }
 }

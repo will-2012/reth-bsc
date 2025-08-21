@@ -4,7 +4,16 @@ use std::sync::Arc;
 
 use crate::chainspec::BscChainSpec;
 use crate::hardforks::BscHardforks;
+use crate::consensus::parlia::{Parlia, VoteAddress};
+use crate::node::evm::error::BscBlockExecutionError;
+use alloy_primitives::Address;
 
+/// Validator information extracted from header
+#[derive(Debug, Clone)]
+pub struct ValidatorsInfo {
+    pub consensus_addrs: Vec<Address>,
+    pub vote_addrs: Option<Vec<VoteAddress>>,
+}
 
 /// Trait for creating snapshots on-demand when parent snapshots are missing
 /// This will be removed in favor of integrating the logic into DbSnapshotProvider
@@ -55,6 +64,8 @@ pub struct EnhancedDbSnapshotProvider<DB: Database> {
     base: DbSnapshotProvider<DB>,
     /// Chain spec for genesis snapshot creation
     chain_spec: Arc<BscChainSpec>,
+    /// Parlia consensus instance
+    parlia: Arc<Parlia<BscChainSpec>>,
 }
 
 impl<DB: Database> DbSnapshotProvider<DB> {
@@ -72,9 +83,11 @@ impl<DB: Database> EnhancedDbSnapshotProvider<DB> {
         capacity: usize, 
         chain_spec: Arc<BscChainSpec>,
     ) -> Self {
+        let parlia = Arc::new(Parlia::new(chain_spec.clone(), 200));
         Self { 
             base: DbSnapshotProvider::new(db, capacity),
             chain_spec,
+            parlia,
         }
     }
 }
@@ -91,6 +104,7 @@ impl<DB: Database + Clone> Clone for EnhancedDbSnapshotProvider<DB> {
         Self {
             base: self.base.clone(),
             chain_spec: self.chain_spec.clone(),
+            parlia: self.parlia.clone(),
         }
     }
 }
@@ -221,104 +235,104 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
                 }
             }
 
-            // Genesis handling - create genesis snapshot 
-            if current_block == 0 {
-                tracing::debug!("Start to create genesis snapshot for backward walking");
-                if let Ok(genesis_snap) = crate::consensus::parlia::ParliaConsensus::<BscChainSpec, DbSnapshotProvider<DB>>::create_genesis_snapshot(
-                    self.chain_spec.clone(),
-                    crate::consensus::parlia::EPOCH
-                ) {
-                    self.base.cache.write().insert(0, genesis_snap.clone());
-                    break genesis_snap;
+            // Collect header for forward application - fail if not available 
+            if let Some(header) = crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(current_block) {
+                    headers_to_apply.push(header.clone());
+                    if header.number == 0 {
+                        let ValidatorsInfo { consensus_addrs, vote_addrs } =
+                            self.parlia.parse_validators_from_header(&header).map_err(|err| {
+                                BscBlockExecutionError::ParliaConsensusInnerError { error: err.into() }
+                            }).ok()?;
+                        let genesis_snap = Snapshot::new(
+                            consensus_addrs,
+                            0, // Genesis block number
+                            header.hash_slow(),
+                            self.parlia.epoch,
+                            vote_addrs,
+                        );
+                        self.base.cache.write().insert(0, genesis_snap.clone());
+                        break genesis_snap;
+                    }
+                    current_block = current_block.saturating_sub(1);
                 } else {
-                    tracing::error!("Failed to create genesis snapshot");
+                    tracing::error!("Failed to get snap due to load header in DB for block {}", current_block);
                     return None;
                 }
-            }
+            };
 
-        // Collect header for forward application - fail if not available 
-        if let Some(header) = crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(current_block) {
-                headers_to_apply.push(header);
-                current_block = current_block.saturating_sub(1);
-            } else {
-                tracing::error!("Failed to get snap due to load header in DB for block {}", current_block);
-                return None;
-            }
-        };
+            headers_to_apply.reverse();
+            let mut working_snapshot = base_snapshot;
+            tracing::info!("Start to apply headers to base snapshot, base_snapshot: {:?}, target_snapshot: {}, apply_length: {}", 
+                working_snapshot.block_number, block_number, headers_to_apply.len());
 
-        headers_to_apply.reverse();
-        let mut working_snapshot = base_snapshot;
-        tracing::info!("Start to apply headers to base snapshot, base_snapshot: {:?}, target_snapshot: {}, apply_length: {}", 
-            working_snapshot.block_number, block_number, headers_to_apply.len());
-
-        for (_index, header) in headers_to_apply.iter().enumerate() {
-            // Check for epoch boundary (following reth-bsc-trail pattern)
-            let epoch_remainder = header.number % working_snapshot.epoch_num;
-            let miner_check_len = working_snapshot.miner_history_check_len();
-            let is_epoch_boundary = header.number > 0 && epoch_remainder == miner_check_len;
-            
-            let (new_validators, vote_addrs, turn_length) = if is_epoch_boundary {
-                let checkpoint_block_number = header.number - miner_check_len;
-                let checkpoint_header = headers_to_apply.iter()
-                    .find(|h| h.number == checkpoint_block_number);
+            for (_index, header) in headers_to_apply.iter().enumerate() {
+                // Check for epoch boundary (following reth-bsc-trail pattern)
+                let epoch_remainder = header.number % working_snapshot.epoch_num;
+                let miner_check_len = working_snapshot.miner_history_check_len();
+                let is_epoch_boundary = header.number > 0 && epoch_remainder == miner_check_len;
                 
-                if let Some(checkpoint_header) = checkpoint_header {
-                    let parsed = super::validator::parse_epoch_update(checkpoint_header, 
-                        self.chain_spec.is_luban_active_at_block(checkpoint_header.number),
-                        self.chain_spec.is_bohr_active_at_timestamp(checkpoint_header.timestamp)
-                    );                    
-                    parsed
-                } else {
-                    match crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(checkpoint_block_number) {
-                        Some(header_ref) => {
-                            let parsed = super::validator::parse_epoch_update(&header_ref, 
-                                self.chain_spec.is_luban_active_at_block(header_ref.number),
-                                self.chain_spec.is_bohr_active_at_timestamp(header_ref.timestamp)
-                            );                    
-                            parsed
-                        },
-                        None => {
-                            tracing::warn!("Failed to find checkpoint header for block {} - header not found", checkpoint_block_number);
-                            return None;
+                let (new_validators, vote_addrs, turn_length) = if is_epoch_boundary {
+                    let checkpoint_block_number = header.number - miner_check_len;
+                    let checkpoint_header = headers_to_apply.iter()
+                        .find(|h| h.number == checkpoint_block_number);
+                    
+                    if let Some(checkpoint_header) = checkpoint_header {
+                        let parsed = super::validator::parse_epoch_update(checkpoint_header, 
+                            self.chain_spec.is_luban_active_at_block(checkpoint_header.number),
+                            self.chain_spec.is_bohr_active_at_timestamp(checkpoint_header.timestamp)
+                        );                    
+                        parsed
+                    } else {
+                        match crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(checkpoint_block_number) {
+                            Some(header_ref) => {
+                                let parsed = super::validator::parse_epoch_update(&header_ref, 
+                                    self.chain_spec.is_luban_active_at_block(header_ref.number),
+                                    self.chain_spec.is_bohr_active_at_timestamp(header_ref.timestamp)
+                                );                    
+                                parsed
+                            },
+                            None => {
+                                tracing::warn!("Failed to find checkpoint header for block {} - header not found", checkpoint_block_number);
+                                return None;
+                            }
                         }
                     }
+                } else {
+                    (Vec::new(), None, None)
+                };
+
+                // Parse attestation from header for vote tracking
+                let attestation = super::attestation::parse_vote_attestation_from_header(
+                    header,
+                    working_snapshot.epoch_num,
+                    self.chain_spec.is_luban_active_at_block(header.number),
+                    self.chain_spec.is_bohr_active_at_timestamp(header.timestamp)
+                );
+
+                // Apply header to snapshot (now determines hardfork activation internally)
+                working_snapshot = match working_snapshot.apply(
+                    header.beneficiary,
+                    header,
+                    new_validators,
+                    vote_addrs,
+                    attestation,
+                    turn_length,
+                    &*self.chain_spec,
+                ) {
+                    Some(snap) => snap,
+                    None => {
+                        tracing::warn!("Failed to apply header {} to snapshot, snapshot: {:?}", header.number, working_snapshot);
+                        return None;
+                    }
+                };
+
+                self.base.cache.write().insert(working_snapshot.block_number, working_snapshot.clone());
+                if working_snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
+                    tracing::debug!("Succeed to rebuild snapshot checkpoint for block {} to DB", working_snapshot.block_number);
+                    self.base.insert(working_snapshot.clone());
                 }
-            } else {
-                (Vec::new(), None, None)
-            };
-
-            // Parse attestation from header for vote tracking
-            let attestation = super::attestation::parse_vote_attestation_from_header(
-                header,
-                working_snapshot.epoch_num,
-                self.chain_spec.is_luban_active_at_block(header.number),
-                self.chain_spec.is_bohr_active_at_timestamp(header.timestamp)
-            );
-
-            // Apply header to snapshot (now determines hardfork activation internally)
-            working_snapshot = match working_snapshot.apply(
-                header.beneficiary,
-                header,
-                new_validators,
-                vote_addrs,
-                attestation,
-                turn_length,
-                &*self.chain_spec,
-            ) {
-                Some(snap) => snap,
-                None => {
-                    tracing::warn!("Failed to apply header {} to snapshot, snapshot: {:?}", header.number, working_snapshot);
-                    return None;
-                }
-            };
-
-            self.base.cache.write().insert(working_snapshot.block_number, working_snapshot.clone());
-            if working_snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
-                tracing::debug!("Succeed to rebuild snapshot checkpoint for block {} to DB", working_snapshot.block_number);
-                self.base.insert(working_snapshot.clone());
             }
-        }
-
+        
         Some(working_snapshot)
     }
 
