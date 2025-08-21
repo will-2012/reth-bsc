@@ -345,4 +345,5 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
 
         Ok(ValidatorsInfo { consensus_addrs, vote_addrs: None })
     }
+
 }

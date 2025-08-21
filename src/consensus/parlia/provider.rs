@@ -3,7 +3,7 @@ use parking_lot::RwLock;
 use std::sync::Arc;
 
 use crate::chainspec::BscChainSpec;
-use crate::hardforks::BscHardforks;
+
 use crate::consensus::parlia::{Parlia, VoteAddress};
 use crate::node::evm::error::BscBlockExecutionError;
 use alloy_primitives::Address;
@@ -271,24 +271,18 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
                 let miner_check_len = working_snapshot.miner_history_check_len();
                 let is_epoch_boundary = header.number > 0 && epoch_remainder == miner_check_len;
                 
-                let (new_validators, vote_addrs, turn_length) = if is_epoch_boundary {
+                let validators_info = if is_epoch_boundary {
                     let checkpoint_block_number = header.number - miner_check_len;
                     let checkpoint_header = headers_to_apply.iter()
                         .find(|h| h.number == checkpoint_block_number);
                     
                     if let Some(checkpoint_header) = checkpoint_header {
-                        let parsed = super::validator::parse_epoch_update(checkpoint_header, 
-                            self.chain_spec.is_luban_active_at_block(checkpoint_header.number),
-                            self.chain_spec.is_bohr_active_at_timestamp(checkpoint_header.timestamp)
-                        );                    
+                        let parsed = self.parlia.parse_validators_from_header(checkpoint_header);                    
                         parsed
                     } else {
                         match crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(checkpoint_block_number) {
                             Some(header_ref) => {
-                                let parsed = super::validator::parse_epoch_update(&header_ref, 
-                                    self.chain_spec.is_luban_active_at_block(header_ref.number),
-                                    self.chain_spec.is_bohr_active_at_timestamp(header_ref.timestamp)
-                                );                    
+                                let parsed = self.parlia.parse_validators_from_header(&header_ref);                    
                                 parsed
                             },
                             None => {
@@ -298,16 +292,18 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
                         }
                     }
                 } else {
-                    (Vec::new(), None, None)
-                };
+                    Ok(ValidatorsInfo {
+                        consensus_addrs: Vec::new(),
+                        vote_addrs: None,
+                    })
+                }.ok()?;
+
+                let new_validators = validators_info.consensus_addrs;
+                let vote_addrs = validators_info.vote_addrs;
+                let turn_length = self.parlia.get_turn_length_from_header(header).ok()?;
 
                 // Parse attestation from header for vote tracking
-                let attestation = super::attestation::parse_vote_attestation_from_header(
-                    header,
-                    working_snapshot.epoch_num,
-                    self.chain_spec.is_luban_active_at_block(header.number),
-                    self.chain_spec.is_bohr_active_at_timestamp(header.timestamp)
-                );
+                let attestation = self.parlia.get_vote_attestation_from_header(header).ok()?;
 
                 // Apply header to snapshot (now determines hardfork activation internally)
                 working_snapshot = match working_snapshot.apply(

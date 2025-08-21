@@ -100,7 +100,6 @@ fn rlp_header(header: &Header, chain_id: u64) -> alloy_rlp::Header {
     rlp_head
 }
 
-
 pub fn calculate_millisecond_timestamp(header: &Header) -> u64 {
     let seconds = header.timestamp;
     let mix_digest = header.mix_hash;
