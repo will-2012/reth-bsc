@@ -237,7 +237,6 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
 
             // Collect header for forward application - fail if not available 
             if let Some(header) = crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(current_block) {
-                    headers_to_apply.push(header.clone());
                     if header.number == 0 {
                         let ValidatorsInfo { consensus_addrs, vote_addrs } =
                             self.parlia.parse_validators_from_header(&header).map_err(|err| {
@@ -251,8 +250,11 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
                             vote_addrs,
                         );
                         self.base.cache.write().insert(0, genesis_snap.clone());
+                        self.base.persist_to_db(&genesis_snap).ok()?;
+                        tracing::info!("Succeed to persist genesis snapshot for block 0 to DB");
                         break genesis_snap;
                     }
+                    headers_to_apply.push(header.clone());
                     current_block = current_block.saturating_sub(1);
                 } else {
                     tracing::error!("Failed to get snap due to load header in DB for block {}", current_block);
@@ -266,7 +268,6 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
                 working_snapshot.block_number, block_number, headers_to_apply.len());
 
             for (_index, header) in headers_to_apply.iter().enumerate() {
-                // Check for epoch boundary (following reth-bsc-trail pattern)
                 let epoch_remainder = header.number % working_snapshot.epoch_num;
                 let miner_check_len = working_snapshot.miner_history_check_len();
                 let is_epoch_boundary = header.number > 0 && epoch_remainder == miner_check_len;
