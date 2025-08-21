@@ -18,6 +18,8 @@ use reth_chainspec::EthChainSpec;
 use std::sync::Arc;
 use std::collections::HashMap;
 
+
+
 /// Enhanced Parlia consensus that implements proper pre/post execution validation
 #[derive(Debug, Clone)]
 pub struct ParliaConsensus<ChainSpec, P> {
@@ -175,6 +177,7 @@ where
         self.validate_basic_post_execution_fields(block, receipts)?;
 
         // 2. BSC-specific post-execution validation
+        // TODO: check more.
         self.validate_parlia_post_execution_fields(block, receipts)?;
 
         Ok(())
@@ -225,7 +228,7 @@ where
         let snapshot = match self.snapshot_provider.snapshot(parent_number) {
             Some(snapshot) => {
                 tracing::debug!(
-                    "BSC: Using snapshot for block {} to validate block {} (snapshot_block_number={})",
+                    "Using snapshot for block {} to post validate block {} (snapshot_block_number={})",
                     parent_number, header.number, snapshot.block_number
                 );
                 snapshot

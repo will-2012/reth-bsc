@@ -2,7 +2,7 @@ use super::patch::{
     patch_chapel_after_tx, patch_chapel_before_tx, patch_mainnet_after_tx, patch_mainnet_before_tx,
 };
 use crate::{
-    consensus::{SYSTEM_ADDRESS, parlia::{HertzPatchManager, VoteAddress, Snapshot}},
+    consensus::{SYSTEM_ADDRESS, parlia::{HertzPatchManager, VoteAddress, Snapshot, Parlia}},
     evm::transaction::BscTxEnv,
     hardforks::BscHardforks,
     system_contracts::{
@@ -83,7 +83,10 @@ where
     /// Snapshot provider for accessing Parlia validator snapshots.
     pub(super) snapshot_provider: Option<Arc<dyn SnapshotProvider + Send + Sync>>,
     /// Parlia consensus instance used (optional during execution).
-    pub(super) parlia_consensus: Option<Arc<dyn crate::consensus::parlia::ParliaConsensusObject + Send + Sync>>,
+    // TODO: remove this field.
+    // pub(super) parlia_consensus: Option<Arc<dyn crate::consensus::parlia::ParliaConsensusObject + Send + Sync>>,
+    /// Parlia consensus instance
+    pub(crate) parlia: Arc<Parlia<Spec>>,
     /// Inner execution context.
     pub(super) inner_ctx: InnerExecutionContext,
 }
@@ -97,7 +100,7 @@ where
                 + FromRecoveredTx<TransactionSigned>
                 + FromTxWithEncoded<TransactionSigned>,
     >,
-    Spec: EthereumHardforks + BscHardforks + EthChainSpec + Hardforks + Clone,
+    Spec: EthereumHardforks + BscHardforks + EthChainSpec + Hardforks + Clone + 'static,
     R: ReceiptBuilder<Transaction = TransactionSigned, Receipt: TxReceipt>,
     <R as ReceiptBuilder>::Transaction: Unpin + From<TransactionSigned>,
     <EVM as alloy_evm::Evm>::Tx: FromTxWithEncoded<<R as ReceiptBuilder>::Transaction>,
@@ -123,6 +126,7 @@ where
             tracing::warn!("No header found in the context, block_number: {:?}", evm.block().number.to::<u64>());
         }
 
+        let parlia = Arc::new(Parlia::new(Arc::new(spec.clone()), 200));
         let spec_clone = spec.clone();
         Self {
             spec,
@@ -137,7 +141,8 @@ where
             system_caller: SystemCaller::new(spec_clone),
             hook: None,
             snapshot_provider: crate::shared::get_snapshot_provider().cloned(),
-            parlia_consensus: crate::shared::get_parlia_consensus().cloned(),
+            // parlia_consensus: crate::shared::get_parlia_consensus().cloned(),
+            parlia,
             inner_ctx: InnerExecutionContext {
                 current_validators: None,
                 max_elected_validators: None,
@@ -256,7 +261,7 @@ where
                 + FromRecoveredTx<TransactionSigned>
                 + FromTxWithEncoded<TransactionSigned>,
     >,
-    Spec: EthereumHardforks + BscHardforks + EthChainSpec + Hardforks,
+    Spec: EthereumHardforks + BscHardforks + EthChainSpec + Hardforks + 'static,
     R: ReceiptBuilder<Transaction = TransactionSigned, Receipt: TxReceipt>,
     <R as ReceiptBuilder>::Transaction: Unpin + From<TransactionSigned>,
     <E as alloy_evm::Evm>::Tx: FromTxWithEncoded<<R as ReceiptBuilder>::Transaction>,

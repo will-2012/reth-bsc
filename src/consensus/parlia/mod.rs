@@ -20,6 +20,7 @@ pub mod transaction_splitter;
 pub mod consensus;
 pub mod util;
 pub mod error;
+pub mod parlia;
 
 pub use snapshot::{Snapshot, ValidatorInfo, CHECKPOINT_INTERVAL};
 pub use vote::{VoteAddress, VoteAttestation, VoteData, VoteEnvelope, VoteSignature, ValidatorsBitSet};
@@ -33,6 +34,7 @@ pub use error::ParliaConsensusError;
 pub use consensus::ParliaConsensus;
 pub use util::hash_with_chain_id;
 pub use provider::SnapshotProvider;
+pub use parlia::Parlia;
 
 // A single object-safe trait to represent the Parlia consensus object when held globally.
 // This combines the execution-facing validator API with the consensus engine trait.
