@@ -21,6 +21,7 @@ pub mod consensus;
 pub mod util;
 pub mod error;
 pub mod parlia;
+pub mod parlia_validation;
 
 pub use snapshot::{Snapshot, ValidatorInfo, CHECKPOINT_INTERVAL};
 pub use vote::{VoteAddress, VoteAttestation, VoteData, VoteEnvelope, VoteSignature, ValidatorsBitSet};

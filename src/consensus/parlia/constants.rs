@@ -22,3 +22,10 @@ pub const DIFF_INTURN: U256 = U256::from_limbs([2, 0, 0, 0]);
 pub const DIFF_NOTURN: U256 = U256::from_limbs([1, 0, 0, 0]); 
 
 pub const COLLECT_ADDITIONAL_VOTES_REWARD_RATIO: usize = 100;
+
+// Additional constants for compatibility
+pub const EXTRA_VANITY_LEN: usize = EXTRA_VANITY;
+pub const EXTRA_SEAL_LEN: usize = EXTRA_SEAL;
+pub const EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM: usize = EXTRA_VANITY + VALIDATOR_NUMBER_SIZE;
+pub const EXTRA_VALIDATOR_LEN: usize = VALIDATOR_BYTES_LEN_AFTER_LUBAN;
+pub const EXTRA_VALIDATOR_LEN_BEFORE_LUBAN: usize = VALIDATOR_BYTES_LEN_BEFORE_LUBAN;

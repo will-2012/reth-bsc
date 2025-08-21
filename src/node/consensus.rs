@@ -1,7 +1,7 @@
 use crate::{
     node::BscNode,
     BscPrimitives, BscBlock, BscBlockBody,
-    consensus::parlia::provider::EnhancedDbSnapshotProvider,
+    consensus::parlia::{provider::EnhancedDbSnapshotProvider, Parlia},
     hardforks::BscHardforks,
 };
 use reth::{
@@ -59,22 +59,21 @@ where
 /// Provides basic checks as outlined in the execution specs.
 #[derive(Debug, Clone)]
 pub struct BscConsensus<ChainSpec> {
-    inner: EthBeaconConsensus<ChainSpec>,
+    base: EthBeaconConsensus<ChainSpec>,
+    parlia: Arc<Parlia<ChainSpec>>,
     chain_spec: Arc<ChainSpec>,
 }
 
-impl<ChainSpec: EthChainSpec + BscHardforks> BscConsensus<ChainSpec> {
-    /// Create a new instance of [`BscConsensus`]
+impl<ChainSpec: EthChainSpec + BscHardforks + 'static> BscConsensus<ChainSpec> {
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
-        Self { inner: EthBeaconConsensus::new(chain_spec.clone()), chain_spec }
+        Self { base: EthBeaconConsensus::new(chain_spec.clone()), parlia: Arc::new(Parlia::new(chain_spec.clone(), 200)), chain_spec }
     }
 }
 
-impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<ChainSpec> {
-    fn validate_header(&self, _header: &SealedHeader) -> Result<(), ConsensusError> {
-        // TODO: doesn't work because of extradata check
-        // self.inner.validate_header(header)
-
+impl<ChainSpec: EthChainSpec + BscHardforks + 'static> HeaderValidator<Header> 
+    for BscConsensus<ChainSpec> {
+    fn validate_header(&self, header: &SealedHeader) -> Result<(), ConsensusError> {
+        self.parlia.validate_header(header)?;
         Ok(())
     }
 
@@ -103,7 +102,7 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
     }
 }
 
-impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> Consensus<BscBlock>
+impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks + 'static> Consensus<BscBlock>
     for BscConsensus<ChainSpec>
 {
     type Error = ConsensusError;
@@ -113,41 +112,19 @@ impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> Consensus<BscBlock
         body: &BscBlockBody,
         header: &SealedHeader,
     ) -> Result<(), ConsensusError> {
-        Consensus::<BscBlock>::validate_body_against_header(&self.inner, body, header)
+        Consensus::<BscBlock>::validate_body_against_header(&self.base, body, header)
     }
 
     fn validate_block_pre_execution(
         &self,
-        _block: &SealedBlock<BscBlock>,
+        block: &SealedBlock<BscBlock>,
     ) -> Result<(), ConsensusError> {
-        // Check ommers hash
-        // let ommers_hash = block.body().calculate_ommers_root();
-        // if Some(block.ommers_hash()) != ommers_hash {
-        //     return Err(ConsensusError::BodyOmmersHashDiff(
-        //         GotExpected {
-        //             got: ommers_hash.unwrap_or(EMPTY_OMMER_ROOT_HASH),
-        //             expected: block.ommers_hash(),
-        //         }
-        //         .into(),
-        //     ))
-        // }
-
-        // // Check transaction root
-        // if let Err(error) = block.ensure_transaction_root_valid() {
-        //     return Err(ConsensusError::BodyTransactionRootDiff(error.into()))
-        // }
-
-        // if self.chain_spec.is_cancun_active_at_timestamp(block.timestamp()) {
-        //     validate_cancun_gas(block)?;
-        // } else {
-        //     return Ok(())
-        // }
-
+        self.parlia.validate_block_pre_execution(block)?;
         Ok(())
     }
 }
 
-impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> FullConsensus<BscPrimitives>
+impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks + 'static> FullConsensus<BscPrimitives>
     for BscConsensus<ChainSpec>
 {
     fn validate_block_post_execution(
@@ -155,9 +132,33 @@ impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> FullConsensus<BscP
         block: &RecoveredBlock<BscBlock>,
         result: &BlockExecutionResult<Receipt>,
     ) -> Result<(), ConsensusError> {
-        FullConsensus::<BscPrimitives>::validate_block_post_execution(&self.inner, block, result)
+        FullConsensus::<BscPrimitives>::validate_block_post_execution(&self.base, block, result)
     }
 }
+
+
+/// Calculate the millisecond timestamp of a block header.
+/// Refer to https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP-520.md.
+pub fn calculate_millisecond_timestamp<H: alloy_consensus::BlockHeader>(header: &H) -> u64 {
+    let seconds = header.timestamp();
+    let mix_digest = header.mix_hash().unwrap_or(B256::ZERO);
+
+    let milliseconds = if mix_digest != B256::ZERO {
+        let bytes = mix_digest.as_slice();
+        // Convert last 8 bytes to u64 (big-endian), equivalent to Go's
+        // uint256.SetBytes32().Uint64()
+        let mut result = 0u64;
+        for &byte in bytes.iter().skip(24).take(8) {
+            result = (result << 8) | u64::from(byte);
+        }
+        result
+    } else {
+        0
+    };
+
+    seconds * 1000 + milliseconds
+}
+
 
 // TODO: refine this part.
 fn try_create_ondemand_snapshots<Node>(
@@ -191,27 +192,6 @@ where
     Ok(snapshot_provider)
 }
 
-/// Calculate the millisecond timestamp of a block header.
-/// Refer to https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP-520.md.
-pub fn calculate_millisecond_timestamp<H: alloy_consensus::BlockHeader>(header: &H) -> u64 {
-    let seconds = header.timestamp();
-    let mix_digest = header.mix_hash().unwrap_or(B256::ZERO);
-
-    let milliseconds = if mix_digest != B256::ZERO {
-        let bytes = mix_digest.as_slice();
-        // Convert last 8 bytes to u64 (big-endian), equivalent to Go's
-        // uint256.SetBytes32().Uint64()
-        let mut result = 0u64;
-        for &byte in bytes.iter().skip(24).take(8) {
-            result = (result << 8) | u64::from(byte);
-        }
-        result
-    } else {
-        0
-    };
-
-    seconds * 1000 + milliseconds
-}
 
 #[cfg(test)]
 mod tests {

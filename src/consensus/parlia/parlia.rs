@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::SystemTime;
 use lazy_static::lazy_static;
 use std::sync::RwLock;
 
@@ -14,7 +15,9 @@ use super::{
     VoteAttestation, ParliaConsensusError,
     constants::{
         EXTRA_VANITY, EXTRA_SEAL, VALIDATOR_NUMBER_SIZE, 
-        VALIDATOR_BYTES_LEN_AFTER_LUBAN, VALIDATOR_BYTES_LEN_BEFORE_LUBAN, TURN_LENGTH_SIZE
+        VALIDATOR_BYTES_LEN_AFTER_LUBAN, VALIDATOR_BYTES_LEN_BEFORE_LUBAN, TURN_LENGTH_SIZE,
+        EXTRA_VANITY_LEN, EXTRA_SEAL_LEN, EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM,
+        EXTRA_VALIDATOR_LEN, EXTRA_VALIDATOR_LEN_BEFORE_LUBAN
     },
     hash_with_chain_id
 };
@@ -26,9 +29,10 @@ lazy_static! {
     static ref RECOVERED_PROPOSER_CACHE: RwLock<LruMap<B256, Address, ByLength>> = RwLock::new(LruMap::new(ByLength::new(RECOVERED_PROPOSER_CACHE_NUM as u32)));
 }
 
+#[derive(Debug)]
 pub struct Parlia<ChainSpec> {
-    chain_spec: Arc<ChainSpec>,
-    epoch: u64, // The epoch number
+    pub spec: Arc<ChainSpec>,
+    pub epoch: u64, // The epoch number
     // period: u64, // The period of block proposal
 }
 
@@ -36,15 +40,20 @@ impl<ChainSpec> Parlia<ChainSpec>
 where ChainSpec: EthChainSpec + BscHardforks + 'static, 
 {
     pub fn new(chain_spec: Arc<ChainSpec>, epoch: u64) -> Self {
-        Self { chain_spec, epoch }
+        Self { spec: chain_spec, epoch }
+    }
+
+    /// Get chain spec
+    pub fn chain_spec(&self) -> &ChainSpec {
+        &self.spec
     }
 
     /// Get epoch length from header
     pub fn get_epoch_length(&self, header: &Header) -> u64 {
-        if self.chain_spec.is_maxwell_active_at_timestamp(header.timestamp()) {
+        if self.spec.is_maxwell_active_at_timestamp(header.timestamp()) {
             return crate::consensus::parlia::snapshot::MAXWELL_EPOCH_LENGTH;
         }
-        if self.chain_spec.is_lorentz_active_at_timestamp(header.timestamp()) {
+        if self.spec.is_lorentz_active_at_timestamp(header.timestamp()) {
             return crate::consensus::parlia::snapshot::LORENTZ_EPOCH_LENGTH;
         }
         self.epoch
@@ -57,7 +66,7 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
             return None;
         }
 
-        let is_luban_active = self.chain_spec.is_luban_active_at_block(header.number);
+        let is_luban_active = self.spec.is_luban_active_at_block(header.number);
         let is_epoch = header.number % self.get_epoch_length(header) == 0;
 
         if is_luban_active {
@@ -70,7 +79,7 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
             let end = start + count * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
 
             let mut extra_min_len = end + EXTRA_SEAL;
-            let is_bohr_active = self.chain_spec.is_bohr_active_at_timestamp(header.timestamp);
+            let is_bohr_active = self.spec.is_bohr_active_at_timestamp(header.timestamp);
             if is_bohr_active {
                 extra_min_len += TURN_LENGTH_SIZE;
             }
@@ -94,7 +103,7 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
     /// Get turn length from header
     pub fn get_turn_length_from_header(&self, header: &Header) -> Result<Option<u8>, ParliaConsensusError> {
         if header.number % self.get_epoch_length(header) != 0 ||
-            !self.chain_spec.is_bohr_active_at_timestamp(header.timestamp)
+            !self.spec.is_bohr_active_at_timestamp(header.timestamp)
         {
             return Ok(None);
         }
@@ -123,7 +132,7 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
             return Ok(None);
         }
 
-        if !self.chain_spec.is_luban_active_at_block(header.number()) {
+        if !self.spec.is_luban_active_at_block(header.number()) {
             return Ok(None);
         }
 
@@ -134,7 +143,7 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
                 header.extra_data[EXTRA_VANITY + VALIDATOR_NUMBER_SIZE - 1] as usize;
             let mut start =
                 EXTRA_VANITY + VALIDATOR_NUMBER_SIZE + validator_count * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
-            let is_bohr_active = self.chain_spec.is_bohr_active_at_timestamp(header.timestamp);
+            let is_bohr_active = self.spec.is_bohr_active_at_timestamp(header.timestamp);
             if is_bohr_active {
                 start += TURN_LENGTH_SIZE;
             }
@@ -179,7 +188,7 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
             .map_err(|_| ParliaConsensusError::RecoverECDSAInnerError)?;
 
         let message = Message::from_digest_slice(
-            hash_with_chain_id(header, self.chain_spec.chain().id()).as_slice(),
+                            hash_with_chain_id(header, self.spec.chain().id()).as_slice(),
         )
         .map_err(|_| ParliaConsensusError::RecoverECDSAInnerError)?;
         let public = &SECP256K1
@@ -196,5 +205,77 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
         
         Ok(proposer)
     }
+    
+    pub fn present_timestamp(&self) -> u64 {
+        SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs()
+    }
 
+    fn get_validator_len_from_header(
+        &self,
+        header: &Header,
+    ) -> Result<usize, ParliaConsensusError> {
+        if header.number % self.epoch != 0 {
+            return Ok(0);
+        }
+
+        let extra_len = header.extra_data.len();
+
+        if !self.spec.is_luban_active_at_block(header.number) {
+            return Ok(extra_len - EXTRA_VANITY_LEN - EXTRA_SEAL_LEN);
+        }
+
+        let count = header.extra_data[EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM - 1] as usize;
+        Ok(count * EXTRA_VALIDATOR_LEN)
+    }
+
+    fn check_header_extra_len(&self, header: &Header) -> Result<(), ParliaConsensusError> {
+        let extra_len = header.extra_data.len();
+        if extra_len < EXTRA_VANITY_LEN {
+            return Err(ParliaConsensusError::ExtraVanityMissing);
+        }
+        if extra_len < EXTRA_VANITY_LEN + EXTRA_SEAL_LEN {
+            return Err(ParliaConsensusError::ExtraSignatureMissing);
+        }
+
+        if header.number % self.get_epoch_length(header) != 0 {
+            return Ok(());
+        }
+
+        if self.spec.is_luban_active_at_block(header.number) {
+            let count = header.extra_data[EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM - 1] as usize;
+            let expect =
+                EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM + EXTRA_SEAL_LEN + count * EXTRA_VALIDATOR_LEN;
+            if count == 0 || extra_len < expect {
+                return Err(ParliaConsensusError::InvalidHeaderExtraLen {
+                    header_extra_len: extra_len as u64,
+                });
+            }
+        } else {
+            let validator_bytes_len = extra_len - EXTRA_VANITY_LEN - EXTRA_SEAL_LEN;
+            if validator_bytes_len / EXTRA_VALIDATOR_LEN_BEFORE_LUBAN == 0 ||
+                validator_bytes_len % EXTRA_VALIDATOR_LEN_BEFORE_LUBAN != 0
+            {
+                return Err(ParliaConsensusError::InvalidHeaderExtraLen {
+                    header_extra_len: extra_len as u64,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn check_header_extra(&self, header: &Header) -> Result<(), ParliaConsensusError> {
+        self.check_header_extra_len(header)?;
+
+        let is_epoch = header.number % self.get_epoch_length(header) == 0;
+        let validator_bytes_len = self.get_validator_len_from_header(header)?;
+        if (!is_epoch && validator_bytes_len != 0) || (is_epoch && validator_bytes_len == 0) {
+            return Err(ParliaConsensusError::InvalidHeaderExtraValidatorBytesLen {
+                is_epoch,
+                validator_bytes_len,
+            });
+        }
+
+        Ok(())
+    }
 }
