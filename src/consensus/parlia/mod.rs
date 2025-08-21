@@ -7,7 +7,7 @@ pub mod gas;
 pub mod util;
 pub mod error;
 pub mod consensus;
-pub mod validations;
+pub mod validation;
 pub mod db;
 
 pub use snapshot::{Snapshot, ValidatorInfo, CHECKPOINT_INTERVAL};
