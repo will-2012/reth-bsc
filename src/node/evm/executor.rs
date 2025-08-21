@@ -82,9 +82,6 @@ where
     pub(super) hook: Option<Box<dyn OnStateHook>>,
     /// Snapshot provider for accessing Parlia validator snapshots.
     pub(super) snapshot_provider: Option<Arc<dyn SnapshotProvider + Send + Sync>>,
-    /// Parlia consensus instance used (optional during execution).
-    // TODO: remove this field.
-    // pub(super) parlia_consensus: Option<Arc<dyn crate::consensus::parlia::ParliaConsensusObject + Send + Sync>>,
     /// Parlia consensus instance
     pub(crate) parlia: Arc<Parlia<Spec>>,
     /// Inner execution context.
@@ -141,7 +138,6 @@ where
             system_caller: SystemCaller::new(spec_clone),
             hook: None,
             snapshot_provider: crate::shared::get_snapshot_provider().cloned(),
-            // parlia_consensus: crate::shared::get_parlia_consensus().cloned(),
             parlia,
             inner_ctx: InnerExecutionContext {
                 current_validators: None,

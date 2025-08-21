@@ -1,20 +1,25 @@
 use crate::{
     node::BscNode,
-    BscPrimitives,
-    consensus::parlia::{ParliaConsensus, provider::EnhancedDbSnapshotProvider, EPOCH},
+    BscPrimitives, BscBlock, BscBlockBody,
+    consensus::parlia::provider::EnhancedDbSnapshotProvider,
+    hardforks::BscHardforks,
 };
 use reth::{
     api::FullNodeTypes,
     builder::{components::ConsensusBuilder, BuilderContext},
-    consensus::{ConsensusError, FullConsensus},
+    consensus::{ConsensusError, FullConsensus, Consensus, HeaderValidator},
+    beacon_consensus::EthBeaconConsensus,
+    consensus_common::validation::{validate_against_parent_hash_number, validate_against_parent_4844},
+    primitives::{SealedHeader, SealedBlock, RecoveredBlock},
+    providers::BlockExecutionResult,
 };
 use alloy_primitives::B256;
+use alloy_consensus::Header;
+use reth_ethereum_primitives::Receipt;
 
 use reth_chainspec::EthChainSpec;
 
 use std::sync::Arc;
-
-// TODO: refine it later.
 
 /// A basic Bsc consensus builder.
 #[derive(Debug, Default, Clone, Copy)]
@@ -29,22 +34,15 @@ where
 
     /// return a parlia consensus instance, automatically called by the ComponentsBuilder framework.
     async fn build_consensus(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::Consensus> {
+        // TODO: refine this part.
         let snapshot_provider = try_create_ondemand_snapshots(ctx)
             .unwrap_or_else(|e| {
                 panic!("Failed to initialize on-demand MDBX snapshots: {}", e);
             });
-
-        let consensus_concrete: ParliaConsensus<_, _> = ParliaConsensus::new(
-            ctx.chain_spec(),
-            snapshot_provider.clone(),
-            EPOCH, // BSC epoch length (200 blocks)
-        );
-
         // Store the snapshot provider globally so RPC can access it
         let _ = crate::shared::set_snapshot_provider(
             snapshot_provider as Arc<dyn crate::consensus::parlia::SnapshotProvider + Send + Sync>,
         );
-
         // Store the header provider globally for shared access
         if let Err(_) = crate::shared::set_header_provider(Arc::new(ctx.provider().clone())) {
             tracing::warn!("Failed to set global header provider");
@@ -52,21 +50,116 @@ where
             tracing::info!("Succeed to set global header provider");
         }
 
-        // Store consensus globally for RPC access as a trait object that also exposes validator API
-        let consensus_obj_global: Arc<dyn crate::consensus::parlia::ParliaConsensusObject + Send + Sync> = Arc::new(consensus_concrete.clone());
-        let _ = crate::shared::set_parlia_consensus(consensus_obj_global);
-
-        // Return the consensus as FullConsensus for the builder API
-        let consensus_obj: Arc<dyn FullConsensus<BscPrimitives, Error = ConsensusError>> = Arc::new(consensus_concrete);
-        Ok(consensus_obj)
+        Ok(Arc::new(BscConsensus::new(ctx.chain_spec())))
     }
 }
 
-/// Attempts to create on-demand snapshots using a separate database instance
-/// and access to the blockchain provider for header lookups
+/// BSC consensus implementation.
 ///
-/// This follows a safe pattern where we create a separate database connection
-/// for snapshot storage, avoiding the need for unsafe access to provider internals.
+/// Provides basic checks as outlined in the execution specs.
+#[derive(Debug, Clone)]
+pub struct BscConsensus<ChainSpec> {
+    inner: EthBeaconConsensus<ChainSpec>,
+    chain_spec: Arc<ChainSpec>,
+}
+
+impl<ChainSpec: EthChainSpec + BscHardforks> BscConsensus<ChainSpec> {
+    /// Create a new instance of [`BscConsensus`]
+    pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
+        Self { inner: EthBeaconConsensus::new(chain_spec.clone()), chain_spec }
+    }
+}
+
+impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<ChainSpec> {
+    fn validate_header(&self, _header: &SealedHeader) -> Result<(), ConsensusError> {
+        // TODO: doesn't work because of extradata check
+        // self.inner.validate_header(header)
+
+        Ok(())
+    }
+
+    fn validate_header_against_parent(
+        &self,
+        header: &SealedHeader,
+        parent: &SealedHeader,
+    ) -> Result<(), ConsensusError> {
+        validate_against_parent_hash_number(header.header(), parent)?;
+
+        let header_ts = calculate_millisecond_timestamp(header.header());
+        let parent_ts = calculate_millisecond_timestamp(parent.header());
+        if header_ts <= parent_ts {
+            return Err(ConsensusError::TimestampIsInPast {
+                parent_timestamp: parent_ts,
+                timestamp: header_ts,
+            })
+        }
+
+        // ensure that the blob gas fields for this block
+        if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
+            validate_against_parent_4844(header.header(), parent.header(), blob_params)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> Consensus<BscBlock>
+    for BscConsensus<ChainSpec>
+{
+    type Error = ConsensusError;
+
+    fn validate_body_against_header(
+        &self,
+        body: &BscBlockBody,
+        header: &SealedHeader,
+    ) -> Result<(), ConsensusError> {
+        Consensus::<BscBlock>::validate_body_against_header(&self.inner, body, header)
+    }
+
+    fn validate_block_pre_execution(
+        &self,
+        _block: &SealedBlock<BscBlock>,
+    ) -> Result<(), ConsensusError> {
+        // Check ommers hash
+        // let ommers_hash = block.body().calculate_ommers_root();
+        // if Some(block.ommers_hash()) != ommers_hash {
+        //     return Err(ConsensusError::BodyOmmersHashDiff(
+        //         GotExpected {
+        //             got: ommers_hash.unwrap_or(EMPTY_OMMER_ROOT_HASH),
+        //             expected: block.ommers_hash(),
+        //         }
+        //         .into(),
+        //     ))
+        // }
+
+        // // Check transaction root
+        // if let Err(error) = block.ensure_transaction_root_valid() {
+        //     return Err(ConsensusError::BodyTransactionRootDiff(error.into()))
+        // }
+
+        // if self.chain_spec.is_cancun_active_at_timestamp(block.timestamp()) {
+        //     validate_cancun_gas(block)?;
+        // } else {
+        //     return Ok(())
+        // }
+
+        Ok(())
+    }
+}
+
+impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> FullConsensus<BscPrimitives>
+    for BscConsensus<ChainSpec>
+{
+    fn validate_block_post_execution(
+        &self,
+        block: &RecoveredBlock<BscBlock>,
+        result: &BlockExecutionResult<Receipt>,
+    ) -> Result<(), ConsensusError> {
+        FullConsensus::<BscPrimitives>::validate_block_post_execution(&self.inner, block, result)
+    }
+}
+
+// TODO: refine this part.
 fn try_create_ondemand_snapshots<Node>(
     ctx: &BuilderContext<Node>,
 ) -> eyre::Result<Arc<EnhancedDbSnapshotProvider<Arc<reth_db::DatabaseEnv>>>>
