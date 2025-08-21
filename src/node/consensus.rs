@@ -70,10 +70,11 @@ impl<ChainSpec: EthChainSpec + BscHardforks + 'static> BscConsensus<ChainSpec> {
     }
 }
 
+/// header stage validation.
 impl<ChainSpec: EthChainSpec + BscHardforks + 'static> HeaderValidator<Header> 
     for BscConsensus<ChainSpec> {
     fn validate_header(&self, header: &SealedHeader) -> Result<(), ConsensusError> {
-        tracing::info!("Validating header, block_number: {:?}", header.number);
+        // tracing::info!("Validating header, block_number: {:?}", header.number);
         self.parlia.validate_header(header)?;
         Ok(())
     }
@@ -83,7 +84,7 @@ impl<ChainSpec: EthChainSpec + BscHardforks + 'static> HeaderValidator<Header>
         header: &SealedHeader,
         parent: &SealedHeader,
     ) -> Result<(), ConsensusError> {
-        tracing::info!("Validating header against parent, block_number: {:?}", header.number);
+        // tracing::info!("Validating header against parent, block_number: {:?}", header.number);
         validate_against_parent_hash_number(header.header(), parent)?;
 
         let header_ts = calculate_millisecond_timestamp(header.header());
@@ -109,20 +110,22 @@ impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks + 'static> Consensu
 {
     type Error = ConsensusError;
 
+    /// live-sync validation.
     fn validate_body_against_header(
         &self,
         body: &BscBlockBody,
         header: &SealedHeader,
     ) -> Result<(), ConsensusError> {
-        tracing::info!("Validating body against header, block_number: {:?}", header.number);
+        // tracing::info!("Validating body against header, block_number: {:?}", header.number);
         Consensus::<BscBlock>::validate_body_against_header(&self.base, body, header)
     }
 
+    /// body stage validation.
     fn validate_block_pre_execution(
         &self,
         block: &SealedBlock<BscBlock>,
     ) -> Result<(), ConsensusError> {
-        tracing::info!("Validating block pre-execution, block_number: {:?}", block.header().number);
+        // tracing::info!("Validating block pre-execution, block_number: {:?}", block.header().number);
         self.parlia.validate_block_pre_execution(block)?;
         Ok(())
     }
@@ -131,12 +134,13 @@ impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks + 'static> Consensu
 impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks + 'static> FullConsensus<BscPrimitives>
     for BscConsensus<ChainSpec>
 {
+    /// execution stage validation.
     fn validate_block_post_execution(
         &self,
         block: &RecoveredBlock<BscBlock>,
         result: &BlockExecutionResult<Receipt>,
     ) -> Result<(), ConsensusError> {
-        tracing::info!("Validating block post-execution, block_number: {:?}", block.header().number);
+        // tracing::info!("Validating block post-execution, block_number: {:?}", block.header().number);
         FullConsensus::<BscPrimitives>::validate_block_post_execution(&self.base, block, result)
     }
 }
