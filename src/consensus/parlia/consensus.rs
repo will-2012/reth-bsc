@@ -216,7 +216,7 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
         &self,
         header: &Header,
     ) -> Result<usize, ParliaConsensusError> {
-        if header.number % self.epoch != 0 {
+        if header.number % self.get_epoch_length(header) != 0 {
             return Ok(0);
         }
 
@@ -248,7 +248,8 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
             let expect =
                 EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM + EXTRA_SEAL_LEN + count * EXTRA_VALIDATOR_LEN;
             if count == 0 || extra_len < expect {
-                tracing::warn!("Invalid header extra len, block_number: {}, extra_len: {}, expect: {}, count: {}, epoch_length: {}", header.number, extra_len, expect, count, self.get_epoch_length(header));
+                tracing::warn!("Invalid header extra len, block_number: {}, extra_len: {}, expect: {}, count: {}, epoch_length: {}", 
+                    header.number, extra_len, expect, count, self.get_epoch_length(header));
                 return Err(ParliaConsensusError::InvalidHeaderExtraLen {
                     header_extra_len: extra_len as u64,
                 });
