@@ -107,7 +107,7 @@ where
 
         let epoch_length = self.parlia.get_epoch_length(&header);
         if header.number % epoch_length == 0 {
-            let (validator_set, vote_addresses) = self.get_current_validators(block_number)?;
+            let (validator_set, vote_addresses) = self.get_current_validators(block_number-1)?;
             tracing::info!("validator_set: {:?}, vote_addresses: {:?}", validator_set, vote_addresses);
             
             let vote_addrs_map = if vote_addresses.is_empty() {
