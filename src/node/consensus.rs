@@ -75,7 +75,10 @@ impl<ChainSpec: EthChainSpec + BscHardforks + 'static> HeaderValidator<Header>
     for BscConsensus<ChainSpec> {
     fn validate_header(&self, header: &SealedHeader) -> Result<(), ConsensusError> {
         // tracing::info!("Validating header, block_number: {:?}", header.number);
-        self.parlia.validate_header(header)?;
+        if let Err(err) = self.parlia.validate_header(header) {
+            tracing::warn!("Failed to validate_header, block_number: {}, err: {:?}", header.number, err);
+            return Err(err);
+        }
         Ok(())
     }
 
@@ -85,11 +88,15 @@ impl<ChainSpec: EthChainSpec + BscHardforks + 'static> HeaderValidator<Header>
         parent: &SealedHeader,
     ) -> Result<(), ConsensusError> {
         // tracing::info!("Validating header against parent, block_number: {:?}", header.number);
-        validate_against_parent_hash_number(header.header(), parent)?;
+        if let Err(err) = validate_against_parent_hash_number(header.header(), parent) {
+            tracing::warn!("Failed to validate_against_parent_hash_number, block_number: {}, err: {:?}", header.number, err);
+            return Err(err)
+        }
 
         let header_ts = calculate_millisecond_timestamp(header.header());
         let parent_ts = calculate_millisecond_timestamp(parent.header());
         if header_ts <= parent_ts {
+            tracing::warn!("Failed to check timestamp, block_number: {}", header.number);
             return Err(ConsensusError::TimestampIsInPast {
                 parent_timestamp: parent_ts,
                 timestamp: header_ts,
@@ -98,7 +105,10 @@ impl<ChainSpec: EthChainSpec + BscHardforks + 'static> HeaderValidator<Header>
 
         // ensure that the blob gas fields for this block
         if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
-            validate_against_parent_4844(header.header(), parent.header(), blob_params)?;
+            if let Err(err) = validate_against_parent_4844(header.header(), parent.header(), blob_params) {
+                tracing::warn!("Failed to validate_against_parent_4844, block_number: {}, err: {:?}", header.number, err);
+                return Err(err)
+            }
         }
 
         Ok(())
