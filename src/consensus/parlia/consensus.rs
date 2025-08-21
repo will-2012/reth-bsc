@@ -239,7 +239,7 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
             return Err(ParliaConsensusError::ExtraSignatureMissing);
         }
 
-        if header.number % self.get_epoch_length(header) != 0 {
+        if header.number % self.epoch != 0 {
             return Ok(());
         }
 
