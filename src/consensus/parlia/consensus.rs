@@ -248,6 +248,7 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
             let expect =
                 EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM + EXTRA_SEAL_LEN + count * EXTRA_VALIDATOR_LEN;
             if count == 0 || extra_len < expect {
+                tracing::warn!("Invalid header extra len, block_number: {}, extra_len: {}, expect: {}, count: {}", header.number, extra_len, expect, count);
                 return Err(ParliaConsensusError::InvalidHeaderExtraLen {
                     header_extra_len: extra_len as u64,
                 });
