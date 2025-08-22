@@ -13,10 +13,9 @@ use reth::{
     primitives::{SealedHeader, SealedBlock, RecoveredBlock},
     providers::BlockExecutionResult,
 };
-use alloy_primitives::B256;
 use alloy_consensus::Header;
 use reth_ethereum_primitives::Receipt;
-
+use crate::consensus::parlia::util::calculate_millisecond_timestamp;
 use reth_chainspec::EthChainSpec;
 
 use std::sync::Arc;
@@ -34,21 +33,17 @@ where
 
     /// return a parlia consensus instance, automatically called by the ComponentsBuilder framework.
     async fn build_consensus(self, ctx: &BuilderContext<Node>) -> eyre::Result<Self::Consensus> {
-        // TODO: refine this part.
-        let snapshot_provider = try_create_ondemand_snapshots(ctx)
+        let snapshot_provider = create_snapshot_provider(ctx)
             .unwrap_or_else(|e| {
-                panic!("Failed to initialize on-demand MDBX snapshots: {}", e);
+                panic!("Failed to initialize snapshot provider, due to {}", e);
             });
-        // Store the snapshot provider globally so RPC can access it
-        let _ = crate::shared::set_snapshot_provider(
+        
+        crate::shared::set_snapshot_provider(
             snapshot_provider as Arc<dyn crate::consensus::parlia::SnapshotProvider + Send + Sync>,
-        );
-        // Store the header provider globally for shared access
-        if let Err(_) = crate::shared::set_header_provider(Arc::new(ctx.provider().clone())) {
-            tracing::warn!("Failed to set global header provider");
-        } else {
-            tracing::info!("Succeed to set global header provider");
-        }
+        ).unwrap_or_else(|_| panic!("Failed to set global snapshot provider"));
+
+        crate::shared::set_header_provider(Arc::new(ctx.provider().clone()))
+            .unwrap_or_else(|e| panic!("Failed to set global header provider: {}", e));
 
         Ok(Arc::new(BscConsensus::new(ctx.chain_spec())))
     }
@@ -156,45 +151,17 @@ impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks + 'static> FullCons
 }
 
 
-/// Calculate the millisecond timestamp of a block header.
-/// Refer to https://github.com/bnb-chain/BEPs/blob/master/BEPs/BEP-520.md.
-pub fn calculate_millisecond_timestamp<H: alloy_consensus::BlockHeader>(header: &H) -> u64 {
-    let seconds = header.timestamp();
-    let mix_digest = header.mix_hash().unwrap_or(B256::ZERO);
-
-    let milliseconds = if mix_digest != B256::ZERO {
-        let bytes = mix_digest.as_slice();
-        // Convert last 8 bytes to u64 (big-endian), equivalent to Go's
-        // uint256.SetBytes32().Uint64()
-        let mut result = 0u64;
-        for &byte in bytes.iter().skip(24).take(8) {
-            result = (result << 8) | u64::from(byte);
-        }
-        result
-    } else {
-        0
-    };
-
-    seconds * 1000 + milliseconds
-}
-
-
-// TODO: refine this part.
-fn try_create_ondemand_snapshots<Node>(
+fn create_snapshot_provider<Node>(
     ctx: &BuilderContext<Node>,
 ) -> eyre::Result<Arc<EnhancedDbSnapshotProvider<Arc<reth_db::DatabaseEnv>>>>
 where
     Node: FullNodeTypes<Types = BscNode>,
 {
-    // Create a separate database instance for snapshot storage in its own directory
-    // This avoids conflicts with the main database
+
     let datadir = ctx.config().datadir.clone();
     let main_dir = datadir.resolve_datadir(ctx.chain_spec().chain());
     let db_path = main_dir.data_dir().join("parlia_snapshots");
-
-    // Initialize our own database instance for snapshot storage
     use reth_db::{init_db, mdbx::DatabaseArguments};
-
     let snapshot_db = Arc::new(init_db(
         &db_path,
         DatabaseArguments::new(Default::default())
@@ -209,41 +176,4 @@ where
     tracing::info!("Succeed to create EnhancedDbSnapshotProvider with backward walking capability");
 
     Ok(snapshot_provider)
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use alloy_consensus::Header;
-    use alloy_primitives::B256;
-
-    #[test]
-    fn test_calculate_millisecond_timestamp_without_mix_hash() {
-        // Create a header with current timestamp and zero mix_hash
-        let timestamp =
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-
-        let header = Header { timestamp, mix_hash: B256::ZERO, ..Default::default() };
-
-        let result = calculate_millisecond_timestamp(&header);
-        assert_eq!(result, timestamp * 1000);
-    }
-
-    #[test]
-    fn test_calculate_millisecond_timestamp_with_milliseconds() {
-        // Create a header with current timestamp and mix_hash containing milliseconds
-        let timestamp =
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
-
-        let milliseconds = 750u64;
-        let mut mix_hash_bytes = [0u8; 32];
-        mix_hash_bytes[24..32].copy_from_slice(&milliseconds.to_be_bytes());
-        let mix_hash = B256::new(mix_hash_bytes);
-
-        let header = Header { timestamp, mix_hash, ..Default::default() };
-
-        let result = calculate_millisecond_timestamp(&header);
-        assert_eq!(result, timestamp * 1000 + milliseconds);
-    }
 }

@@ -15,14 +15,6 @@ pub struct ValidatorsInfo {
     pub vote_addrs: Option<Vec<VoteAddress>>,
 }
 
-/// Trait for creating snapshots on-demand when parent snapshots are missing
-/// This will be removed in favor of integrating the logic into DbSnapshotProvider
-pub trait OnDemandSnapshotCreator {
-    /// Create a snapshot for the given block by working backwards to find an existing snapshot
-    /// and then building forward
-    fn create_snapshot_on_demand(&self, target_block_number: u64) -> Option<Snapshot>;
-}
-
 // ---------------------------------------------------------------------------
 // MDBX‐backed snapshot provider with LRU front‐cache
 // ---------------------------------------------------------------------------
@@ -41,9 +33,8 @@ pub trait SnapshotProvider: Send + Sync {
     /// Inserts (or replaces) the snapshot in the provider.
     fn insert(&self, snapshot: Snapshot);
     
-    /// Fetches header by block number for checkpoint parsing (like reth-bsc-trail's get_header_by_hash)
-    // TODO: refine it later.
-    fn get_checkpoint_header(&self, block_number: u64) -> Option<alloy_consensus::Header>;
+    /// Returns the header for the given `block_number`.
+    fn get_header(&self, block_number: u64) -> Option<alloy_consensus::Header>;
 }
 
 /// `DbSnapshotProvider` wraps an MDBX database; it keeps a small in-memory LRU to avoid hitting
@@ -190,7 +181,7 @@ impl<DB: Database + 'static> SnapshotProvider for DbSnapshotProvider<DB> {
         }
     }
     
-    fn get_checkpoint_header(&self, _block_number: u64) -> Option<alloy_consensus::Header> {
+    fn get_header(&self, _block_number: u64) -> Option<alloy_consensus::Header> {
         unimplemented!("DbSnapshotProvider doesn't have access to headers");
     }
 }
@@ -337,7 +328,7 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
         self.base.insert(snapshot);
     }
     
-    fn get_checkpoint_header(&self, block_number: u64) -> Option<alloy_consensus::Header> {
+    fn get_header(&self, block_number: u64) -> Option<alloy_consensus::Header> {
         let header = crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(block_number);
         tracing::info!("Succeed to fetch header, is_none: {} for block {} in enhanced snapshot provider", header.is_none(), block_number);
         header

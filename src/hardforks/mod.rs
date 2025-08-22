@@ -156,7 +156,7 @@ pub trait BscHardforks: EthereumHardforks {
 
     /// Convenience method to check if [`BscHardfork::Tycho`] is firstly active at a given
     /// timestamp and parent timestamp.
-    fn is_on_tycho_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
+    fn is_tycho_transition_at_timestamp(&self, timestamp: u64, parent_timestamp: u64) -> bool {
         self.bsc_fork_activation(BscHardfork::Tycho)
             .transitions_at_timestamp(timestamp, parent_timestamp)
     }

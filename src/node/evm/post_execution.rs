@@ -340,7 +340,7 @@ where
         let end = header.number;
         let mut target_number = header.number - 1;
         for _ in (start..end).rev() {
-            let header = self.snapshot_provider.as_ref().unwrap().get_checkpoint_header(target_number)
+            let header = self.snapshot_provider.as_ref().unwrap().get_header(target_number)
                 .ok_or_else(|| BlockExecutionError::msg(format!("Header not found for block number: {}", target_number)))?;
 
             if let Some(attestation) =
@@ -372,9 +372,9 @@ where
         parent_header: &Header,
         accumulated_weights: &mut std::collections::HashMap<Address, U256>,
     ) -> Result<(), BlockExecutionError> {
-        let justified_header = self.snapshot_provider.as_ref().unwrap().get_checkpoint_header(attestation.data.target_number)
+        let justified_header = self.snapshot_provider.as_ref().unwrap().get_header(attestation.data.target_number)
             .ok_or_else(|| BlockExecutionError::msg(format!("Header not found for block number: {}", attestation.data.target_number)))?;
-        let parent = self.snapshot_provider.as_ref().unwrap().get_checkpoint_header(justified_header.number - 1)
+        let parent = self.snapshot_provider.as_ref().unwrap().get_header(justified_header.number - 1)
             .ok_or_else(|| BlockExecutionError::msg(format!("Header not found for block number: {}", justified_header.number - 1)))?;
         let snapshot = self.snapshot_provider.as_ref().unwrap().snapshot(parent.number);
         let validators = &snapshot.unwrap().validators;  
