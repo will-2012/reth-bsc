@@ -549,6 +549,7 @@ fn read_all_system_contracts(
     }
     outer_map
 }
+
 /// Get byte codes for a specific hardfork.
 fn get_system_contract_codes<ChainSpec>(
     spec: &ChainSpec,

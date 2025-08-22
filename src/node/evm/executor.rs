@@ -1,8 +1,6 @@
-use super::patch::{
-    patch_chapel_after_tx, patch_chapel_before_tx, patch_mainnet_after_tx, patch_mainnet_before_tx,
-};
+use super::patch::HertzPatchManager;
 use crate::{
-    consensus::{SYSTEM_ADDRESS, parlia::{HertzPatchManager, VoteAddress, Snapshot, Parlia}},
+    consensus::{SYSTEM_ADDRESS, parlia::{VoteAddress, Snapshot, Parlia}},
     evm::transaction::BscTxEnv,
     hardforks::BscHardforks,
     system_contracts::{
@@ -70,9 +68,7 @@ where
     pub(super) receipt_builder: R,
     /// System contracts used to trigger fork specific logic.
     pub(super) system_contracts: SystemContract<Spec>,
-    /// Hertz patch manager for mainnet compatibility
-    /// TODO: refine later.
-    #[allow(dead_code)]
+    /// Hertz patch manager for compatibility.
     hertz_patch_manager: HertzPatchManager,
     /// Context for block execution.
     pub(super) ctx: BscBlockExecutionCtx<'a>,
@@ -82,7 +78,7 @@ where
     pub(super) hook: Option<Box<dyn OnStateHook>>,
     /// Snapshot provider for accessing Parlia validator snapshots.
     pub(super) snapshot_provider: Option<Arc<dyn SnapshotProvider + Send + Sync>>,
-    /// Parlia consensus instance
+    /// Parlia consensus instance.
     pub(crate) parlia: Arc<Parlia<Spec>>,
     /// Inner execution context.
     pub(super) inner_ctx: InnerExecutionContext,
@@ -112,11 +108,10 @@ where
         receipt_builder: R,
         system_contracts: SystemContract<Spec>,
     ) -> Self {
-        // Determine if this is mainnet for Hertz patches
         let is_mainnet = spec.chain().id() == 56; // BSC mainnet chain ID
         let hertz_patch_manager = HertzPatchManager::new(is_mainnet);
+        
         tracing::info!("Succeed to new block executor, header: {:?}", ctx.header);
-
         if let Some(ref header) = ctx.header {
             crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().insert_header_to_cache(header.clone());
         } else {
@@ -309,16 +304,12 @@ where
     ) -> Result<u64, BlockExecutionError> {
         let signer = tx.signer();
         let is_system = is_system_transaction(tx.tx(), *signer, self.evm.block().beneficiary);
-
         if is_system {
             self.system_txs.push(tx.tx().clone());
             return Ok(0);
         }
 
-        // TODO: refine it.
-        // apply patches before (legacy - keeping for compatibility)
-        patch_mainnet_before_tx(tx.tx(), self.evm.db_mut())?;
-        patch_chapel_before_tx(tx.tx(), self.evm.db_mut())?;
+        self.hertz_patch_manager.patch_before_tx(tx.tx(), self.evm.db_mut())?;
 
         let block_available_gas = self.evm.block().gas_limit - self.gas_used;
         if tx.tx().gas_limit() > block_available_gas {
@@ -354,9 +345,7 @@ where
         }));
         self.evm.db_mut().commit(state);
 
-        // apply patches after
-        patch_mainnet_after_tx(&tx_ref, self.evm.db_mut())?;
-        patch_chapel_after_tx(&tx_ref, self.evm.db_mut())?;
+        self.hertz_patch_manager.patch_after_tx(&tx_ref, self.evm.db_mut())?;
 
         Ok(gas_used)
     }

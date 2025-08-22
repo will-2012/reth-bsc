@@ -15,9 +15,6 @@ pub struct ValidatorsInfo {
     pub vote_addrs: Option<Vec<VoteAddress>>,
 }
 
-// ---------------------------------------------------------------------------
-// MDBX‐backed snapshot provider with LRU front‐cache
-// ---------------------------------------------------------------------------
 
 use reth_db::{Database, DatabaseError};
 use reth_db::table::{Compress, Decompress};
@@ -166,9 +163,7 @@ impl<DB: Database + 'static> SnapshotProvider for DbSnapshotProvider<DB> {
     }
 
     fn insert(&self, snapshot: Snapshot) {
-        // update cache
         self.cache.write().insert(snapshot.block_number, snapshot.clone());
-        // Persist only at checkpoint boundaries to reduce I/O.
         if snapshot.block_number % crate::consensus::parlia::snapshot::CHECKPOINT_INTERVAL == 0 {
             match self.persist_to_db(&snapshot) {
                 Ok(()) => {
