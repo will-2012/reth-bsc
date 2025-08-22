@@ -8,11 +8,23 @@ use revm::{
     context::{BlockEnv, TxEnv},
     primitives::{Address, Bytes, TxKind, U256},
 };
-use alloy_consensus::TxReceipt;
-use crate::consensus::parlia::VoteAddress;
-use crate::consensus::parlia::util::is_breathe_block;
+use alloy_consensus::{TxReceipt, Header, BlockHeader};
+use alloy_primitives::B256;
+use crate::consensus::parlia::{VoteAddress, Snapshot, Parlia, DIFF_INTURN, DIFF_NOTURN};
+use crate::consensus::parlia::util::{is_breathe_block, calculate_millisecond_timestamp};
+use crate::consensus::parlia::vote::MAX_ATTESTATION_EXTRA_LENGTH;
+use crate::node::evm::error::BscBlockExecutionError;
+use crate::node::evm::util::HEADER_CACHE_READER;
 use crate::system_contracts::feynman_fork::ValidatorElectionInfo;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
+use reth_primitives::GotExpected;
+use blst::{
+    min_pk::{PublicKey, Signature},
+    BLST_ERROR,
+};
+use bit_set::BitSet;
+
+const BLST_DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
@@ -24,14 +36,14 @@ where
                 + FromRecoveredTx<TransactionSigned>
                 + FromTxWithEncoded<TransactionSigned>,
     >,
-    Spec: EthereumHardforks + crate::hardforks::BscHardforks + EthChainSpec + Hardforks + Clone,
+    Spec: EthereumHardforks + crate::hardforks::BscHardforks + EthChainSpec + Hardforks + Clone + 'static,
     R: ReceiptBuilder<Transaction = TransactionSigned, Receipt: TxReceipt>,
     <R as ReceiptBuilder>::Transaction: Unpin + From<TransactionSigned>,
     <EVM as alloy_evm::Evm>::Tx: FromTxWithEncoded<<R as ReceiptBuilder>::Transaction>,
     BscTxEnv: IntoTxEnv<<EVM as alloy_evm::Evm>::Tx>,
     R::Transaction: Into<TransactionSigned>,
 {
-    /// check the new block, pre check and prepare some intermediate data for commit parlia snapshot in finish function.
+    /// check the new block, pre check and prepare some intermediate data for finish function.
     /// depends on parlia, header and snapshot.
     pub(crate) fn check_new_block(&mut self, block: &BlockEnv) -> Result<(), BlockExecutionError> {
         let block_number = block.number.to::<u64>();
@@ -59,13 +71,8 @@ where
             .ok_or(BlockExecutionError::msg("Failed to get snapshot from snapshot provider"))?;
         self.inner_ctx.snap = Some(snap.clone());
 
-        // Delegate to Parlia consensus object; no ancestors available here, pass None
-        // TODO: move this part logic codes to executor to ensure parlia is lightly.
         let verify_res = self
-            .parlia_consensus
-            .as_ref()
-            .unwrap()
-            .verify_cascading_fields(&header, &parent_header, None, &snap);
+            .verify_cascading_fields(&header, &parent_header, &snap);
 
         // TODO: remove this part, just for debug.
         if let Err(err) = verify_res {
@@ -98,9 +105,9 @@ where
             return Err(err);
         }
 
-        let epoch_length = self.parlia_consensus.as_ref().unwrap().get_epoch_length(&header);
+        let epoch_length = self.parlia.get_epoch_length(&header);
         if header.number % epoch_length == 0 {
-            let (validator_set, vote_addresses) = self.get_current_validators(block_number)?;
+            let (validator_set, vote_addresses) = self.get_current_validators(block_number-1)?;
             tracing::info!("validator_set: {:?}, vote_addresses: {:?}", validator_set, vote_addresses);
             
             let vote_addrs_map = if vote_addresses.is_empty() {
@@ -200,5 +207,223 @@ where
         Ok(output.clone())
     }
 
+    fn verify_cascading_fields(
+        &self,
+        _header: &Header,
+        _parent: &Header,
+        _snap: &Snapshot,
+    ) -> Result<(), BlockExecutionError> {
+        self.verify_block_time_for_ramanujan(_snap, _header, _parent)?;
+        self.verify_vote_attestation(_snap, _header, _parent)?;
+        self.verify_seal(_snap, _header)?;
 
+        Ok(())
+    }
+
+    fn verify_block_time_for_ramanujan(
+        &self,
+        snap: &Snapshot,
+        header: &Header,
+        parent: &Header,
+    ) -> Result<(), BlockExecutionError> {
+        if self.spec.is_ramanujan_active_at_block(header.number()) {
+            let block_interval = snap.block_interval;
+            // TODO: refine it later.
+            // let back_off_time = self.calculate_back_off_time(snapshot, header);
+            let back_off_time=0;
+            
+            if calculate_millisecond_timestamp(header) < calculate_millisecond_timestamp(parent) + block_interval + back_off_time {
+                return Err(BscBlockExecutionError::FutureBlock {
+                    block_number: header.number(),
+                    hash: header.hash_slow(),
+                }
+                .into());
+            }
+        }
+        Ok(())
+    }
+
+    fn verify_vote_attestation(
+        &self,
+        snap: &Snapshot,
+        header: &Header,
+        parent: &Header,
+    ) -> Result<(), BlockExecutionError> {
+        if !self.spec.is_plato_active_at_block(header.number()) {
+            return Ok(());
+        }
+
+        let parlia = Parlia::new(Arc::new(self.spec.clone()), 200);
+        let attestation =
+            parlia.get_vote_attestation_from_header(header).map_err(|err| {
+                BscBlockExecutionError::ParliaConsensusInnerError { error: err.into() }
+            })?;
+        if let Some(attestation) = attestation {
+            if attestation.extra.len() > MAX_ATTESTATION_EXTRA_LENGTH {
+                return Err(BscBlockExecutionError::TooLargeAttestationExtraLen {
+                    extra_len: MAX_ATTESTATION_EXTRA_LENGTH,
+                }
+                .into());
+            }
+    
+            // the attestation target block should be direct parent.
+            let target_block = attestation.data.target_number;
+            let target_hash = attestation.data.target_hash;
+            if target_block != parent.number() || target_hash != parent.hash_slow() {
+                return Err(BscBlockExecutionError::InvalidAttestationTarget {
+                    block_number: GotExpected { got: target_block, expected: parent.number() },
+                    block_hash: GotExpected { got: target_hash, expected: parent.hash_slow() }
+                        .into(),
+                }
+                .into());
+            }
+    
+            // the attestation source block should be the highest justified block.
+            let source_block = attestation.data.source_number;
+            let source_hash = attestation.data.source_hash;
+            
+            let justified = self.get_justified_header(snap)?;
+            if source_block != justified.number() || source_hash != justified.hash_slow() {
+                return Err(BscBlockExecutionError::InvalidAttestationSource {
+                    block_number: GotExpected { got: source_block, expected: justified.number() },
+                    block_hash: GotExpected { got: source_hash, expected: justified.hash_slow() }
+                        .into(),
+                }
+                .into());
+            }
+
+            let pre_snap = self
+                .snapshot_provider
+                .as_ref()
+                .unwrap()
+                .snapshot(parent.number() - 1)
+                .ok_or(BlockExecutionError::msg("Failed to get pre snapshot from snapshot provider"))?;
+
+            // query bls keys from snapshot.
+            let validators_count = pre_snap.validators.len();
+            let vote_bit_set: BitSet<usize> = BitSet::from_iter(
+                (0..64).filter(|&i| (attestation.vote_address_set >> i) & 1 != 0)
+            );
+            let bit_set_count = vote_bit_set.len();
+
+            if bit_set_count > validators_count {
+                return Err(BscBlockExecutionError::InvalidAttestationVoteCount(GotExpected {
+                    got: bit_set_count as u64,
+                    expected: validators_count as u64,
+                })
+                .into());
+            }
+             
+            let mut vote_addrs: Vec<VoteAddress> = Vec::with_capacity(bit_set_count);
+            for (i, val) in pre_snap.validators.iter().enumerate() {
+                if !vote_bit_set.contains(i) {
+                    continue;
+                }
+
+                let val_info = pre_snap
+                    .validators_map
+                    .get(val)
+                    .ok_or(BscBlockExecutionError::VoteAddrNotFoundInSnap { address: *val })?;
+                vote_addrs.push(val_info.vote_addr);
+            }
+
+            // check if voted validator count satisfied 2/3 + 1
+            let at_least_votes = (validators_count * 2 + 2) / 3; // ceil division
+            if vote_addrs.len() < at_least_votes {
+                return Err(BscBlockExecutionError::InvalidAttestationVoteCount(GotExpected {
+                    got: vote_addrs.len() as u64,
+                    expected: at_least_votes as u64,
+                })
+                .into());
+            }
+ 
+            // check bls aggregate sig
+            let vote_addrs: Vec<PublicKey> = vote_addrs
+                .iter()
+                .map(|addr| PublicKey::from_bytes(addr.as_slice()).unwrap())
+                .collect();
+            let vote_addrs_ref: Vec<&PublicKey> = vote_addrs.iter().collect();
+ 
+            let sig = Signature::from_bytes(&attestation.agg_signature[..])
+                .map_err(|_| BscBlockExecutionError::BLSTInnerError)?;
+            let err = sig.fast_aggregate_verify(
+                true,
+                attestation.data.hash().as_slice(),
+                BLST_DST,
+                &vote_addrs_ref,
+            );
+ 
+            return match err {
+                BLST_ERROR::BLST_SUCCESS => Ok(()),
+                _ => Err(BscBlockExecutionError::BLSTInnerError.into()),
+            };
+        }
+    
+        Ok(())
+    }
+
+    
+    fn verify_seal(
+        &self,
+        snap: &Snapshot,
+        header: &Header,
+    ) -> Result<(), BlockExecutionError> {
+        let parlia = Parlia::new(Arc::new(self.spec.clone()), 200);
+        let proposer = parlia.recover_proposer(header).map_err(|err| {
+            BscBlockExecutionError::ParliaConsensusInnerError { error: err.into() }
+        })?;
+
+        if proposer != header.beneficiary {
+            return Err(BscBlockExecutionError::WrongHeaderSigner {
+                block_number: header.number(),
+                signer: GotExpected { got: proposer, expected: header.beneficiary }.into(),
+            }
+            .into());
+        }
+
+        if !snap.validators.contains(&proposer) {
+            return Err(BscBlockExecutionError::SignerUnauthorized { 
+                block_number: header.number(), 
+                proposer 
+            }.into());
+        }
+
+        if snap.sign_recently(proposer) {
+            return Err(BscBlockExecutionError::SignerOverLimit { proposer }.into());
+        }
+
+        let is_inturn = snap.is_inturn(proposer);
+        if (is_inturn && header.difficulty != DIFF_INTURN) ||
+            (!is_inturn && header.difficulty != DIFF_NOTURN)
+        {
+            return Err(
+                BscBlockExecutionError::InvalidDifficulty { difficulty: header.difficulty }.into()
+            );
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn get_justified_header(
+        &self,
+        snap: &Snapshot,
+    ) -> Result<Header, BlockExecutionError> {
+        if snap.vote_data.source_hash == B256::ZERO && snap.vote_data.target_hash == B256::ZERO {
+            return HEADER_CACHE_READER
+                .lock()
+                .unwrap()
+                .get_header_by_number(0)
+                .ok_or_else(|| {
+                    BscBlockExecutionError::UnknownHeader { block_hash: B256::ZERO }.into()
+                });
+        }
+
+        HEADER_CACHE_READER
+            .lock()
+            .unwrap()
+            .get_header_by_hash(&snap.vote_data.target_hash)
+            .ok_or_else(|| {
+                BscBlockExecutionError::UnknownHeader { block_hash: snap.vote_data.target_hash }.into()
+            })
+    }
 }

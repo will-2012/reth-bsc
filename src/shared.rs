@@ -3,7 +3,7 @@
 //! This module provides global access to the snapshot provider so that
 //! both the consensus builder and RPC modules can access the same instance.
 // TODO: refine it later.
-use crate::consensus::parlia::{SnapshotProvider, ParliaConsensusObject};
+use crate::consensus::parlia::SnapshotProvider;
 use std::sync::{Arc, OnceLock};
 use alloy_consensus::Header;
 use alloy_primitives::B256;
@@ -17,8 +17,6 @@ type HeaderByNumberFn = Arc<dyn Fn(u64) -> Option<Header> + Send + Sync>;
 
 /// Global shared access to the snapshot provider for RPC
 static SNAPSHOT_PROVIDER: OnceLock<Arc<dyn SnapshotProvider + Send + Sync>> = OnceLock::new();
-
-static PARLIA_CONSENSUS: OnceLock<Arc<dyn ParliaConsensusObject + Send + Sync>> = OnceLock::new();
 
 /// Global header provider function - HeaderProvider::header() by hash
 static HEADER_BY_HASH_PROVIDER: OnceLock<HeaderByHashFn> = OnceLock::new();
@@ -34,16 +32,6 @@ pub fn set_snapshot_provider(provider: Arc<dyn SnapshotProvider + Send + Sync>) 
 /// Get the global snapshot provider
 pub fn get_snapshot_provider() -> Option<&'static Arc<dyn SnapshotProvider + Send + Sync>> {
     SNAPSHOT_PROVIDER.get()
-}
-
-/// Store the parlia consensus globally
-pub fn set_parlia_consensus(consensus: Arc<dyn ParliaConsensusObject + Send + Sync>) -> Result<(), Arc<dyn ParliaConsensusObject + Send + Sync>> {
-    PARLIA_CONSENSUS.set(consensus)
-}
-
-/// Get the global parlia consensus
-pub fn get_parlia_consensus() -> Option<&'static Arc<dyn ParliaConsensusObject + Send + Sync>> {
-    PARLIA_CONSENSUS.get()
 }
 
 /// Store the header provider globally

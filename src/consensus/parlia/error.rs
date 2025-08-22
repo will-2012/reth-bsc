@@ -27,6 +27,10 @@ pub enum ParliaConsensusError {
         validator_bytes_len: usize,
     },
 
+    /// Error for invalid header extra
+    #[error("invalid header extra")]
+    InvalidHeaderExtra,
+
     /// Error when the header is not in epoch
     #[error("{block_number} is not in epoch")]
     NotInEpoch {
