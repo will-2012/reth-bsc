@@ -1,6 +1,3 @@
-//! Parlia/BSC consensus constants for header `extraData` parsing.
-//! Values copied from the Go reference (`parlia.go`).
-
 use alloy_primitives::U256;
 
 /// Fixed 32-byte vanity prefix present in every header.
