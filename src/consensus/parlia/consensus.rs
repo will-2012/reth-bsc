@@ -14,10 +14,8 @@ use alloy_rlp::Decodable;
 use super::{
     VoteAttestation, ParliaConsensusError, VoteAddress,
     constants::{
-        EXTRA_VANITY, EXTRA_SEAL, VALIDATOR_NUMBER_SIZE, 
+        EXTRA_VANITY_LEN, EXTRA_SEAL_LEN, VALIDATOR_NUMBER_SIZE, 
         VALIDATOR_BYTES_LEN_AFTER_LUBAN, VALIDATOR_BYTES_LEN_BEFORE_LUBAN, TURN_LENGTH_SIZE,
-        EXTRA_VANITY_LEN, EXTRA_SEAL_LEN, EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM,
-        EXTRA_VALIDATOR_LEN, EXTRA_VALIDATOR_LEN_BEFORE_LUBAN
     },
     hash_with_chain_id,
     provider::ValidatorsInfo
@@ -64,7 +62,7 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
     /// Get validator bytes from header extra data
     pub fn get_validator_bytes_from_header(&self, header: &Header) -> Option<Vec<u8>> {
         let extra_len = header.extra_data.len();
-        if extra_len <= EXTRA_VANITY + EXTRA_SEAL {
+        if extra_len <= EXTRA_VANITY_LEN + EXTRA_SEAL_LEN {
             return None;
         }
 
@@ -76,11 +74,11 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
                 return None;
             }
 
-            let count = header.extra_data[EXTRA_VANITY] as usize;
-            let start = EXTRA_VANITY+VALIDATOR_NUMBER_SIZE;
+            let count = header.extra_data[EXTRA_VANITY_LEN] as usize;
+            let start = EXTRA_VANITY_LEN+VALIDATOR_NUMBER_SIZE;
             let end = start + count * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
 
-            let mut extra_min_len = end + EXTRA_SEAL;
+            let mut extra_min_len = end + EXTRA_SEAL_LEN;
             let is_bohr_active = self.spec.is_bohr_active_at_timestamp(header.timestamp);
             if is_bohr_active {
                 extra_min_len += TURN_LENGTH_SIZE;
@@ -91,14 +89,14 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
             Some(header.extra_data[start..end].to_vec())
         } else {
             if is_epoch &&
-                (extra_len - EXTRA_VANITY - EXTRA_SEAL) %
+                (extra_len - EXTRA_VANITY_LEN - EXTRA_SEAL_LEN) %
                 VALIDATOR_BYTES_LEN_BEFORE_LUBAN !=
                     0
             {
                 return None;
             }
 
-            Some(header.extra_data[EXTRA_VANITY..extra_len - EXTRA_SEAL].to_vec())
+            Some(header.extra_data[EXTRA_VANITY_LEN..extra_len - EXTRA_SEAL_LEN].to_vec())
         }
     }
 
@@ -110,14 +108,14 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
             return Ok(None);
         }
 
-        if header.extra_data.len() <= EXTRA_VANITY + EXTRA_SEAL {
+        if header.extra_data.len() <= EXTRA_VANITY_LEN + EXTRA_SEAL_LEN {
             return Err(ParliaConsensusError::InvalidHeaderExtraLen {
                 header_extra_len: header.extra_data.len() as u64,
             });
         }
 
-        let num = header.extra_data[EXTRA_VANITY] as usize;
-        let pos = EXTRA_VANITY + 1 + num * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
+        let num = header.extra_data[EXTRA_VANITY_LEN] as usize;
+        let pos = EXTRA_VANITY_LEN + 1 + num * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
 
         if header.extra_data.len() <= pos {
             return Err(ParliaConsensusError::ExtraInvalidTurnLength);
@@ -130,7 +128,7 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
     /// Get vote attestation from header
     pub fn get_vote_attestation_from_header(&self, header: &Header) -> Result<Option<VoteAttestation>, ParliaConsensusError> {
         let extra_len = header.extra_data.len();
-        if extra_len <= EXTRA_VANITY + EXTRA_SEAL {
+        if extra_len <= EXTRA_VANITY_LEN + EXTRA_SEAL_LEN {
             return Ok(None);
         }
 
@@ -139,17 +137,17 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
         }
 
         let mut raw_attestation_data = if header.number() % self.get_epoch_length(header) != 0 {
-            &header.extra_data[EXTRA_VANITY..extra_len - EXTRA_SEAL]
+            &header.extra_data[EXTRA_VANITY_LEN..extra_len - EXTRA_SEAL_LEN]
         } else {
             let validator_count =
-                header.extra_data[EXTRA_VANITY + VALIDATOR_NUMBER_SIZE - 1] as usize;
+                header.extra_data[EXTRA_VANITY_LEN + VALIDATOR_NUMBER_SIZE - 1] as usize;
             let mut start =
-                EXTRA_VANITY + VALIDATOR_NUMBER_SIZE + validator_count * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
+                EXTRA_VANITY_LEN + VALIDATOR_NUMBER_SIZE + validator_count * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
             let is_bohr_active = self.spec.is_bohr_active_at_timestamp(header.timestamp);
             if is_bohr_active {
                 start += TURN_LENGTH_SIZE;
             }
-            let end = extra_len - EXTRA_SEAL;
+            let end = extra_len - EXTRA_SEAL_LEN;
             if end <= start {
                 return Ok(None)
             }
@@ -176,13 +174,13 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
         }
 
         let extra_data = &header.extra_data;
-        if extra_data.len() < EXTRA_VANITY + EXTRA_SEAL {
+        if extra_data.len() < EXTRA_VANITY_LEN + EXTRA_SEAL_LEN {
             return Err(ParliaConsensusError::ExtraSignatureMissing);
         }
 
-        let signature_offset = extra_data.len() - EXTRA_SEAL;
-        let recovery_byte = extra_data[signature_offset + EXTRA_SEAL - 1] as i32;
-        let signature_bytes = &extra_data[signature_offset..signature_offset + EXTRA_SEAL - 1];
+        let signature_offset = extra_data.len() - EXTRA_SEAL_LEN;
+        let recovery_byte = extra_data[signature_offset + EXTRA_SEAL_LEN - 1] as i32;
+        let signature_bytes = &extra_data[signature_offset..signature_offset + EXTRA_SEAL_LEN - 1];
 
         let recovery_id = RecoveryId::try_from(recovery_byte)
             .map_err(|_| ParliaConsensusError::RecoverECDSAInnerError)?;
@@ -226,8 +224,8 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
             return Ok(extra_len - EXTRA_VANITY_LEN - EXTRA_SEAL_LEN);
         }
 
-        let count = header.extra_data[EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM - 1] as usize;
-        Ok(count * EXTRA_VALIDATOR_LEN)
+        let count = header.extra_data[EXTRA_VANITY_LEN + VALIDATOR_NUMBER_SIZE - 1] as usize;
+        Ok(count * VALIDATOR_BYTES_LEN_AFTER_LUBAN)
     }
 
     fn check_header_extra_len(&self, header: &Header) -> Result<(), ParliaConsensusError> {
@@ -244,9 +242,9 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
         }
 
         if self.spec.is_luban_active_at_block(header.number) {
-            let count = header.extra_data[EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM - 1] as usize;
+            let count = header.extra_data[EXTRA_VANITY_LEN + VALIDATOR_NUMBER_SIZE - 1] as usize;
             let expect =
-                EXTRA_VANITY_LEN_WITH_VALIDATOR_NUM + EXTRA_SEAL_LEN + count * EXTRA_VALIDATOR_LEN;
+            EXTRA_VANITY_LEN + VALIDATOR_NUMBER_SIZE + EXTRA_SEAL_LEN + count * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
             if count == 0 || extra_len < expect {
                 tracing::warn!("Invalid header extra len, block_number: {}, extra_len: {}, expect: {}, count: {}, epoch_length: {}", 
                     header.number, extra_len, expect, count, self.get_epoch_length(header));
@@ -256,8 +254,8 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
             }
         } else {
             let validator_bytes_len = extra_len - EXTRA_VANITY_LEN - EXTRA_SEAL_LEN;
-            if validator_bytes_len / EXTRA_VALIDATOR_LEN_BEFORE_LUBAN == 0 ||
-                validator_bytes_len % EXTRA_VALIDATOR_LEN_BEFORE_LUBAN != 0
+            if validator_bytes_len / VALIDATOR_BYTES_LEN_BEFORE_LUBAN == 0 ||
+                validator_bytes_len % VALIDATOR_BYTES_LEN_BEFORE_LUBAN != 0
             {
                 return Err(ParliaConsensusError::InvalidHeaderExtraLen {
                     header_extra_len: extra_len as u64,
@@ -311,19 +309,19 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
         &self,
         validator_bytes: &[u8],
     ) -> Result<ValidatorsInfo, ParliaConsensusError> {
-        let count = validator_bytes.len() / EXTRA_VALIDATOR_LEN;
+        let count = validator_bytes.len() / VALIDATOR_BYTES_LEN_AFTER_LUBAN;
         let mut consensus_addrs = Vec::with_capacity(count);
         let mut vote_addrs = Vec::with_capacity(count);
 
         for i in 0..count {
-            let consensus_start = i * EXTRA_VALIDATOR_LEN;
+            let consensus_start = i * VALIDATOR_BYTES_LEN_AFTER_LUBAN;
             let consensus_end = consensus_start + ADDRESS_LENGTH;
             let consensus_address =
                 Address::from_slice(&validator_bytes[consensus_start..consensus_end]);
             consensus_addrs.push(consensus_address);
 
             let vote_start = consensus_start + ADDRESS_LENGTH;
-            let vote_end = consensus_start + EXTRA_VALIDATOR_LEN;
+            let vote_end = consensus_start + VALIDATOR_BYTES_LEN_AFTER_LUBAN;
             let vote_address = VoteAddress::from_slice(&validator_bytes[vote_start..vote_end]);
             vote_addrs.push(vote_address);
         }
@@ -335,12 +333,12 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
         &self,
         validator_bytes: &[u8],
     ) -> Result<ValidatorsInfo, ParliaConsensusError> {
-        let count = validator_bytes.len() / EXTRA_VALIDATOR_LEN_BEFORE_LUBAN;
+        let count = validator_bytes.len() / VALIDATOR_BYTES_LEN_BEFORE_LUBAN;
         let mut consensus_addrs = Vec::with_capacity(count);
 
         for i in 0..count {
-            let start = i * EXTRA_VALIDATOR_LEN_BEFORE_LUBAN;
-            let end = start + EXTRA_VALIDATOR_LEN_BEFORE_LUBAN;
+            let start = i * VALIDATOR_BYTES_LEN_BEFORE_LUBAN;
+            let end = start + VALIDATOR_BYTES_LEN_BEFORE_LUBAN;
             let address = Address::from_slice(&validator_bytes[start..end]);
             consensus_addrs.push(address);
         }
