@@ -332,7 +332,6 @@ where
                 (0..64).filter(|&i| (attestation.vote_address_set >> i) & 1 != 0)
             );
             let bit_set_count = vote_bit_set.len();
-
             if bit_set_count > validators_count {
                 return Err(BscBlockExecutionError::InvalidAttestationVoteCount(GotExpected {
                     got: bit_set_count as u64,
