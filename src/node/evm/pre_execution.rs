@@ -50,7 +50,10 @@ where
 {
     /// check the new block, pre check and prepare some intermediate data for finish function.
     /// depends on parlia, header and snapshot.
-    pub(crate) fn check_new_block(&mut self, block: &BlockEnv) -> Result<(), BlockExecutionError> {
+    pub(crate) fn check_new_block(
+        &mut self, 
+        block: &BlockEnv
+    ) -> Result<(), BlockExecutionError> {
         let block_number = block.number.to::<u64>();
         tracing::info!("Check new block, block_number: {}", block_number);
 
@@ -173,7 +176,10 @@ where
         Ok(())
     }
 
-    fn get_current_validators(&mut self, block_number: u64) -> Result<(Vec<Address>, Vec<VoteAddress>), BlockExecutionError> {
+    fn get_current_validators(
+        &mut self, 
+        block_number: u64
+    ) -> Result<(Vec<Address>, Vec<VoteAddress>), BlockExecutionError> {
         {
             let mut cache = VALIDATOR_CACHE.lock().unwrap();
             if let Some(cached_result) = cache.get(&block_number) {
@@ -204,7 +210,11 @@ where
         Ok(result)
     }
 
-    pub(crate) fn eth_call(&mut self, to: Address, data: Bytes) -> Result<Bytes, BlockExecutionError> {
+    pub(crate) fn eth_call(
+        &mut self, 
+        to: Address, 
+        data: Bytes
+    ) -> Result<Bytes, BlockExecutionError> {
         let tx_env = BscTxEnv {
             base: TxEnv {
                 caller: Address::default(),
@@ -236,13 +246,13 @@ where
 
     fn verify_cascading_fields(
         &self,
-        _header: &Header,
-        _parent: &Header,
-        _snap: &Snapshot,
+        header: &Header,
+        parent: &Header,
+        snap: &Snapshot,
     ) -> Result<(), BlockExecutionError> {
-        self.verify_block_time_for_ramanujan(_snap, _header, _parent)?;
-        self.verify_vote_attestation(_snap, _header, _parent)?;
-        self.verify_seal(_snap, _header)?;
+        self.verify_block_time_for_ramanujan(snap, header, parent)?;
+        self.verify_vote_attestation(snap, header, parent)?;
+        self.verify_seal(snap, header)?;
 
         Ok(())
     }

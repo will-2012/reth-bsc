@@ -351,7 +351,6 @@ where
     }
 
 
-
     fn finish(
         mut self,
     ) -> Result<(Self::Evm, BlockExecutionResult<R::Receipt>), BlockExecutionError> {

@@ -1,7 +1,7 @@
 use super::executor::BscBlockExecutor;
 use super::error::BscBlockExecutionError;
 use super::util::set_nonce;
-use crate::consensus::parlia::{DIFF_INTURN, VoteAddress, Snapshot, VoteAttestation, snapshot::DEFAULT_TURN_LENGTH, constants::COLLECT_ADDITIONAL_VOTES_REWARD_RATIO, util::is_breathe_block};
+use crate::consensus::parlia::{DIFF_INTURN, VoteAddress, VoteAttestation, snapshot::DEFAULT_TURN_LENGTH, constants::COLLECT_ADDITIONAL_VOTES_REWARD_RATIO, util::is_breathe_block};
 use crate::consensus::{SYSTEM_ADDRESS, MAX_SYSTEM_REWARD, SYSTEM_REWARD_PERCENT};
 use crate::evm::transaction::BscTxEnv;
 use crate::system_contracts::{SLASH_CONTRACT, SYSTEM_REWARD_CONTRACT, feynman_fork::{ValidatorElectionInfo, get_top_validators_by_voting_power, ElectedValidators}};
@@ -37,10 +37,13 @@ where
 {
     /// finalize the new block, post check and finalize the system tx.
     /// depends on parlia, header and snapshot.
-    pub(crate) fn finalize_new_block(&mut self, block: &BlockEnv) -> Result<(), BlockExecutionError> {
+    pub(crate) fn finalize_new_block(
+        &mut self, 
+        block: &BlockEnv
+    ) -> Result<(), BlockExecutionError> {
         tracing::info!("Start to finalize new block, block_number: {}", block.number); 
         self.verify_validators(self.inner_ctx.current_validators.clone(), self.inner_ctx.header.clone())?;
-        self.verify_turn_length(self.inner_ctx.snap.clone(), self.inner_ctx.header.clone())?;
+        self.verify_turn_length(self.inner_ctx.header.clone())?;
 
         // finalize the system txs.
         if self.inner_ctx.header.as_ref().unwrap().difficulty != DIFF_INTURN {
@@ -97,7 +100,11 @@ where
         Ok(())
     }
 
-    fn verify_validators(&mut self, current_validators: Option<(Vec<Address>, HashMap<Address, VoteAddress>)>, header: Option<Header>) -> Result<(), BlockExecutionError> {
+    fn verify_validators(
+        &mut self, 
+        current_validators: Option<(Vec<Address>, HashMap<Address, VoteAddress>)>, 
+        header: Option<Header>
+    ) -> Result<(), BlockExecutionError> {
         let header_ref = header.as_ref().unwrap();
         let epoch_length = self.parlia.get_epoch_length(header_ref);
         if header_ref.number % epoch_length != 0 {
@@ -140,7 +147,10 @@ where
         Ok(())
     }
 
-    fn verify_turn_length(&mut self, _snap: Option<Snapshot>, header: Option<Header>) -> Result<(), BlockExecutionError> {
+    fn verify_turn_length(
+        &mut self, 
+        header: Option<Header>
+    ) -> Result<(), BlockExecutionError> {
         let header_ref = header.as_ref().unwrap();
         let epoch_length = self.parlia.get_epoch_length(header_ref);
         if header_ref.number % epoch_length != 0 || !self.spec.is_bohr_active_at_timestamp(header_ref.timestamp) {
@@ -193,7 +203,11 @@ where
         Ok(())
     }
 
-    pub(crate) fn transact_system_tx(&mut self, transaction: Transaction, sender: Address) -> Result<(), BlockExecutionError> {
+    pub(crate) fn transact_system_tx(
+        &mut self, 
+        transaction: Transaction, 
+        sender: Address
+    ) -> Result<(), BlockExecutionError> {
         let account = self.evm
             .db_mut()
             .basic(sender)
