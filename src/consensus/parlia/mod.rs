@@ -9,6 +9,7 @@ pub mod consensus;
 pub mod validation;
 pub mod db;
 pub mod seal;
+pub mod go_rng;
 
 pub use snapshot::{Snapshot, ValidatorInfo, CHECKPOINT_INTERVAL};
 pub use vote::{VoteAddress, VoteAttestation, VoteData, VoteEnvelope, VoteSignature, ValidatorsBitSet};

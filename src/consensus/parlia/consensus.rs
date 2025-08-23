@@ -12,14 +12,17 @@ use reth_chainspec::EthChainSpec;
 use alloy_consensus::{Header, BlockHeader};
 use alloy_rlp::Decodable;
 use super::{
-    VoteAttestation, ParliaConsensusError, VoteAddress,
+    VoteAttestation, ParliaConsensusError, VoteAddress, Snapshot,
     constants::{
         EXTRA_VANITY_LEN, EXTRA_SEAL_LEN, VALIDATOR_NUMBER_SIZE, 
         VALIDATOR_BYTES_LEN_AFTER_LUBAN, VALIDATOR_BYTES_LEN_BEFORE_LUBAN, TURN_LENGTH_SIZE,
     },
     hash_with_chain_id,
-    provider::ValidatorsInfo
+    provider::ValidatorsInfo,
+    BACKOFF_TIME_OF_INITIAL, BACKOFF_TIME_OF_WIGGLE, DEFAULT_TURN_LENGTH,LORENTZ_BACKOFF_TIME_OF_INITIAL,
 };
+use crate::consensus::parlia::go_rng::{RngSource, Shuffle};
+use tracing::{trace, debug};
 
 const RECOVERED_PROPOSER_CACHE_NUM: usize = 4096;
 const ADDRESS_LENGTH: usize = 20; // Ethereum address length in bytes
@@ -344,6 +347,72 @@ where ChainSpec: EthChainSpec + BscHardforks + 'static,
         }
 
         Ok(ValidatorsInfo { consensus_addrs, vote_addrs: None })
+    }
+
+    /// return the back off milliseconds of the validator, 0 if the validator is in turn.
+    pub fn back_off_time(&self, snap: &Snapshot, parent: &Header, header: &Header) -> u64 {
+        let validator = header.beneficiary;
+        if snap.is_inturn(validator) {
+            return 0;
+        }
+
+        let mut delay = BACKOFF_TIME_OF_INITIAL;
+        let is_parent_lorentz = self.spec.is_lorentz_active_at_timestamp(parent.timestamp);
+        if is_parent_lorentz {
+            delay = LORENTZ_BACKOFF_TIME_OF_INITIAL;
+        }
+        let mut validators = snap.validators.clone();
+
+        if self.spec.is_planck_active_at_block(header.number) {
+            let counts = snap.count_recent_proposers();
+            if snap.sign_recently_by_counts(validator, &counts) {
+                // The backOffTime does not matter when a validator has signed recently.
+                return 0;
+            }
+
+            let inturn_addr = snap.inturn_validator();
+            if snap.sign_recently_by_counts(inturn_addr, &counts) {
+                trace!(
+                    "in turn validator({:?}) has recently signed, skip initialBackOffTime",
+                    inturn_addr
+                );
+                delay = 0
+            }
+
+            // Exclude the recently signed validators and inturn validator
+            validators.retain(|addr| {
+                !(snap.sign_recently_by_counts(*addr, &counts) ||
+                    self.spec.is_bohr_active_at_timestamp(header.timestamp) &&
+                        *addr == inturn_addr)
+            });
+        }
+
+        let mut rng = if self.spec.is_bohr_active_at_timestamp(header.timestamp) {
+            let turn_length = snap.turn_length.unwrap_or(DEFAULT_TURN_LENGTH);
+            RngSource::new(header.number as i64 / turn_length as i64)
+        } else {
+            RngSource::new(snap.block_number as i64)
+        };
+
+        let mut back_off_steps: Vec<u64> = (0..validators.len() as u64).collect();
+        back_off_steps.shuffle(&mut rng);
+
+        // get the index of the current validator and its shuffled backoff time.
+        for (idx, val) in validators.iter().enumerate() {
+            if *val == validator {
+                if delay == 0 && is_parent_lorentz {
+                    // If the in-turn validator has signed recently, the expected backoff times are [0, 2, 3, ...].
+                    if back_off_steps[idx] == 0 {
+                        return 0;
+                    }
+                    return LORENTZ_BACKOFF_TIME_OF_INITIAL + (back_off_steps[idx]- 1) * BACKOFF_TIME_OF_WIGGLE
+                }
+                return delay + back_off_steps[idx] * BACKOFF_TIME_OF_WIGGLE
+            }
+        }
+
+        debug!("the validator is not authorized");
+        0
     }
 
 }

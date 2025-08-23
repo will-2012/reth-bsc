@@ -265,11 +265,12 @@ where
     ) -> Result<(), BlockExecutionError> {
         if self.spec.is_ramanujan_active_at_block(header.number()) {
             let block_interval = snap.block_interval;
-            // TODO: refine it later.
-            // let back_off_time = self.calculate_back_off_time(snapshot, header);
-            let back_off_time=0;
-            
-            if calculate_millisecond_timestamp(header) < calculate_millisecond_timestamp(parent) + block_interval + back_off_time {
+            let back_off_time = self.parlia.back_off_time(snap, parent, header);
+            let current_ts: u64 = calculate_millisecond_timestamp(header);
+            let parent_ts: u64 = calculate_millisecond_timestamp(parent);
+            if current_ts < parent_ts + block_interval + back_off_time {
+                tracing::warn!("Block time is too early, block_number: {}, ts: {:?}, parent_ts: {:?}, block_interval: {:?}, back_off_time: {:?}", 
+                    header.number(), current_ts, parent_ts, block_interval, back_off_time);
                 return Err(BscBlockExecutionError::FutureBlock {
                     block_number: header.number(),
                     hash: header.hash_slow(),

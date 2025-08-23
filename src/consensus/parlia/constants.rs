@@ -19,3 +19,8 @@ pub const DIFF_INTURN: U256 = U256::from_limbs([2, 0, 0, 0]);
 pub const DIFF_NOTURN: U256 = U256::from_limbs([1, 0, 0, 0]); 
 
 pub const COLLECT_ADDITIONAL_VOTES_REWARD_RATIO: usize = 100;
+
+pub const BACKOFF_TIME_OF_INITIAL: u64 = 1000; // milliseconds
+pub const LORENTZ_BACKOFF_TIME_OF_INITIAL: u64 = 2000; // milliseconds
+pub const DEFAULT_TURN_LENGTH: u8 = 1;
+pub const BACKOFF_TIME_OF_WIGGLE: u64 = 1000; // milliseconds
