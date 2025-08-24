@@ -267,7 +267,7 @@ impl Snapshot {
         
         if !is_inturn {
             tracing::debug!(
-                "🎯 [BSC] is_inturn check: proposer=0x{:x}, inturn_validator=0x{:x}, is_inturn={}, validators={:?}",
+                "is_inturn check: proposer=0x{:x}, inturn_validator=0x{:x}, is_inturn={}, validators={:?}",
                 proposer, inturn_val, is_inturn, self.validators
             );
         }
