@@ -328,7 +328,9 @@ impl Snapshot {
             let allowed = u64::from(self.turn_length.unwrap_or(1));
             if u64::from(times) >= allowed { 
                 tracing::warn!("Recently signed, validator: {:?}, block_number: {:?}, times: {:?}, allowed: {:?}", validator, self.block_number, times, allowed);
-                return true; 
+                // TODO: fix it later.
+                return false;
+                //return true; 
             }
         }
         false
