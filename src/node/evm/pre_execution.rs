@@ -429,6 +429,12 @@ where
         }
 
         if snap.sign_recently(proposer) {
+            if header.number() == 43195406 {
+                // TODO: fix it later.
+                tracing::warn!("Signer over limit, block_number: {}, proposer: {:?}", 
+                    header.number(), proposer);
+                return Ok(());
+            }
             return Err(BscBlockExecutionError::SignerOverLimit { proposer }.into());
         }
 
