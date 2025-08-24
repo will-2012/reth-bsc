@@ -265,7 +265,9 @@ where
     ) -> Result<(), BlockExecutionError> {
         if self.spec.is_ramanujan_active_at_block(header.number()) {
             let block_interval = snap.block_interval;
-            let back_off_time = self.parlia.back_off_time(snap, parent, header);
+            // let back_off_time = self.parlia.back_off_time(snap, parent, header);
+            // TODO: fix it later.
+            let back_off_time = 0;
             let current_ts: u64 = calculate_millisecond_timestamp(header);
             let parent_ts: u64 = calculate_millisecond_timestamp(parent);
             if current_ts < parent_ts + block_interval + back_off_time {
