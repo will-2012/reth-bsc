@@ -312,7 +312,7 @@ impl Snapshot {
         for (&block, &v) in &self.recent_proposers {
             if block <= left_bound || v == Address::default() { continue; }
             *counts.entry(v).or_insert(0) += 1;
-            tracing::debug!("count_recent_proposers, block: {:?}, validator: {:?}, count: {:?}", block, v, counts.get(&v).unwrap());
+            // tracing::debug!("count_recent_proposers, block: {:?}, validator: {:?}, count: {:?}", block, v, counts.get(&v).unwrap());
         }
         counts
     }
