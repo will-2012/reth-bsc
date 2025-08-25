@@ -261,19 +261,22 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
                 let epoch_remainder = header.number % working_snapshot.epoch_num;
                 let miner_check_len = working_snapshot.miner_history_check_len();
                 let is_epoch_boundary = header.number > 0 && epoch_remainder == miner_check_len;
-                
+                let mut turn_length = None;
                 let validators_info = if is_epoch_boundary {
                     let checkpoint_block_number = header.number - miner_check_len;
+                    tracing::debug!("Try update validator set, checkpoint_block_number: {:?}, block_number: {:?}", checkpoint_block_number, header.number);
                     let checkpoint_header = headers_to_apply.iter()
                         .find(|h| h.number == checkpoint_block_number);
                     
                     if let Some(checkpoint_header) = checkpoint_header {
-                        let parsed = self.parlia.parse_validators_from_header(checkpoint_header);                    
+                        let parsed = self.parlia.parse_validators_from_header(checkpoint_header);
+                        turn_length = self.parlia.get_turn_length_from_header(checkpoint_header).ok()?;
                         parsed
                     } else {
                         match crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(checkpoint_block_number) {
                             Some(header_ref) => {
-                                let parsed = self.parlia.parse_validators_from_header(&header_ref);                    
+                                let parsed = self.parlia.parse_validators_from_header(&header_ref);
+                                turn_length = self.parlia.get_turn_length_from_header(&header_ref).ok()?;                    
                                 parsed
                             },
                             None => {
@@ -291,7 +294,6 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
 
                 let new_validators = validators_info.consensus_addrs;
                 let vote_addrs = validators_info.vote_addrs;
-                let turn_length = self.parlia.get_turn_length_from_header(header).ok()?;
 
                 // Parse attestation from header for vote tracking
                 let attestation = self.parlia.get_vote_attestation_from_header(header).ok()?;

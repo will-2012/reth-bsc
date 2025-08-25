@@ -1,6 +1,6 @@
 use super::executor::BscBlockExecutor;
 use crate::evm::transaction::BscTxEnv;
-use futures::future::ok;
+
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_evm::{eth::receipt_builder::ReceiptBuilder, execute::BlockExecutionError, Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
 use reth_primitives::TransactionSigned;
