@@ -296,6 +296,7 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
                 // Parse attestation from header for vote tracking
                 let attestation = self.parlia.get_vote_attestation_from_header(header).ok()?;
 
+                tracing::debug!("Start to apply header to snapshot, block_number: {:?}, turn_length: {:?}", header.number, turn_length);
                 // Apply header to snapshot (now determines hardfork activation internally)
                 working_snapshot = match working_snapshot.apply(
                     header.beneficiary,
