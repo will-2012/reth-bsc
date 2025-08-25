@@ -325,12 +325,10 @@ impl Snapshot {
     /// Helper that takes pre-computed counts.
     pub fn sign_recently_by_counts(&self, validator: Address, counts: &HashMap<Address, u8>) -> bool {
         if let Some(&times) = counts.get(&validator) {
-            let allowed = u64::from(self.turn_length.unwrap_or(1)); // has bug?? 
+            let allowed = u64::from(self.turn_length.unwrap_or(1));
             if u64::from(times) >= allowed { 
                 tracing::warn!("Recently signed, validator: {:?}, block_number: {:?}, times: {:?}, allowed: {:?}", validator, self.block_number, times, allowed);
-                // TODO: fix it later.
                 return false;
-                //return true; 
             }
         }
         false
