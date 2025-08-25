@@ -1,5 +1,6 @@
 use super::executor::BscBlockExecutor;
 use crate::evm::transaction::BscTxEnv;
+
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
 use reth_evm::{eth::receipt_builder::ReceiptBuilder, execute::BlockExecutionError, Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
 use reth_primitives::TransactionSigned;
@@ -16,7 +17,8 @@ use crate::consensus::parlia::vote::MAX_ATTESTATION_EXTRA_LENGTH;
 use crate::node::evm::error::BscBlockExecutionError;
 use crate::node::evm::util::HEADER_CACHE_READER;
 use crate::system_contracts::feynman_fork::ValidatorElectionInfo;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::{Arc, LazyLock, Mutex}};
+use schnellru::{ByLength, LruMap};
 use reth_primitives::GotExpected;
 use blst::{
     min_pk::{PublicKey, Signature},
@@ -25,6 +27,10 @@ use blst::{
 use bit_set::BitSet;
 
 const BLST_DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+
+static VALIDATOR_CACHE: LazyLock<Mutex<LruMap<u64, (Vec<Address>, Vec<VoteAddress>), ByLength>>> = LazyLock::new(|| {
+    Mutex::new(LruMap::new(ByLength::new(1024)))
+});
 
 
 impl<'a, DB, EVM, Spec, R: ReceiptBuilder> BscBlockExecutor<'a, EVM, Spec, R>
@@ -45,9 +51,12 @@ where
 {
     /// check the new block, pre check and prepare some intermediate data for finish function.
     /// depends on parlia, header and snapshot.
-    pub(crate) fn check_new_block(&mut self, block: &BlockEnv) -> Result<(), BlockExecutionError> {
+    pub(crate) fn check_new_block(
+        &mut self, 
+        block: &BlockEnv
+    ) -> Result<(), BlockExecutionError> {
         let block_number = block.number.to::<u64>();
-        tracing::info!("Check new block, block_number: {}", block_number);
+        tracing::debug!("Check new block, block_number: {}", block_number);
 
         let header = crate::node::evm::util::HEADER_CACHE_READER
             .lock()
@@ -106,9 +115,13 @@ where
         }
 
         let epoch_length = self.parlia.get_epoch_length(&header);
+        if (header.number + 1)% epoch_length == 0 {
+            // cache it on pre block.
+            self.get_current_validators(header.number)?;
+        }
         if header.number % epoch_length == 0 {
-            let (validator_set, vote_addresses) = self.get_current_validators(block_number-1)?;
-            tracing::info!("validator_set: {:?}, vote_addresses: {:?}", validator_set, vote_addresses);
+            let (validator_set, vote_addresses) = self.get_current_validators(header.number-1 /*mostly in cache*/)?;
+            tracing::debug!("validator_set: {:?}, vote_addresses: {:?}", validator_set, vote_addresses);
             
             let vote_addrs_map = if vote_addresses.is_empty() {
                 HashMap::new()
@@ -119,7 +132,7 @@ where
                     .zip(vote_addresses)
                     .collect::<std::collections::HashMap<_, _>>()
             };
-            tracing::info!("vote_addrs_map: {:?}", vote_addrs_map);
+            tracing::debug!("vote_addrs_map: {:?}", vote_addrs_map);
             self.inner_ctx.current_validators = Some((validator_set, vote_addrs_map));
         }
     
@@ -130,7 +143,7 @@ where
             let (to, data) = self.system_contracts.get_max_elected_validators();
             let bz = self.eth_call(to, data)?;
             let max_elected_validators = self.system_contracts.unpack_data_into_max_elected_validators(bz.as_ref());
-            tracing::info!("max_elected_validators: {:?}", max_elected_validators);
+            tracing::debug!("max_elected_validators: {:?}", max_elected_validators);
             self.inner_ctx.max_elected_validators = Some(max_elected_validators);
 
             let (to, data) = self.system_contracts.get_validator_election_info();
@@ -157,27 +170,52 @@ where
                     vote_address: vote_addr,
                 })
                 .collect();
-            tracing::info!("validator_election_info: {:?}", validator_election_info);
+            tracing::debug!("validator_election_info: {:?}", validator_election_info);
             self.inner_ctx.validators_election_info = Some(validator_election_info);
         }
 
         Ok(())
     }
 
-    fn get_current_validators(&mut self, block_number: u64) -> Result<(Vec<Address>, Vec<VoteAddress>), BlockExecutionError> {
-        if self.spec.is_luban_active_at_block(block_number) {
+    fn get_current_validators(
+        &mut self, 
+        block_number: u64
+    ) -> Result<(Vec<Address>, Vec<VoteAddress>), BlockExecutionError> {
+        {
+            let mut cache = VALIDATOR_CACHE.lock().unwrap();
+            if let Some(cached_result) = cache.get(&block_number) {
+                tracing::debug!("Succeed to query cached validator result, block_number: {}, evm_block_number: {}", 
+                    block_number, self.evm.block().number);
+                return Ok(cached_result.clone());
+            }
+        }
+
+        let result = if self.spec.is_luban_active_at_block(block_number) {
             let (to, data) = self.system_contracts.get_current_validators();
             let output = self.eth_call(to, data)?;
-            Ok(self.system_contracts.unpack_data_into_validator_set(&output))
+            self.system_contracts.unpack_data_into_validator_set(&output)
         } else {
             let (to, data) = self.system_contracts.get_current_validators_before_luban(block_number);
             let output = self.eth_call(to, data)?;
             let validator_set = self.system_contracts.unpack_data_into_validator_set_before_luban(&output);
-            Ok((validator_set, Vec::new()))
+            (validator_set, Vec::new())
+        };
+
+        {
+            let mut cache = VALIDATOR_CACHE.lock().unwrap();
+            cache.insert(block_number, result.clone());
+            tracing::debug!("Succeed to update cache, block_number: {}, evm_block_number: {}", 
+                block_number, self.evm.block().number);
         }
+
+        Ok(result)
     }
 
-    pub(crate) fn eth_call(&mut self, to: Address, data: Bytes) -> Result<Bytes, BlockExecutionError> {
+    pub(crate) fn eth_call(
+        &mut self, 
+        to: Address, 
+        data: Bytes
+    ) -> Result<Bytes, BlockExecutionError> {
         let tx_env = BscTxEnv {
             base: TxEnv {
                 caller: Address::default(),
@@ -209,13 +247,13 @@ where
 
     fn verify_cascading_fields(
         &self,
-        _header: &Header,
-        _parent: &Header,
-        _snap: &Snapshot,
+        header: &Header,
+        parent: &Header,
+        snap: &Snapshot,
     ) -> Result<(), BlockExecutionError> {
-        self.verify_block_time_for_ramanujan(_snap, _header, _parent)?;
-        self.verify_vote_attestation(_snap, _header, _parent)?;
-        self.verify_seal(_snap, _header)?;
+        self.verify_block_time_for_ramanujan(snap, header, parent)?;
+        self.verify_vote_attestation(snap, header, parent)?;
+        self.verify_seal(snap, header)?;
 
         Ok(())
     }
@@ -228,11 +266,14 @@ where
     ) -> Result<(), BlockExecutionError> {
         if self.spec.is_ramanujan_active_at_block(header.number()) {
             let block_interval = snap.block_interval;
-            // TODO: refine it later.
-            // let back_off_time = self.calculate_back_off_time(snapshot, header);
-            let back_off_time=0;
-            
-            if calculate_millisecond_timestamp(header) < calculate_millisecond_timestamp(parent) + block_interval + back_off_time {
+            // let back_off_time = self.parlia.back_off_time(snap, parent, header);
+            // TODO: fix it later.
+            let back_off_time = 0;
+            let current_ts: u64 = calculate_millisecond_timestamp(header);
+            let parent_ts: u64 = calculate_millisecond_timestamp(parent);
+            if current_ts < parent_ts + block_interval + back_off_time {
+                tracing::warn!("Block time is too early, block_number: {}, ts: {:?}, parent_ts: {:?}, block_interval: {:?}, back_off_time: {:?}", 
+                    header.number(), current_ts, parent_ts, block_interval, back_off_time);
                 return Err(BscBlockExecutionError::FutureBlock {
                     block_number: header.number(),
                     hash: header.hash_slow(),
@@ -305,7 +346,6 @@ where
                 (0..64).filter(|&i| (attestation.vote_address_set >> i) & 1 != 0)
             );
             let bit_set_count = vote_bit_set.len();
-
             if bit_set_count > validators_count {
                 return Err(BscBlockExecutionError::InvalidAttestationVoteCount(GotExpected {
                     got: bit_set_count as u64,

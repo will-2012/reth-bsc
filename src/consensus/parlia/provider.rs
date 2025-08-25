@@ -254,26 +254,29 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
 
             headers_to_apply.reverse();
             let mut working_snapshot = base_snapshot;
-            tracing::info!("Start to apply headers to base snapshot, base_snapshot: {:?}, target_snapshot: {}, apply_length: {}", 
+            tracing::debug!("Start to apply headers to base snapshot, base_snapshot: {:?}, target_snapshot: {}, apply_length: {}", 
                 working_snapshot.block_number, block_number, headers_to_apply.len());
 
             for (_index, header) in headers_to_apply.iter().enumerate() {
                 let epoch_remainder = header.number % working_snapshot.epoch_num;
                 let miner_check_len = working_snapshot.miner_history_check_len();
                 let is_epoch_boundary = header.number > 0 && epoch_remainder == miner_check_len;
-                
+                let mut turn_length = None;
                 let validators_info = if is_epoch_boundary {
                     let checkpoint_block_number = header.number - miner_check_len;
+                    tracing::debug!("Try update validator set, checkpoint_block_number: {:?}, block_number: {:?}", checkpoint_block_number, header.number);
                     let checkpoint_header = headers_to_apply.iter()
                         .find(|h| h.number == checkpoint_block_number);
                     
                     if let Some(checkpoint_header) = checkpoint_header {
-                        let parsed = self.parlia.parse_validators_from_header(checkpoint_header);                    
+                        let parsed = self.parlia.parse_validators_from_header(checkpoint_header);
+                        turn_length = self.parlia.get_turn_length_from_header(checkpoint_header).ok()?;
                         parsed
                     } else {
                         match crate::node::evm::util::HEADER_CACHE_READER.lock().unwrap().get_header_by_number(checkpoint_block_number) {
                             Some(header_ref) => {
-                                let parsed = self.parlia.parse_validators_from_header(&header_ref);                    
+                                let parsed = self.parlia.parse_validators_from_header(&header_ref);
+                                turn_length = self.parlia.get_turn_length_from_header(&header_ref).ok()?;                    
                                 parsed
                             },
                             None => {
@@ -291,11 +294,9 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
 
                 let new_validators = validators_info.consensus_addrs;
                 let vote_addrs = validators_info.vote_addrs;
-                let turn_length = self.parlia.get_turn_length_from_header(header).ok()?;
-
-                // Parse attestation from header for vote tracking
                 let attestation = self.parlia.get_vote_attestation_from_header(header).ok()?;
 
+                tracing::debug!("Start to apply header to snapshot, block_number: {:?}, turn_length: {:?}", header.number, turn_length);
                 // Apply header to snapshot (now determines hardfork activation internally)
                 working_snapshot = match working_snapshot.apply(
                     header.beneficiary,
