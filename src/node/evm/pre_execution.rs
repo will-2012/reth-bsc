@@ -56,7 +56,7 @@ where
         block: &BlockEnv
     ) -> Result<(), BlockExecutionError> {
         let block_number = block.number.to::<u64>();
-        tracing::info!("Check new block, block_number: {}", block_number);
+        tracing::debug!("Check new block, block_number: {}", block_number);
 
         let header = crate::node::evm::util::HEADER_CACHE_READER
             .lock()
@@ -121,7 +121,7 @@ where
         }
         if header.number % epoch_length == 0 {
             let (validator_set, vote_addresses) = self.get_current_validators(header.number-1 /*mostly in cache*/)?;
-            tracing::info!("validator_set: {:?}, vote_addresses: {:?}", validator_set, vote_addresses);
+            tracing::debug!("validator_set: {:?}, vote_addresses: {:?}", validator_set, vote_addresses);
             
             let vote_addrs_map = if vote_addresses.is_empty() {
                 HashMap::new()
@@ -132,7 +132,7 @@ where
                     .zip(vote_addresses)
                     .collect::<std::collections::HashMap<_, _>>()
             };
-            tracing::info!("vote_addrs_map: {:?}", vote_addrs_map);
+            tracing::debug!("vote_addrs_map: {:?}", vote_addrs_map);
             self.inner_ctx.current_validators = Some((validator_set, vote_addrs_map));
         }
     
@@ -143,7 +143,7 @@ where
             let (to, data) = self.system_contracts.get_max_elected_validators();
             let bz = self.eth_call(to, data)?;
             let max_elected_validators = self.system_contracts.unpack_data_into_max_elected_validators(bz.as_ref());
-            tracing::info!("max_elected_validators: {:?}", max_elected_validators);
+            tracing::debug!("max_elected_validators: {:?}", max_elected_validators);
             self.inner_ctx.max_elected_validators = Some(max_elected_validators);
 
             let (to, data) = self.system_contracts.get_validator_election_info();
@@ -170,7 +170,7 @@ where
                     vote_address: vote_addr,
                 })
                 .collect();
-            tracing::info!("validator_election_info: {:?}", validator_election_info);
+            tracing::debug!("validator_election_info: {:?}", validator_election_info);
             self.inner_ctx.validators_election_info = Some(validator_election_info);
         }
 

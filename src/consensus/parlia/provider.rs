@@ -254,7 +254,7 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
 
             headers_to_apply.reverse();
             let mut working_snapshot = base_snapshot;
-            tracing::info!("Start to apply headers to base snapshot, base_snapshot: {:?}, target_snapshot: {}, apply_length: {}", 
+            tracing::debug!("Start to apply headers to base snapshot, base_snapshot: {:?}, target_snapshot: {}, apply_length: {}", 
                 working_snapshot.block_number, block_number, headers_to_apply.len());
 
             for (_index, header) in headers_to_apply.iter().enumerate() {
