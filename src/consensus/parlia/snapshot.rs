@@ -136,6 +136,7 @@ impl Snapshot {
         }
 
         // Clone base.
+        let original_snap = self.clone();
         let mut snap = self.clone();
         snap.block_hash = next_header.hash_slow();
         snap.block_number = block_number;
@@ -155,11 +156,8 @@ impl Snapshot {
         let is_bohr = chain_spec.is_bohr_active_at_timestamp(header_timestamp);
         if is_bohr {
             if snap.sign_recently(validator) {
-                // TODO: fix it later.
-                if block_number != 43195406 {
-                    tracing::warn!("Failed to apply block due to over-proposed, validator: {:?}, block_number: {:?}", validator, block_number);
-                    return None;
-                }
+                tracing::warn!("Failed to apply block due to over-proposed, validator: {:?}, block_number: {:?}", validator, block_number);
+                return None;
             }
         } else {
             for (_, &v) in &snap.recent_proposers {
@@ -240,6 +238,7 @@ impl Snapshot {
             snap.validators = new_validators;
             snap.validators_map = validators_map;
         }
+        tracing::debug!("Succeed to apply snapshot, block_number: {:?}, original_snap: {:?}, new_snap: {:?}", block_number, original_snap, snap);
         Some(snap)
     }
 
