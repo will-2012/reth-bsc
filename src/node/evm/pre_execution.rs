@@ -115,10 +115,6 @@ where
         }
 
         let epoch_length = self.parlia.get_epoch_length(&header);
-        if (header.number + 1)% epoch_length == 0 {
-            // cache it on pre block.
-            self.get_current_validators(header.number)?;
-        }
         if header.number % epoch_length == 0 {
             let (validator_set, vote_addresses) = self.get_current_validators(header.number-1 /*mostly in cache*/)?;
             tracing::debug!("validator_set: {:?}, vote_addresses: {:?}", validator_set, vote_addresses);
@@ -177,7 +173,7 @@ where
         Ok(())
     }
 
-    fn get_current_validators(
+    pub(crate) fn get_current_validators(
         &mut self, 
         block_number: u64
     ) -> Result<(Vec<Address>, Vec<VoteAddress>), BlockExecutionError> {
@@ -266,9 +262,7 @@ where
     ) -> Result<(), BlockExecutionError> {
         if self.spec.is_ramanujan_active_at_block(header.number()) {
             let block_interval = snap.block_interval;
-            // let back_off_time = self.parlia.back_off_time(snap, parent, header);
-            // TODO: fix it later.
-            let back_off_time = 0;
+            let back_off_time = self.parlia.back_off_time(snap, parent, header);
             let current_ts: u64 = calculate_millisecond_timestamp(header);
             let parent_ts: u64 = calculate_millisecond_timestamp(parent);
             if current_ts < parent_ts + block_interval + back_off_time {

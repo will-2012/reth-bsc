@@ -14,7 +14,7 @@ use revm::{context::{BlockEnv, TxEnv}, Database as RevmDatabase, DatabaseCommit}
 use alloy_consensus::{Header, TxReceipt, Transaction as AlloyTransaction, SignableTransaction};
 use alloy_primitives::{Address, hex, TxKind, U256};
 use std::collections::HashMap;
-use tracing::{debug, warn};
+use tracing::warn;
 use reth_primitives_traits::GotExpected;
 use bit_set::BitSet;
 
@@ -96,6 +96,12 @@ where
             return Err(BscBlockExecutionError::UnexpectedSystemTx.into());
         }
 
+        let epoch_length = self.parlia.get_epoch_length(&header);
+        if (header.number + 1)% epoch_length == 0 {
+            // cache it on pre block.
+            self.get_current_validators(header.number)?;
+        }
+
         tracing::debug!("Succeed to finalize new block, block_number: {}", block.number);
         Ok(())
     }
@@ -138,16 +144,8 @@ where
 
         let expected = self.parlia.get_validator_bytes_from_header(header_ref).unwrap();
         if !validator_bytes.as_slice().eq(expected.as_slice()) {
-            if header_ref.number == 19249200 || header_ref.number == 34815800 || 
-            header_ref.number == 34816000 || header_ref.number == 34844000 || 
-            header_ref.number == 41835600 || header_ref.number == 41893200 || 
-            header_ref.number == 43132600 {
-                // TODO: fix this later, maybe need parent evm/block_executor etc.
-                // drive into it.
-                return Ok(());
-            }
-            debug!("validator bytes: {:?}", hex::encode(validator_bytes));
-            debug!("expected: {:?}", hex::encode(expected));
+            warn!("validator bytes: {:?}", hex::encode(validator_bytes));
+            warn!("expected: {:?}", hex::encode(expected));
             return Err(BlockExecutionError::msg("Invalid validators"));
         }
         tracing::debug!("Succeed to verify validators, block_number: {}, epoch_length: {}", header_ref.number, epoch_length);
