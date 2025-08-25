@@ -294,8 +294,6 @@ impl<DB: Database + 'static> SnapshotProvider for EnhancedDbSnapshotProvider<DB>
 
                 let new_validators = validators_info.consensus_addrs;
                 let vote_addrs = validators_info.vote_addrs;
-
-                // Parse attestation from header for vote tracking
                 let attestation = self.parlia.get_vote_attestation_from_header(header).ok()?;
 
                 tracing::debug!("Start to apply header to snapshot, block_number: {:?}, turn_length: {:?}", header.number, turn_length);
