@@ -45,6 +45,9 @@ where
         crate::shared::set_header_provider(Arc::new(ctx.provider().clone()))
             .unwrap_or_else(|e| panic!("Failed to set global header provider: {}", e));
 
+        crate::shared::set_state_provider_factory(Arc::new(ctx.provider().clone()))
+            .unwrap_or_else(|_| panic!("Failed to set global state provider factory"));
+
         Ok(Arc::new(BscConsensus::new(ctx.chain_spec())))
     }
 }

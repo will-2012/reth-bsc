@@ -1,12 +1,11 @@
 use super::executor::BscBlockExecutor;
 use crate::evm::transaction::BscTxEnv;
-
 use reth_chainspec::{EthChainSpec, EthereumHardforks, Hardforks};
-use reth_evm::{eth::receipt_builder::ReceiptBuilder, execute::BlockExecutionError, Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv};
+use reth_evm::{eth::receipt_builder::ReceiptBuilder, execute::BlockExecutionError, Database, Evm, FromRecoveredTx, FromTxWithEncoded, IntoTxEnv, EvmFactory};
 use reth_primitives::TransactionSigned;
-use reth_revm::State;
+use reth_revm::{State, database::StateProviderDatabase};
 use revm::{
-    context::{BlockEnv, TxEnv},
+    context::{BlockEnv, TxEnv, CfgEnv},
     primitives::{Address, Bytes, TxKind, U256},
 };
 use alloy_consensus::{TxReceipt, Header, BlockHeader};
@@ -205,6 +204,94 @@ where
         }
 
         Ok(result)
+    }
+
+    /// Execute eth_call at a specific block height instead of current EVM
+    #[allow(dead_code)]
+    fn eth_call_at_block(&mut self, 
+        to: Address, 
+        data: Bytes,
+        block_number: u64
+    ) -> Result<Bytes, BlockExecutionError> {
+        let header = crate::node::evm::util::HEADER_CACHE_READER
+            .lock()
+            .unwrap()
+            .get_header_by_number(block_number)
+            .ok_or(BlockExecutionError::msg("Failed to get target block header"))?;
+
+        let blob_params = self.spec.blob_params_at_timestamp(header.timestamp);
+        let spec = crate::node::evm::config::revm_spec_by_timestamp_and_block_number(
+            self.spec.clone(),
+            header.timestamp(),
+            header.number(),
+        );
+        let mut cfg_env = CfgEnv::new()
+            .with_chain_id(self.spec.chain().id())
+            .with_spec(spec);
+        if let Some(blob_params) = &blob_params {
+            cfg_env.set_max_blobs_per_tx(blob_params.max_blobs_per_tx);
+        }
+        let blob_excess_gas_and_price = header.excess_blob_gas.zip(blob_params).map(|(excess_blob_gas, params)| {
+            let blob_gasprice = params.calc_blob_fee(excess_blob_gas);
+            revm::context_interface::block::BlobExcessGasAndPrice { excess_blob_gas, blob_gasprice }
+        });
+        let eth_spec = revm::primitives::hardfork::SpecId::from(spec);
+
+        let block_env = BlockEnv {
+            number: U256::from(header.number()),
+            beneficiary: header.beneficiary(),
+            timestamp: U256::from(header.timestamp()),
+            difficulty: if eth_spec >= revm::primitives::hardfork::SpecId::MERGE { U256::ZERO } else { header.difficulty() },
+            prevrandao: if eth_spec >= revm::primitives::hardfork::SpecId::MERGE {
+                Some(header.difficulty().into())
+            } else {
+                None
+            },
+            gas_limit: header.gas_limit(),
+            basefee: header.base_fee_per_gas().unwrap_or_default(),
+            blob_excess_gas_and_price,
+        };
+
+        let state_provider_factory = crate::shared::get_state_provider_factory()
+            .ok_or(BlockExecutionError::msg("State provider factory not available"))?;
+        let state_provider = state_provider_factory
+            .history_by_block_number(block_number)
+            .map_err(|err| BlockExecutionError::other(err))?;
+        
+        let state_db = StateProviderDatabase::new(state_provider);
+        let evm_env = reth_evm::EvmEnv { cfg_env, block_env };
+        let evm_factory = crate::node::evm::factory::BscEvmFactory::default();
+        let mut target_evm = evm_factory.create_evm(state_db, evm_env);
+
+        let tx_env = BscTxEnv {
+            base: TxEnv {
+                caller: Address::default(),
+                kind: TxKind::Call(to),
+                nonce: 0,
+                gas_limit: header.gas_limit(),
+                value: U256::ZERO,
+                data: data.clone(),
+                gas_price: 0,
+                chain_id: Some(self.spec.chain().id()),
+                gas_priority_fee: None,
+                access_list: Default::default(),
+                blob_hashes: Vec::new(),
+                max_fee_per_blob_gas: 0,
+                tx_type: 0,
+                authorization_list: Default::default(),
+            },
+            is_system_transaction: false,
+        };
+
+        let result_and_state = target_evm.transact(tx_env).map_err(|err| BlockExecutionError::other(err))?;
+        if !result_and_state.result.is_success() {
+            tracing::error!("Failed to eth call at block {}, to: {:?}, data: {:?}", block_number, to, data);
+            return Err(BlockExecutionError::msg("ETH call at target block failed"));
+        }
+        
+        let output = result_and_state.result.output()
+            .ok_or(BlockExecutionError::msg("ETH call at target block output is None"))?;
+        Ok(output.clone())
     }
 
     pub(crate) fn eth_call(

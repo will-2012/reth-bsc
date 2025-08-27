@@ -2,7 +2,7 @@ use crate::consensus::parlia::SnapshotProvider;
 use std::sync::{Arc, OnceLock};
 use alloy_consensus::Header;
 use alloy_primitives::B256;
-use reth_provider::HeaderProvider;
+use reth_provider::{HeaderProvider, StateProviderFactory};
 
 /// Function type for HeaderProvider::header() access (by hash)
 type HeaderByHashFn = Arc<dyn Fn(&B256) -> Option<Header> + Send + Sync>;
@@ -18,6 +18,9 @@ static HEADER_BY_HASH_PROVIDER: OnceLock<HeaderByHashFn> = OnceLock::new();
 
 /// Global header provider function - HeaderProvider::header_by_number() by number  
 static HEADER_BY_NUMBER_PROVIDER: OnceLock<HeaderByNumberFn> = OnceLock::new();
+
+/// Global state provider factory
+static STATE_PROVIDER_FACTORY: OnceLock<Arc<dyn StateProviderFactory + Send + Sync>> = OnceLock::new();
 
 /// Store the snapshot provider globally
 pub fn set_snapshot_provider(provider: Arc<dyn SnapshotProvider + Send + Sync>) -> Result<(), Arc<dyn SnapshotProvider + Send + Sync>> {
@@ -92,4 +95,14 @@ pub fn get_header_by_hash(block_hash: &B256) -> Option<Header> {
 /// Get header by number - simplified interface
 pub fn get_header_by_number(block_number: u64) -> Option<Header> {
     get_header_by_number_from_provider(block_number)
+}
+
+/// Store the state provider factory globally
+pub fn set_state_provider_factory(factory: Arc<dyn StateProviderFactory + Send + Sync>) -> Result<(), Arc<dyn StateProviderFactory + Send + Sync>> {
+    STATE_PROVIDER_FACTORY.set(factory)
+}
+
+/// Get the global state provider factory
+pub fn get_state_provider_factory() -> Option<&'static Arc<dyn StateProviderFactory + Send + Sync>> {
+    STATE_PROVIDER_FACTORY.get()
 }
