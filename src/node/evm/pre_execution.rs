@@ -117,7 +117,8 @@ where
         let epoch_length = self.parlia.get_epoch_length(&header);
         if header.number % epoch_length == 0 {
             let (validator_set, vote_addresses) = self.get_current_validators(header.number-1 /*mostly in cache*/)?;
-            tracing::debug!("validator_set: {:?}, vote_addresses: {:?}", validator_set, vote_addresses);
+            tracing::debug!("validator_set: {:?}, vote_addresses: {:?}, block_number: {}, epoch_length: {}", 
+                validator_set, vote_addresses, header.number, epoch_length);
             
             let vote_addrs_map = if vote_addresses.is_empty() {
                 HashMap::new()
@@ -128,7 +129,8 @@ where
                     .zip(vote_addresses)
                     .collect::<std::collections::HashMap<_, _>>()
             };
-            tracing::debug!("vote_addrs_map: {:?}", vote_addrs_map);
+            tracing::debug!("vote_addrs_map: {:?}, block_number: {}, epoch_length: {}", 
+                vote_addrs_map, header.number, epoch_length);
             self.inner_ctx.current_validators = Some((validator_set, vote_addrs_map));
         }
     
