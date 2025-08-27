@@ -27,6 +27,7 @@ use bit_set::BitSet;
 
 const BLST_DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
 
+#[allow(dead_code)]
 static VALIDATOR_CACHE: LazyLock<Mutex<LruMap<u64, (Vec<Address>, Vec<VoteAddress>), ByLength>>> = LazyLock::new(|| {
     Mutex::new(LruMap::new(ByLength::new(1024)))
 });
@@ -176,38 +177,37 @@ where
         &mut self, 
         block_number: u64
     ) -> Result<(Vec<Address>, Vec<VoteAddress>), BlockExecutionError> {
-        {
-            let mut cache = VALIDATOR_CACHE.lock().unwrap();
-            if let Some(cached_result) = cache.get(&block_number) {
-                tracing::debug!("Succeed to query cached validator result, block_number: {}, evm_block_number: {}", 
-                    block_number, self.evm.block().number);
-                return Ok(cached_result.clone());
-            }
-        }
+        // {
+        //     let mut cache = VALIDATOR_CACHE.lock().unwrap();
+        //     if let Some(cached_result) = cache.get(&block_number) {
+        //         tracing::debug!("Succeed to query cached validator result, block_number: {}, evm_block_number: {}", 
+        //             block_number, self.evm.block().number);
+        //         return Ok(cached_result.clone());
+        //     }
+        // }
 
         let result = if self.spec.is_luban_active_at_block(block_number) {
             let (to, data) = self.system_contracts.get_current_validators();
-            let output = self.eth_call(to, data)?;
+            let output = self.eth_call_at_block(to, data, block_number)?;
             self.system_contracts.unpack_data_into_validator_set(&output)
         } else {
             let (to, data) = self.system_contracts.get_current_validators_before_luban(block_number);
-            let output = self.eth_call(to, data)?;
+            let output = self.eth_call_at_block(to, data, block_number)?;
             let validator_set = self.system_contracts.unpack_data_into_validator_set_before_luban(&output);
             (validator_set, Vec::new())
         };
 
-        {
-            let mut cache = VALIDATOR_CACHE.lock().unwrap();
-            cache.insert(block_number, result.clone());
-            tracing::debug!("Succeed to update cache, block_number: {}, evm_block_number: {}", 
-                block_number, self.evm.block().number);
-        }
+        // {
+        //     let mut cache = VALIDATOR_CACHE.lock().unwrap();
+        //     cache.insert(block_number, result.clone());
+        //     tracing::debug!("Succeed to update cache, block_number: {}, evm_block_number: {}", 
+        //         block_number, self.evm.block().number);
+        // }
 
         Ok(result)
     }
 
     /// Execute eth_call at a specific block height instead of current EVM
-    #[allow(dead_code)]
     fn eth_call_at_block(&mut self, 
         to: Address, 
         data: Bytes,

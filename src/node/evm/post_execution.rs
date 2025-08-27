@@ -96,11 +96,11 @@ where
             return Err(BscBlockExecutionError::UnexpectedSystemTx.into());
         }
 
-        let epoch_length = self.parlia.get_epoch_length(&header);
-        if (header.number + 1)% epoch_length == 0 {
-            // cache it on pre block.
-            self.get_current_validators(header.number)?;
-        }
+        // let epoch_length = self.parlia.get_epoch_length(&header);
+        // if (header.number + 1)% epoch_length == 0 {
+        //     // cache it on pre block.
+        //     self.get_current_validators(header.number)?;
+        // }
 
         tracing::debug!("Succeed to finalize new block, block_number: {}", block.number);
         Ok(())
