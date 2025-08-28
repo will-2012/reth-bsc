@@ -25,7 +25,8 @@ use reth_network::{NetworkConfig, NetworkHandle, NetworkManager};
 use reth_network_api::PeersInfo;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, oneshot, Mutex};
-use tracing::info;
+use tracing::{info, debug, warn, error};
+use alloy_primitives::hex;
 
 pub mod block_import;
 pub mod bootnodes;
@@ -158,11 +159,24 @@ impl BscNetworkBuilder {
     {
         let Self { engine_handle_rx } = self;
 
+        info!("🔧 BSC Network: Starting network configuration");
+        debug!("BSC Network: Chain spec = {:?}", ctx.chain_spec().chain());
+        
         let network_builder = ctx.network_config_builder()?;
         let mut discv4 = Discv4Config::builder();
 
         if let Some(boot_nodes) = ctx.chain_spec().bootnodes() {
+            info!("🌐 BSC Network: Adding {} boot nodes", boot_nodes.len());
+            for (i, node) in boot_nodes.iter().enumerate() {
+                info!("  Boot node {}: {}:{} (ID: {}...)", 
+                      i + 1, 
+                      node.address, 
+                      node.tcp_port,
+                      hex::encode(&node.id.0[..4]));
+            }
             discv4.add_boot_nodes(boot_nodes);
+        } else {
+            warn!("⚠️  BSC Network: No boot nodes configured!");
         }
         discv4.lookup_interval(Duration::from_millis(500));
 

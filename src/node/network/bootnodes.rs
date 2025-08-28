@@ -1,4 +1,6 @@
 use reth_discv4::NodeRecord;
+use tracing::debug;
+use alloy_primitives::hex;
 
 pub fn bsc_mainnet_nodes() -> Vec<NodeRecord> {
     parse_nodes(BSC_MAINNET_BOOTNODES)
@@ -11,7 +13,15 @@ pub fn bsc_testnet_nodes() -> Vec<NodeRecord> {
 
 /// Returns parsed bsc qanet nodes
 pub fn bsc_qanet_nodes() -> Vec<NodeRecord> {
-    parse_nodes(BSC_QANET_BOOTNODES)
+    debug!("🌐 Loading BSC QANet bootnodes");
+    let nodes = parse_nodes(BSC_QANET_BOOTNODES);
+    debug!("🌐 Loaded {} QANet bootnodes", nodes.len());
+    for (i, node) in nodes.iter().enumerate() {
+        debug!("  QANet bootnode {}: {}:{} (ID: {}...)", 
+               i + 1, node.address, node.tcp_port, 
+               hex::encode(&node.id.0[..4]));
+    }
+    nodes
 }
 
 /// Parses all the nodes
