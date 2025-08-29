@@ -14,6 +14,7 @@ use reth_chainspec::EthChainSpec;
 use reth_primitives::{Receipt, RecoveredBlock, SealedBlock, SealedHeader};
 use reth_provider::BlockExecutionResult;
 use std::sync::Arc;
+use tracing::{debug, info, warn, error};
 
 /// A basic Bsc consensus builder.
 #[derive(Debug, Default, Clone, Copy)]
@@ -60,22 +61,56 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
         header: &SealedHeader,
         parent: &SealedHeader,
     ) -> Result<(), ConsensusError> {
-        validate_against_parent_hash_number(header.header(), parent)?;
+        info!("🔍 BSC Consensus: Starting header validation against parent");
+        debug!("  Header: #{} (hash: {:?})", header.number, header.hash());
+        debug!("  Parent: #{} (hash: {:?})", parent.number, parent.hash());
+        
+        // 验证父区块哈希和区块号
+        match validate_against_parent_hash_number(header.header(), parent) {
+            Ok(()) => {
+                debug!("✅ BSC Consensus: Parent hash/number validation passed");
+            }
+            Err(e) => {
+                error!("❌ BSC Consensus: Parent hash/number validation failed: {:?}", e);
+                return Err(e);
+            }
+        }
 
+        // 验证时间戳
         let header_ts = calculate_millisecond_timestamp(header.header());
         let parent_ts = calculate_millisecond_timestamp(parent.header());
+        
+        debug!("  Header timestamp: {} ms ({} s)", header_ts, header_ts / 1000);
+        debug!("  Parent timestamp: {} ms ({} s)", parent_ts, parent_ts / 1000);
+        
         if header_ts <= parent_ts {
+            error!("❌ BSC Consensus: Timestamp validation failed - header timestamp ({}) <= parent timestamp ({})", header_ts, parent_ts);
             return Err(ConsensusError::TimestampIsInPast {
                 parent_timestamp: parent_ts,
                 timestamp: header_ts,
             })
         }
+        debug!("✅ BSC Consensus: Timestamp validation passed");
 
-        // ensure that the blob gas fields for this block
+        // 验证blob gas字段 (EIP-4844)
         if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
-            validate_against_parent_4844(header.header(), parent.header(), blob_params)?;
+            debug!("🔍 BSC Consensus: Validating blob gas fields (EIP-4844)");
+            debug!("  Blob params: {:?}", blob_params);
+            
+            match validate_against_parent_4844(header.header(), parent.header(), blob_params) {
+                Ok(()) => {
+                    debug!("✅ BSC Consensus: Blob gas validation passed");
+                }
+                Err(e) => {
+                    error!("❌ BSC Consensus: Blob gas validation failed: {:?}", e);
+                    return Err(e);
+                }
+            }
+        } else {
+            debug!("ℹ️  BSC Consensus: No blob gas validation needed for timestamp {}", header.timestamp);
         }
 
+        info!("✅ BSC Consensus: Header validation against parent completed successfully");
         Ok(())
     }
 }
@@ -90,13 +125,26 @@ impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> Consensus<BscBlock
         body: &BscBlockBody,
         header: &SealedHeader,
     ) -> Result<(), ConsensusError> {
-        Consensus::<BscBlock>::validate_body_against_header(&self.inner, body, header)
+        debug!("🔍 BSC Consensus: Starting body validation against header #{}", header.number);
+        
+        match Consensus::<BscBlock>::validate_body_against_header(&self.inner, body, header) {
+            Ok(()) => {
+                debug!("✅ BSC Consensus: Body validation against header passed");
+                Ok(())
+            }
+            Err(e) => {
+                error!("❌ BSC Consensus: Body validation against header failed: {:?}", e);
+                Err(e)
+            }
+        }
     }
 
     fn validate_block_pre_execution(
         &self,
         _block: &SealedBlock<BscBlock>,
     ) -> Result<(), ConsensusError> {
+        debug!("🔍 BSC Consensus: Pre-execution validation (currently disabled)");
+        
         // Check ommers hash
         // let ommers_hash = block.body().calculate_ommers_root();
         // if Some(block.ommers_hash()) != ommers_hash {
@@ -120,6 +168,7 @@ impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> Consensus<BscBlock
         //     return Ok(())
         // }
 
+        debug!("✅ BSC Consensus: Pre-execution validation completed (no checks performed)");
         Ok(())
     }
 }
@@ -132,7 +181,18 @@ impl<ChainSpec: EthChainSpec<Header = Header> + BscHardforks> FullConsensus<BscP
         block: &RecoveredBlock<BscBlock>,
         result: &BlockExecutionResult<Receipt>,
     ) -> Result<(), ConsensusError> {
-        FullConsensus::<BscPrimitives>::validate_block_post_execution(&self.inner, block, result)
+        debug!("🔍 BSC Consensus: Starting post-execution validation for block #{}", block.number);
+        
+        match FullConsensus::<BscPrimitives>::validate_block_post_execution(&self.inner, block, result) {
+            Ok(()) => {
+                debug!("✅ BSC Consensus: Post-execution validation passed");
+                Ok(())
+            }
+            Err(e) => {
+                error!("❌ BSC Consensus: Post-execution validation failed: {:?}", e);
+                Err(e)
+            }
+        }
     }
 }
 
