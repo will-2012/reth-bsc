@@ -9,6 +9,11 @@ pub fn bsc_testnet_nodes() -> Vec<NodeRecord> {
     parse_nodes(BSC_TESTNET_BOOTNODES)
 }
 
+/// Returns parsed bsc qanet nodes
+pub fn bsc_qanet_nodes() -> Vec<NodeRecord> {
+    parse_nodes(BSC_QANET_BOOTNODES)
+}
+
 /// Parses all the nodes
 pub fn parse_nodes(nodes: impl IntoIterator<Item = impl AsRef<str>>) -> Vec<NodeRecord> {
     nodes.into_iter().map(|s| s.as_ref().parse().unwrap()).collect()
@@ -31,3 +36,7 @@ pub static BSC_TESTNET_BOOTNODES: &[&str] = &[
     "enode://ecd664250ca19b1074dcfbfb48576a487cc18d052064222a363adacd2650f8e08fb3db9de7a7aecb48afa410eaeb3285e92e516ead01fb62598553aed91ee15e@3.209.122.123:30311",
     "enode://665cf77ca26a8421cfe61a52ac312958308d4912e78ce8e0f61d6902e4494d4cc38f9b0dd1b23a427a7a5734e27e5d9729231426b06bb9c73b56a142f83f6b68@52.72.123.113:30311",
 ];
+
+
+/// Bsc qanet boot nodes.
+pub static BSC_QANET_BOOTNODES: &[&str] = &[];

@@ -13,39 +13,39 @@ name = "reth-bsc"
 path = "src/main.rs"
 
 [dependencies]
-reth = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-cli = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-cli-commands = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-basic-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-engine-local = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-chainspec = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-cli-util = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-discv4 = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb", features = ["test-utils"] }
-reth-engine-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-ethereum-forks = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb", features = ["serde"] }
-reth-ethereum-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-ethereum-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-eth-wire = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-eth-wire-types = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-evm = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-evm-ethereum = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-node-core = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-network = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb", features = ["test-utils"] }
-reth-network-p2p = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb", features = ["test-utils"] }
-reth-network-peers = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-payload-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-primitives-traits = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb", features = ["test-utils"] }
-reth-rpc-eth-api = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-rpc-engine-api = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-trie-common = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
-reth-trie-db = { git = "https://github.com/paradigmxyz/reth", rev = "3f86efc3bb" }
+reth = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-cli = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-cli-commands = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-basic-payload-builder = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-db = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-engine-local = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-chainspec = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-cli-util = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-discv4 = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a", features = ["test-utils"] }
+reth-engine-primitives = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-ethereum-forks = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a", features = ["serde"] }
+reth-ethereum-payload-builder = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-ethereum-primitives = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-eth-wire = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-eth-wire-types = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-evm = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-evm-ethereum = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-node-core = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-revm = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-network = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a", features = ["test-utils"] }
+reth-network-p2p = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-network-api = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-node-ethereum = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a", features = ["test-utils"] }
+reth-network-peers = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-payload-primitives = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-primitives = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-primitives-traits = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-provider = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a", features = ["test-utils"] }
+reth-rpc-eth-api = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-rpc-engine-api = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-tracing = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-trie-common = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
+reth-trie-db = { git = "https://github.com/will-2012/reth", rev = "3dd4c3a" }
 revm = "28.0.1"
 
 # alloy dependencies
