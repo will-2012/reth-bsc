@@ -93,21 +93,23 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
         debug!("✅ BSC Consensus: Timestamp validation passed");
 
         // 验证blob gas字段 (EIP-4844)
-        if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
-            debug!("🔍 BSC Consensus: Validating blob gas fields (EIP-4844)");
-            debug!("  Blob params: {:?}", blob_params);
-            
-            match validate_against_parent_4844(header.header(), parent.header(), blob_params) {
-                Ok(()) => {
-                    debug!("✅ BSC Consensus: Blob gas validation passed");
+        if self.chain_spec.is_london_active_at_block(header.number) {
+            if let Some(blob_params) = self.chain_spec.blob_params_at_timestamp(header.timestamp) {
+                debug!("🔍 BSC Consensus: Validating blob gas fields (EIP-4844)");
+                debug!("  Blob params: {:?}", blob_params);
+                
+                match validate_against_parent_4844(header.header(), parent.header(), blob_params) {
+                    Ok(()) => {
+                        debug!("✅ BSC Consensus: Blob gas validation passed");
+                    }
+                    Err(e) => {
+                        error!("❌ BSC Consensus: Blob gas validation failed: {:?}, header {:?}, parent {:?}", e, header.header(), parent.header());
+                        return Err(e);
+                    }
                 }
-                Err(e) => {
-                    error!("❌ BSC Consensus: Blob gas validation failed: {:?}, header {:?}, parent {:?}", e, header.header(), parent.header());
-                    return Err(e);
-                }
+            } else {
+                debug!("ℹ️  BSC Consensus: No blob gas validation needed for timestamp {}", header.timestamp);
             }
-        } else {
-            debug!("ℹ️  BSC Consensus: No blob gas validation needed for timestamp {}", header.timestamp);
         }
 
         info!("✅ BSC Consensus: Header validation against parent completed successfully");
