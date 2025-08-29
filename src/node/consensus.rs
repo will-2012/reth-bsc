@@ -102,7 +102,7 @@ impl<ChainSpec: EthChainSpec + BscHardforks> HeaderValidator for BscConsensus<Ch
                     debug!("✅ BSC Consensus: Blob gas validation passed");
                 }
                 Err(e) => {
-                    error!("❌ BSC Consensus: Blob gas validation failed: {:?}", e);
+                    error!("❌ BSC Consensus: Blob gas validation failed: {:?}, header {:?}, parent {:?}", e, header.header(), parent.header());
                     return Err(e);
                 }
             }
