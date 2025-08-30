@@ -5,7 +5,7 @@ use alloy_eips::eip7840::BlobParams;
 use alloy_genesis::Genesis;
 use alloy_primitives::{Address, B256, U256};
 use reth_chainspec::{
-    BaseFeeParams, ChainSpec, DepositContract, EthChainSpec, EthereumHardfork, EthereumHardforks,
+    BaseFeeParams, ChainKind, ChainSpec, DepositContract, EthChainSpec, EthereumHardfork, EthereumHardforks,
     ForkCondition, ForkFilter, ForkId, Hardforks, Head, NamedChain,
 };
 use reth_discv4::NodeRecord;
@@ -14,6 +14,7 @@ use std::{fmt::Display, sync::Arc};
 
 pub mod bsc;
 pub mod bsc_chapel;
+pub mod bsc_rialto;
 pub mod parser;
 
 pub use bsc_chapel::bsc_testnet;
@@ -29,6 +30,10 @@ impl EthChainSpec for BscChainSpec {
     type Header = Header;
 
     fn blob_params_at_timestamp(&self, timestamp: u64) -> Option<BlobParams> {
+        if self.inner.chain().id() == 714 && timestamp <= 1754967084 {
+            // Compatible with incorrect fork configuration of qa net.
+            return None;
+        }
         // BSC doesn't modify blob params in Prague, while ETH does.
         // This is a key difference between BSC and ETH chain specifications.
         if self.inner.is_cancun_active_at_timestamp(timestamp) {
@@ -79,12 +84,15 @@ impl EthChainSpec for BscChainSpec {
     }
 
     fn bootnodes(&self) -> Option<Vec<NodeRecord>> {
-        match self.inner.chain().try_into().ok()? {
-            NamedChain::BinanceSmartChain => {
+        match self.inner.chain().kind() {
+            ChainKind::Named(NamedChain::BinanceSmartChain) => {
                 Some(crate::node::network::bootnodes::bsc_mainnet_nodes())
             }
-            NamedChain::BinanceSmartChainTestnet => {
+            ChainKind::Named(NamedChain::BinanceSmartChainTestnet) => {
                 Some(crate::node::network::bootnodes::bsc_testnet_nodes())
+            }
+            ChainKind::Id(714) => {
+                Some(crate::node::network::bootnodes::bsc_qanet_nodes())
             }
             _ => None,
         }
@@ -146,9 +154,16 @@ impl EthExecutorSpec for BscChainSpec {
 impl BscChainSpec {
     /// Get the head information for this chain spec
     pub fn head(&self) -> Head {
-        match self.inner.chain().try_into().ok().unwrap_or(NamedChain::BinanceSmartChain) {
-            NamedChain::BinanceSmartChain => bsc::head(),
-            NamedChain::BinanceSmartChainTestnet => bsc_chapel::head(),
+        match self.inner.chain().kind() {
+            ChainKind::Named(NamedChain::BinanceSmartChain) => {
+                bsc::head()
+            }
+            ChainKind::Named(NamedChain::BinanceSmartChainTestnet) => {
+                bsc_chapel::head()
+            }
+            ChainKind::Id(714) => {
+                bsc_rialto::head()
+            }
             _ => bsc::head(),
         }
     }
