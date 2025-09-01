@@ -5,7 +5,7 @@ use alloy_eips::eip7840::BlobParams;
 use alloy_genesis::Genesis;
 use alloy_primitives::{Address, B256, U256};
 use reth_chainspec::{
-    BaseFeeParams, ChainSpec, DepositContract, EthChainSpec, EthereumHardfork, EthereumHardforks,
+    BaseFeeParams, ChainKind, ChainSpec, DepositContract, EthChainSpec, EthereumHardfork, EthereumHardforks,
     ForkCondition, ForkFilter, ForkId, Hardforks, Head, NamedChain,
 };
 use reth_discv4::NodeRecord;
@@ -14,6 +14,7 @@ use std::{fmt::Display, sync::Arc};
 
 pub mod bsc;
 pub mod bsc_chapel;
+pub mod bsc_rialto;
 pub mod parser;
 
 pub use bsc_chapel::bsc_testnet;
@@ -79,12 +80,15 @@ impl EthChainSpec for BscChainSpec {
     }
 
     fn bootnodes(&self) -> Option<Vec<NodeRecord>> {
-        match self.inner.chain().try_into().ok()? {
-            NamedChain::BinanceSmartChain => {
+        match self.inner.chain().kind() {
+            ChainKind::Named(NamedChain::BinanceSmartChain) => {
                 Some(crate::node::network::bootnodes::bsc_mainnet_nodes())
             }
-            NamedChain::BinanceSmartChainTestnet => {
+            ChainKind::Named(NamedChain::BinanceSmartChainTestnet) => {
                 Some(crate::node::network::bootnodes::bsc_testnet_nodes())
+            }
+            ChainKind::Id(bsc_rialto::RIALTO_CHAIN_ID) => {
+                Some(crate::node::network::bootnodes::bsc_qanet_nodes())
             }
             _ => None,
         }
@@ -146,9 +150,16 @@ impl EthExecutorSpec for BscChainSpec {
 impl BscChainSpec {
     /// Get the head information for this chain spec
     pub fn head(&self) -> Head {
-        match self.inner.chain().try_into().ok().unwrap_or(NamedChain::BinanceSmartChain) {
-            NamedChain::BinanceSmartChain => bsc::head(),
-            NamedChain::BinanceSmartChainTestnet => bsc_chapel::head(),
+        match self.inner.chain().kind() {
+            ChainKind::Named(NamedChain::BinanceSmartChain) => {
+                bsc::head()
+            }
+            ChainKind::Named(NamedChain::BinanceSmartChainTestnet) => {
+                bsc_chapel::head()
+            }
+            ChainKind::Id(bsc_rialto::RIALTO_CHAIN_ID) => {
+                bsc_rialto::head()
+            }
             _ => bsc::head(),
         }
     }
