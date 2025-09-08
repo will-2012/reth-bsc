@@ -1,3 +1,5 @@
 target/
 .idea/
 .vscode/
+genesis_local.json
+test-datadir/

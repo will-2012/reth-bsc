@@ -1,4 +1,4 @@
-use super::{bsc::bsc_mainnet, bsc_chapel::bsc_testnet, bsc_rialto::bsc_qanet, BscChainSpec};
+use super::{bsc::bsc_mainnet, bsc_chapel::bsc_testnet, bsc_rialto::bsc_qanet, local::bsc_local, BscChainSpec};
 use reth_cli::chainspec::ChainSpecParser;
 use std::sync::Arc;
 
@@ -26,6 +26,7 @@ pub fn chain_value_parser(s: &str) -> eyre::Result<Arc<BscChainSpec>> {
         "bsc" => Ok(Arc::new(BscChainSpec { inner: bsc_mainnet() })),
         "bsc-testnet" => Ok(Arc::new(BscChainSpec { inner: bsc_testnet() })),
         "bsc-qanet" => Ok(Arc::new(BscChainSpec { inner: bsc_qanet() })),
+        "local" => Ok(Arc::new(BscChainSpec { inner: bsc_local() })),
         _ => Err(eyre::eyre!("Unsupported chain: {}", s)),
     }
 }

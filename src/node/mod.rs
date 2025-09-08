@@ -32,9 +32,11 @@ pub mod consensus;
 pub mod engine;
 pub mod engine_api;
 pub mod evm;
+pub mod mining_config;
 pub mod network;
 pub mod primitives;
 pub mod storage;
+mod pooled_tx;
 
 /// Bsc addons configuring RPC types
 pub type BscNodeAddOns<N> = RpcAddOns<

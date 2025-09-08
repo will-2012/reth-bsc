@@ -24,7 +24,7 @@ use reth_network::{NetworkConfig, NetworkHandle, NetworkManager};
 use reth_network_api::PeersInfo;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, oneshot, Mutex};
-use tracing::info;
+use tracing::{info, warn};
 
 pub mod block_import;
 pub mod bootnodes;
@@ -192,7 +192,12 @@ impl BscNetworkBuilder {
         let (to_import, from_network) = mpsc::unbounded_channel();
         let (to_network, import_outcome) = mpsc::unbounded_channel();
 
-        let handle = ImportHandle::new(to_import, import_outcome);
+        let handle = ImportHandle::new(to_import.clone(), import_outcome);
+
+        // Expose the sender globally so that the miner can submit newly mined blocks
+        if crate::shared::set_block_import_sender(to_import.clone()).is_err() {
+            warn!(target: "bsc", "Block import sender already initialised; overriding skipped");
+        }
         
         // Import the necessary types for consensus
         use crate::consensus::ParliaConsensus;

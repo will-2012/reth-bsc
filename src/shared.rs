@@ -3,6 +3,8 @@ use std::sync::{Arc, OnceLock};
 use alloy_consensus::Header;
 use alloy_primitives::B256;
 use reth_provider::HeaderProvider;
+use crate::node::network::block_import::service::IncomingBlock;
+use tokio::sync::mpsc::UnboundedSender;
 
 /// Function type for HeaderProvider::header() access (by hash)
 type HeaderByHashFn = Arc<dyn Fn(&B256) -> Option<Header> + Send + Sync>;
@@ -18,6 +20,9 @@ static HEADER_BY_HASH_PROVIDER: OnceLock<HeaderByHashFn> = OnceLock::new();
 
 /// Global header provider function - HeaderProvider::header_by_number() by number  
 static HEADER_BY_NUMBER_PROVIDER: OnceLock<HeaderByNumberFn> = OnceLock::new();
+
+/// Global sender for submitting mined blocks to the import service
+static BLOCK_IMPORT_SENDER: OnceLock<UnboundedSender<IncomingBlock>> = OnceLock::new();
 
 /// Store the snapshot provider globally
 pub fn set_snapshot_provider(provider: Arc<dyn SnapshotProvider + Send + Sync>) -> Result<(), Arc<dyn SnapshotProvider + Send + Sync>> {
@@ -92,4 +97,14 @@ pub fn get_header_by_hash(block_hash: &B256) -> Option<Header> {
 /// Get header by number - simplified interface
 pub fn get_header_by_number(block_number: u64) -> Option<Header> {
     get_header_by_number_from_provider(block_number)
+}
+
+/// Store the block import sender globally. Returns an error if it was set before.
+pub fn set_block_import_sender(sender: UnboundedSender<IncomingBlock>) -> Result<(), UnboundedSender<IncomingBlock>> {
+    BLOCK_IMPORT_SENDER.set(sender)
+}
+
+/// Get a reference to the global block import sender, if initialized.
+pub fn get_block_import_sender() -> Option<&'static UnboundedSender<IncomingBlock>> {
+    BLOCK_IMPORT_SENDER.get()
 }

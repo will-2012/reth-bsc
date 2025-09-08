@@ -16,6 +16,7 @@ pub mod bsc;
 pub mod bsc_chapel;
 pub mod bsc_rialto;
 pub mod parser;
+mod local;
 
 pub use bsc_chapel::bsc_testnet;
 
@@ -160,7 +161,7 @@ impl BscChainSpec {
             ChainKind::Id(bsc_rialto::RIALTO_CHAIN_ID) => {
                 bsc_rialto::head()
             }
-            _ => bsc::head(),
+            _ => local::head(),
         }
     }
 }
