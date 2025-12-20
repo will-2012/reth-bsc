@@ -4,6 +4,7 @@ use crate::{
     node::{
         engine::BscBuiltPayload,
         evm::config::BscEvmConfig,
+        trie_root::RootDebuggerUpdater,
         miner::{
             config::{MiningConfig, keystore}, payload::{BscPayloadBuilder, BscPayloadJob, BscPayloadJobHandle}, signer::init_global_signer_from_k256, util::prepare_new_attributes
         },
@@ -20,7 +21,10 @@ use reth_ethereum_payload_builder::EthereumBuilderConfig;
 use reth_payload_primitives::BuiltPayload;
 use reth_primitives::TransactionSigned;
 use reth_primitives_traits::{SealedHeader, BlockBody};
-use reth_provider::{BlockNumReader, HeaderProvider, CanonStateSubscriptions, CanonStateNotification};
+use reth_provider::{
+    BlockNumReader, BlockReader, CanonStateNotification, CanonStateSubscriptions,
+    DatabaseProviderFactory, HeaderProvider, NewCanonicalChainSubscriptions,
+};
 use reth_tasks::TaskExecutor;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -58,13 +62,26 @@ pub struct SubmitContext {
 }
 
 /// NewWorkWorker responsible for listening to canonical state changes and triggering mining.
-pub struct NewWorkWorker<Provider> {
+pub struct NewWorkWorker<Provider>
+where
+    Provider: HeaderProvider<Header = alloy_consensus::Header>
+        + BlockNumReader
+        + reth_provider::StateProviderFactory
+        + CanonStateSubscriptions
+        + NewCanonicalChainSubscriptions
+        + reth_provider::NodePrimitivesProvider
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+{
     validator_address: Address,
     provider: Provider,
     snapshot_provider: Arc<dyn SnapshotProvider + Send + Sync>,
     mining_queue_tx: mpsc::UnboundedSender<MiningContext>,
     consensus: Arc<Parlia<BscChainSpec>>,
     pre_cached: Option<PrecachedState>,
+    root_debugger: RootDebuggerUpdater<Provider>,
 }
 
 impl<Provider> NewWorkWorker<Provider> 
@@ -73,6 +90,7 @@ where
         + BlockNumReader
         + reth_provider::StateProviderFactory
         + CanonStateSubscriptions
+        + NewCanonicalChainSubscriptions
         + reth_provider::NodePrimitivesProvider
         + Clone
         + Send
@@ -86,6 +104,12 @@ where
         mining_queue_tx: mpsc::UnboundedSender<MiningContext>,
         consensus: Arc<Parlia<BscChainSpec>>,
     ) -> Self {
+        // Keep enough canonical block overlays to bridge DB lag.
+        //
+        // If this is too small (e.g. 128), sparse/parallel root computation will frequently fall
+        // back to serial with errors like:
+        // `missing trie overlay blocks for range X..=Y (have 128)`.
+        let root_debugger = RootDebuggerUpdater::new(&provider, 4096);
         Self {
             validator_address,
             provider,
@@ -93,6 +117,7 @@ where
             mining_queue_tx,
             consensus,
             pre_cached: None,
+            root_debugger,
         }
     }
 
@@ -108,6 +133,9 @@ where
         loop {
             match notifications.next().await {
                 Some(event) => {
+                    // Keep trie root overlay cache up-to-date.
+                    self.root_debugger.drain();
+
                     let committed = event.committed();
                     let tip = committed.tip();
                     let is_reorg = matches!(event, CanonStateNotification::Reorg { .. });
@@ -432,8 +460,10 @@ where
     Provider: HeaderProvider<Header = alloy_consensus::Header>
         + BlockNumReader
         + reth_provider::StateProviderFactory
+        + DatabaseProviderFactory<Provider: BlockReader + BlockNumReader + HeaderProvider>
         + CanonStateSubscriptions
         + Clone
+        + Unpin
         + Send
         + Sync
         + 'static,
@@ -565,7 +595,8 @@ where
             self.validator_address
         );
 
-        let evm_config = BscEvmConfig::new(self.chain_spec.clone());
+        let evm_config = BscEvmConfig::new(self.chain_spec.clone())
+            .with_provider_factory(self.provider.clone());
         let payload_builder = BscPayloadBuilder::new(
             self.provider.clone(), 
             self.pool.clone(), 
@@ -1008,7 +1039,19 @@ where
 }
 
 /// Miner that handles block production for BSC.
-pub struct BscMiner<Pool, Provider> {
+pub struct BscMiner<Pool, Provider>
+where
+    Provider: HeaderProvider<Header = alloy_consensus::Header>
+        + BlockNumReader
+        + reth_provider::StateProviderFactory
+        + CanonStateSubscriptions
+        + NewCanonicalChainSubscriptions
+        + reth_provider::NodePrimitivesProvider
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+{
     validator_address: Address,
     signing_key: SigningKey,
     new_work_worker: NewWorkWorker<Provider>,
@@ -1026,8 +1069,11 @@ where
     Provider: HeaderProvider<Header = alloy_consensus::Header>
         + BlockNumReader
         + reth_provider::StateProviderFactory
+        + DatabaseProviderFactory<Provider: BlockReader + BlockNumReader + HeaderProvider>
         + CanonStateSubscriptions
+        + NewCanonicalChainSubscriptions
         + Clone
+        + Unpin
         + Send
         + Sync
         + 'static,

@@ -7,11 +7,23 @@ use crate::node::evm::config::BscEvmConfig;
 use crate::node::miner::bid_simulator::BidSimulator;
 use crate::node::miner::bsc_miner::{MiningContext, SubmitContext};
 use crate::node::pool::BlacklistedAddressError;
-use reth_provider::StateProviderFactory;
+use crate::node::trie_root::{
+    insert_payload_processor_state_root, insert_payload_processor_state_root_error, mark_payload_processor_started, payload_build_trace_id_scope,
+    current_payload_build_attempt,
+    payload_build_attempt_scope,
+    take_payload_processor_hook_drop,
+    PayloadProcessorKey, PayloadProcessorStateRootResult,
+};
+use alloy_evm::block::BlockExecutor;
+use reth_provider::{BlockNumReader, HeaderProvider, StateProviderFactory};
 use reth_revm::{database::StateProviderDatabase, db::State};
 use reth_evm::{ConfigureEvm, NextBlockEnvAttributes};
 use reth_evm::execute::BlockBuilder;
 use alloy_evm::Evm;
+use reth_evm::execute::WithTxEnv;
+use reth_evm::TxEnvFor;
+use reth_engine_primitives::TreeConfig;
+use reth_engine_tree::tree::{ExecutionEnv, PayloadProcessor};
 use reth_payload_primitives::{PayloadBuilderError, BuiltPayload};
 use reth::transaction_pool::{TransactionPool, PoolTransaction};
 use reth_primitives::TransactionSigned;
@@ -42,6 +54,8 @@ use reth_chainspec::EthChainSpec;
 use reth_chainspec::EthereumHardforks;
 use crate::consensus::eip4844::{calc_blob_fee, BLOB_TX_BLOB_GAS_PER_BLOB};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::convert::Infallible;
+use crate::node::trie_root::trie_overlay_cache;
 
 
 /// Delay left over for mining calculation
@@ -125,7 +139,14 @@ pub struct BscPayloadBuilder<Pool, Client, EvmConfig = BscEvmConfig> {
 
 impl<Pool, Client, EvmConfig> BscPayloadBuilder<Pool, Client, EvmConfig> 
 where
-    Client: StateProviderFactory + 'static,
+    Client: StateProviderFactory
+        + reth_provider::DatabaseProviderFactory<
+            Provider: reth_provider::BlockNumReader + reth_provider::HeaderProvider + reth_provider::BlockReader
+        >
+        + Clone
+        + Send
+        + Sync
+        + 'static,
     EvmConfig: ConfigureEvm<NextBlockEnvCtx = NextBlockEnvAttributes> + 'static,
     <EvmConfig as ConfigureEvm>::Primitives: reth_primitives_traits::NodePrimitives<
         BlockHeader = alloy_consensus::Header,
@@ -163,6 +184,11 @@ where
     /// 
     /// Returns a `Result` containing the built payload or an error.
     pub async fn build_payload(&self, args: BscBuildArguments<EthPayloadBuilderAttributes>) -> Result<BscBuiltPayload, Box<dyn std::error::Error + Send + Sync>> {
+        // NOTE: payload building is async and may hop threads; use task-local trace_id so the
+        // synchronous `builder.finish()` can still disambiguate per-attempt root computation.
+        let trace_id_scope = args.trace_id;
+        payload_build_trace_id_scope(trace_id_scope, async move {
+        (|| -> Result<BscBuiltPayload, Box<dyn std::error::Error + Send + Sync>> {
         let build_start = std::time::Instant::now();
         let BscBuildArguments { mut cached_reads, config, cancel, trace_id, min_gas_tip } = args;
         let PayloadConfig { parent_header, attributes } = config;
@@ -186,6 +212,164 @@ where
             )
             .map_err(PayloadBuilderError::other)?;
 
+        // Start engine-tree's PayloadProcessor to compute sparse state root concurrently while we
+        // execute txs for payload building. We disable caching+prewarming (no tx execution in
+        // prewarm task) and only use the state update stream via the state_hook.
+        let parent_number = parent_header.number();
+        let parent_hash = parent_header.hash_slow();
+        let attempt = current_payload_build_attempt().unwrap_or(0);
+        let key = PayloadProcessorKey::new(parent_number, parent_hash, trace_id, attempt);
+
+        // Provide an empty tx iterator because we don't want PayloadProcessor to execute txs
+        // itself; we only stream state updates from our own executor.
+        type DummyTx<EvmCfg> =
+            WithTxEnv<TxEnvFor<EvmCfg>, reth_primitives_traits::Recovered<reth_primitives_traits::TxTy<<EvmCfg as ConfigureEvm>::Primitives>>>;
+        let empty_txs = std::iter::empty::<Result<DummyTx<EvmConfig>, Infallible>>();
+
+        let tree_cfg = TreeConfig::default()
+            .without_caching_and_prewarming(true)
+            .with_max_proof_task_concurrency(128);
+
+        // Construct a minimal engine-tree ExecutionEnv. Prewarming is disabled so `evm_env` is
+        // effectively unused (still required by the API).
+        let exec_env = ExecutionEnv { evm_env: Default::default(), hash: parent_hash, parent_hash };
+
+        // Use a valid DB tip for the consistent view (parent may not always be persisted yet).
+        let provider_ro = self.client.database_provider_ro().map_err(PayloadBuilderError::other)?;
+        let db_last = provider_ro.best_block_number().map_err(PayloadBuilderError::other)?;
+        let db_tip = provider_ro
+            .sealed_header(db_last)
+            .map_err(PayloadBuilderError::other)?
+            .ok_or_else(|| PayloadBuilderError::other(std::io::Error::other("db tip missing")))?;
+
+        let consistent_view =
+            reth_provider::providers::ConsistentDbView::new(self.client.clone(), Some((db_tip.hash(), db_last)));
+        // Build trie input for the parent state (DB + overlays up to parent).
+        // If the DB tip is behind the parent and we can't fully cover the gap from trie_overlay,
+        // then we skip starting payload_processor (comparison only; does not affect sealing).
+        let mut trie_input = reth_trie::TrieInput::default();
+        let mut can_start_payload_processor = true;
+        // If the DB tip is exactly at the parent height but points to a different hash, then the
+        // parent block we're building on is not the DB's canonical tip. In that case we cannot
+        // build a consistent view for `parent_hash` (ConsistentDbView requires tip hash == sealed_header(number)),
+        // so skip starting payload_processor (comparison only).
+        if db_last == parent_number && db_tip.hash() != parent_hash {
+            can_start_payload_processor = false;
+        }
+        if db_last < parent_number {
+            if let Some(cache) = trie_overlay_cache() {
+                let needed_range = (db_last + 1)..=parent_number;
+                let overlays = cache.read().get_range(needed_range.clone());
+                if overlays.len() != (parent_number - db_last) as usize {
+                    can_start_payload_processor = false;
+                } else {
+                    for entry in overlays {
+                        if entry.number == parent_number && entry.hash != parent_hash {
+                            can_start_payload_processor = false;
+                            break;
+                        }
+                        let Some(nodes) = entry.trie_updates.as_deref() else {
+                            can_start_payload_processor = false;
+                            break;
+                        };
+                        trie_input.append_cached_ref(nodes, &entry.hashed_state);
+                    }
+                }
+            } else {
+                can_start_payload_processor = false;
+            }
+        }
+
+        if can_start_payload_processor {
+            // Record that payload_processor is started for this parent key so the block builder
+            // can decide whether it should wait for the sparse root or fall back to serial.
+            mark_payload_processor_started(key);
+            let mut processor = PayloadProcessor::new(
+                Default::default(),
+                self.evm_config.clone(),
+                &tree_cfg,
+                Default::default(),
+            );
+            let mut pp_handle = processor.spawn_without_caching_and_prewarming(
+                exec_env,
+                empty_txs,
+                consistent_view,
+                trie_input,
+                &tree_cfg,
+            );
+
+            // Start time for payload_processor wall-time measurement.
+            let pp_start = std::time::Instant::now();
+
+            // Attach payload_processor state hook to our executor.
+            builder.executor_mut().set_state_hook(Some(Box::new(pp_handle.state_hook())));
+
+            // Wait for the payload processor result on a background thread (do not block payload building).
+            std::thread::spawn(move || {
+                match pp_handle.state_root() {
+                    Ok(outcome) => {
+                        let end = std::time::Instant::now();
+                        let duration_ms_total = end.duration_since(pp_start).as_millis();
+                        // Best-effort: wait briefly for the hook-drop timestamp to be recorded.
+                        let duration_ms_post_exec = {
+                            let deadline = std::time::Instant::now() + std::time::Duration::from_millis(50);
+                            loop {
+                                if let Some(t) = take_payload_processor_hook_drop(key) {
+                                    break Some(end.duration_since(t).as_millis());
+                                }
+                                if std::time::Instant::now() >= deadline {
+                                    break None;
+                                }
+                                std::thread::sleep(std::time::Duration::from_millis(1));
+                            }
+                        };
+                        insert_payload_processor_state_root(
+                            key,
+                            PayloadProcessorStateRootResult {
+                                state_root: outcome.state_root,
+                                trie_updates: outcome.trie_updates,
+                                completed_at: end,
+                                duration_ms: duration_ms_total,
+                                post_exec_duration_ms: duration_ms_post_exec,
+                            },
+                        );
+                        tracing::debug!(
+                            target: "bsc::builder",
+                            trace_id,
+                            parent_number,
+                            parent_hash = ?parent_hash,
+                            state_root = ?outcome.state_root,
+                            duration_ms_total,
+                            duration_ms_post_exec = ?duration_ms_post_exec,
+                            "PayloadProcessor computed state root"
+                        );
+                    }
+                    Err(err) => {
+                        insert_payload_processor_state_root_error(key, err.to_string());
+                        tracing::debug!(
+                            target: "bsc::builder",
+                            trace_id,
+                            parent_number,
+                            parent_hash = ?parent_hash,
+                            %err,
+                            "PayloadProcessor state root unavailable"
+                        );
+                    }
+                }
+            });
+        } else {
+            tracing::debug!(
+                target: "bsc::builder",
+                trace_id,
+                parent_number,
+                parent_hash = ?parent_hash,
+                db_last,
+                "Skip starting PayloadProcessor (missing trie_overlay coverage)"
+            );
+        }
+
+        // Apply pre-execution changes AFTER installing the optional payload_processor hook, so the
+        // hook sees any pre-execution system contract state transitions.
         builder.apply_pre_execution_changes().map_err(|err| {
             warn!(
                 target: "payload_builder",
@@ -422,6 +606,8 @@ where
                 Err(err) => return Err(Box::new(PayloadBuilderError::evm(err))),
             };
 
+            // payload_processor path: no explicit kick needed
+
              // add to the total blob gas used if the transaction successfully executed
             if let Some(blob_tx) = tx.as_eip4844() {
                 block_blob_count += blob_tx.tx().blob_versioned_hashes.len() as u64;
@@ -469,6 +655,7 @@ where
 
         // add system txs to payload.
         let finalize_start = std::time::Instant::now();
+        // Drop the hook sender so PayloadProcessor can finalize the root.
         let BlockBuilderOutcome { execution_result, hashed_state, trie_updates, block } = builder.finish(&state_provider)?;
         let mut sealed_block = Arc::new(block.sealed_block().clone());
         
@@ -553,6 +740,8 @@ where
             executed_trie: Some(ExecutedTrieUpdates::Present(Arc::new(trie_updates))),
         };
         Ok(payload)
+        })()
+        }).await
     }
 
     /// Build an empty payload without any user transactions from the pool
@@ -698,7 +887,16 @@ where
 
 impl<Pool, Client, EvmConfig> BscPayloadJob<Pool, Client, EvmConfig>
 where
-    Client: StateProviderFactory + reth_provider::HeaderProvider<Header = alloy_consensus::Header> + reth_provider::BlockHashReader + Clone + 'static,
+    Client: StateProviderFactory
+        + reth_provider::DatabaseProviderFactory<
+            Provider: reth_provider::BlockNumReader + reth_provider::HeaderProvider + reth_provider::BlockReader
+        >
+        + reth_provider::HeaderProvider<Header = alloy_consensus::Header>
+        + reth_provider::BlockHashReader
+        + Clone
+        + Send
+        + Sync
+        + 'static,
     EvmConfig: ConfigureEvm<NextBlockEnvCtx = NextBlockEnvAttributes> + 'static,
     <EvmConfig as ConfigureEvm>::Primitives: reth_primitives_traits::NodePrimitives<BlockHeader = alloy_consensus::Header, SignedTx = alloy_consensus::EthereumTxEnvelope<alloy_consensus::TxEip4844>, Block = crate::node::primitives::BscBlock, Receipt = reth_ethereum_primitives::Receipt>,
     Pool: TransactionPool<Transaction: PoolTransaction<Consensus = TransactionSigned>> + 'static,
@@ -802,7 +1000,7 @@ where
                     timeout_ms = self.timeout.as_millis(),
                     "Outer loop: Job already timeout, returning best payload"
                 );
-                return self.try_return_best_payload();
+                return self.try_return_best_payload().await;
             };
             
             tokio::select! {
@@ -823,8 +1021,11 @@ where
                             
                             let builder = self.builder.clone();
                             let build_args = self.build_args.clone();
+                            let attempt = self.retries;
                             self.join_handle.spawn(async move {
-                                builder.build_payload(build_args).await
+                                payload_build_attempt_scope(attempt, async move {
+                                    builder.build_payload(build_args).await
+                                }).await
                             });
                         }
                         None => {
@@ -881,7 +1082,7 @@ where
                                         retries = self.retries,
                                         "Job already timeout, returning best payload immediately"
                                     );
-                                    return self.try_return_best_payload();
+                                    return self.try_return_best_payload().await;
                                 };
                                 
                                 tokio::select! {
@@ -897,7 +1098,7 @@ where
                                             job_elapsed_ms = self.job_start_time.elapsed().as_millis(),
                                             "try return best payload due to has no time"
                                         );
-                                        return self.try_return_best_payload();
+                                        return self.try_return_best_payload().await;
                                     }
 
                                     // Abort by new head.
@@ -933,7 +1134,7 @@ where
                                                 last_cost_time = ?elapsed,
                                                 "try return best payload due to mining_delay < elapsed"
                                             );
-                                            return self.try_return_best_payload();
+                                            return self.try_return_best_payload().await;
                                         } else if std::time::Duration::from_millis(mining_delay) < elapsed * TIME_MULTIPLIER {
                                             if let Err(err) = self.try_build_tx.send(()) {
                                                 warn!(
@@ -945,7 +1146,7 @@ where
                                                     error = ?err,
                                                     "Failed to send to try build queue"
                                                 );
-                                                return self.try_return_best_payload();
+                                                return self.try_return_best_payload().await;
                                             }
                                             debug!(
                                                 target: "bsc::miner::payload",
@@ -969,7 +1170,7 @@ where
                                                     error = ?err,
                                                     "Failed to send to try build queue"
                                                 );
-                                                return self.try_return_best_payload();
+                                                return self.try_return_best_payload().await;
                                             }
                                             debug!(
                                                 target: "bsc::miner::payload",
@@ -1000,7 +1201,7 @@ where
                                 retries = self.retries,
                                 "Failed to build payload task"
                             );
-                            return self.try_return_best_payload();
+                            return self.try_return_best_payload().await;
                         },
                         Some(Err(join_err)) => {
                             let elapsed = start_time.elapsed();
@@ -1014,7 +1215,7 @@ where
                                 error = %join_err,
                                 "Failed to join payload build task"
                             );
-                            return self.try_return_best_payload();
+                            return self.try_return_best_payload().await;
                         },
                         None => {
                             // No task completed, continue to next iteration
@@ -1037,7 +1238,7 @@ where
                         "Try return best payload due to has no time"
                     );
                     self.build_args.cancel.clone().cancel();
-                    return self.try_return_best_payload();
+                    return self.try_return_best_payload().await;
                 }
                 
                 // Abort by new head.
@@ -1062,7 +1263,7 @@ where
     }
 
     /// Try to return the best payload to result channel
-    fn try_return_best_payload(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn try_return_best_payload(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let best_bid = self.simulator.get_best_bid(self.mining_ctx.parent_header.hash());
         if let Some(bid) = best_bid {
             info!(
@@ -1101,6 +1302,78 @@ where
             
             // If in-turn, build an empty payload as fallback
             if self.mining_ctx.is_inturn {
+                // If there is an in-flight build task (or a finished one not yet joined), wait for
+                // it briefly before building an empty payload.
+                //
+                // This avoids producing empty blocks while a "real" payload is already being built.
+                if !self.join_handle.is_empty() {
+                    let grace = std::time::Duration::from_millis(200);
+                    let wait_start = std::time::Instant::now();
+                    let wait_until = std::time::Instant::now() + grace;
+
+                    while std::time::Instant::now() < wait_until && !self.join_handle.is_empty() {
+                        let remaining = wait_until.saturating_duration_since(std::time::Instant::now());
+                        match tokio::time::timeout(remaining, self.join_handle.join_next()).await {
+                            Ok(Some(Ok(Ok(payload)))) => {
+                                let payload_tx_count = payload.block().body().transaction_count();
+                                let waited_ms = wait_start.elapsed().as_millis();
+                                info!(
+                                    target: "bsc::miner::payload",
+                                    trace_id = self.trace_id,
+                                    block_number = payload.block().header().number(),
+                                    block_hash = %payload.block().hash(),
+                                    is_inturn = self.mining_ctx.is_inturn,
+                                    tx_count = payload_tx_count,
+                                    waited_ms,
+                                    grace_ms = grace.as_millis(),
+                                    "Received in-flight payload build result during empty-payload fallback; using it"
+                                );
+                                self.potential_payloads.push(payload);
+                                break;
+                            }
+                            Ok(Some(Ok(Err(err)))) => {
+                                warn!(
+                                    target: "bsc::miner::payload",
+                                    trace_id = self.trace_id,
+                                    is_inturn = self.mining_ctx.is_inturn,
+                                    %err,
+                                    "In-flight payload build failed during empty-payload fallback"
+                                );
+                            }
+                            Ok(Some(Err(err))) => {
+                                warn!(
+                                    target: "bsc::miner::payload",
+                                    trace_id = self.trace_id,
+                                    is_inturn = self.mining_ctx.is_inturn,
+                                    %err,
+                                    "Failed to join in-flight payload build task during empty-payload fallback"
+                                );
+                            }
+                            Ok(None) => break, // nothing left to join
+                            Err(_) => break,   // timeout
+                        }
+                    }
+
+                    // If waiting produced a payload, try to send it.
+                    if let Some(best_payload) = self.pick_best_payload() {
+                        if let Err(err) = self.result_tx.send(SubmitContext {
+                            mining_ctx: self.mining_ctx.clone(),
+                            payload: best_payload,
+                            cancel: self.build_args.cancel.clone(),
+                        }) {
+                            warn!(
+                                target: "bsc::miner::payload",
+                                trace_id = self.trace_id,
+                                is_inturn = self.mining_ctx.is_inturn,
+                                error = %err,
+                                "Failed to send joined payload to result channel"
+                            );
+                            return Err(Box::new(BscPayloadJobError::ResultChannelSendError(err.to_string())));
+                        }
+                        return Ok(());
+                    }
+                }
+
                 warn!(
                     target: "bsc::miner::payload",
                     trace_id = self.trace_id,
